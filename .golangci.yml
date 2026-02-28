@@ -1,0 +1,33 @@
+# Panex linter config
+# Philosophy: we'll be strict on correctness, linient on style during early development
+# We'll tighten style rules as cenventions emerge
+
+run:
+  timeout: 3m
+  go: "1.24"
+
+linters:
+  enable:
+    - errcheck        #unchecked errors are bugs
+    - govet           # catches subtle correctness issues (printf args, struct tags)
+    - staticcheck     # this will catch real bugs for us, its the best go linter
+    - unused          #dead code removal
+    - gosimple        # simplifications that the compiler wont do for us
+    - ineffassign     # assignments to vars that are never read
+    - typecheck       # type-checking errors, not supposed to fail if code compiles
+    - gofmt           # formatting enforcement
+    - goimports       # import grouping/ordering
+    - misspell        # typos in comments and strings
+    - bodyclose       # unclosed HTTP response bodies (matters when doing CDP)
+    - nilerr          # returning nil error after checking != nil
+
+linters-settings:
+  goimports:
+    local-prefixes: github.com/panex-dev/panex
+  misspell:
+    locale: US
+
+issues:
+  exclude-use-default: false
+  max-issues-per-linter: 0
+  max-same-issues: 0

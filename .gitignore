@@ -1,0 +1,28 @@
+#Go build output
+/bin/
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Test library
+*.test
+
+# Go coverage
+*.out
+coverage.html
+
+# Dependency directory (if vendoring)
+/vendor/
+
+#OS files
+.DS_Store
+Thumbs.db
+
+# Editor/IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
