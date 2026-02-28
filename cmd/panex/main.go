@@ -6,9 +6,9 @@ import (
 	"fmt"
 	"io"
 	"os"
-)
 
-const defaultConfigPath = "panex.toml"
+	panexconfig "github.com/panex-dev/panex/internal/config"
+)
 
 const usageText = `panex - development runtime for Chrome extensions
 
@@ -70,7 +70,7 @@ func runDev(args []string, stdout io.Writer) error {
 	// Suppress default flag package output so all user-facing errors stay in our format.
 	fs.SetOutput(io.Discard)
 
-	configPath := fs.String("config", defaultConfigPath, "Path to panex configuration file")
+	configPath := fs.String("config", panexconfig.DefaultPath, "Path to panex configuration file")
 	if err := fs.Parse(args); err != nil {
 		return &cliError{
 			code: 2,
@@ -85,7 +85,22 @@ func runDev(args []string, stdout io.Writer) error {
 		}
 	}
 
-	return writef(stdout, "panex dev (skeleton)\nconfig=%s\n", *configPath)
+	cfg, err := panexconfig.Load(*configPath)
+	if err != nil {
+		return &cliError{
+			code: 2,
+			msg:  fmt.Sprintf("failed to load config %q: %v", *configPath, err),
+		}
+	}
+
+	return writef(
+		stdout,
+		"panex dev (skeleton)\nconfig=%s\nsource_dir=%s\nout_dir=%s\nport=%d\n",
+		*configPath,
+		cfg.Extension.SourceDir,
+		cfg.Extension.OutDir,
+		cfg.Server.Port,
+	)
 }
 
 func writef(w io.Writer, format string, args ...any) error {
