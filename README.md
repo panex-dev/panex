@@ -1,13 +1,20 @@
 # Panex
 
-A developemtn runtime for Chrome extensions. Save -> Instantly see behavior across contexts with state inspection and replay.
+A development runtime for Chrome extensions. Save and instantly see behavior across contexts with state inspection and replay.
 
-> **Status:** Early developent. Not usable yet.
+> **Status:** Early development. Not usable yet.
 
 ## Prerequisites
 
 - Go 1.24+
 - [golangci-lint](https://golangci-lint.run/welcome/install/) v1.64.5
+- [goimports](https://pkg.go.dev/golang.org/x/tools/cmd/goimports)
+
+## Setup
+
+```bash
+go mod verify
+```
 
 ## Development
 ```bash
