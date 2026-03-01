@@ -28,6 +28,7 @@ make build  # compile to ./bin/panex
 
 - `agent/`: Chrome Dev Agent extension (`pnpm run check|test|build`)
 - `inspector/`: SolidJS timeline inspector (`pnpm run check|test|build`)
+- `shared/protocol/`: shared TypeScript protocol contract consumed by both clients
 
 ## Architecture Decisions
 
