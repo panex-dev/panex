@@ -8,10 +8,13 @@ import (
 	"io"
 	"os"
 	"os/signal"
+	"sync/atomic"
 	"syscall"
 
+	"github.com/panex-dev/panex/internal/build"
 	panexconfig "github.com/panex-dev/panex/internal/config"
 	"github.com/panex-dev/panex/internal/daemon"
+	"github.com/panex-dev/panex/internal/protocol"
 )
 
 const usageText = `panex - development runtime for Chrome extensions
@@ -25,6 +28,15 @@ Usage:
 var version = "dev"
 
 var startDev = startDevServer
+var buildFailureSeq uint64
+
+type buildRunner interface {
+	Build(ctx context.Context, changedPaths []string) (build.Result, error)
+}
+
+type envelopeBroadcaster interface {
+	Broadcast(message protocol.Envelope) error
+}
 
 func main() {
 	if err := run(os.Args[1:], os.Stdout); err != nil {
@@ -127,8 +139,100 @@ func startDevServer(cfg panexconfig.Config, stdout io.Writer) error {
 		return err
 	}
 
+	builder, err := build.NewEsbuildBuilder(cfg.Extension.SourceDir, cfg.Extension.OutDir)
+	if err != nil {
+		return fmt.Errorf("configure esbuild: %w", err)
+	}
+
+	changeEvents := make(chan daemon.FileChangeEvent, 64)
+	watcher, err := daemon.NewFileWatcher(
+		cfg.Extension.SourceDir,
+		daemon.DefaultWatchDebounce,
+		func(event daemon.FileChangeEvent) {
+			select {
+			case changeEvents <- event:
+			default:
+			}
+		},
+	)
+	if err != nil {
+		return fmt.Errorf("configure file watcher: %w", err)
+	}
+
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
-	return server.Run(ctx)
+	runErrCh := make(chan error, 3)
+
+	go func() {
+		runErrCh <- server.Run(ctx)
+	}()
+	go func() {
+		runErrCh <- watcher.Run(ctx)
+	}()
+	go func() {
+		runErrCh <- runBuildLoop(ctx, builder, server, changeEvents)
+	}()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return nil
+		case runErr := <-runErrCh:
+			if runErr == nil {
+				continue
+			}
+
+			stop()
+			return runErr
+		}
+	}
+}
+
+func runBuildLoop(
+	ctx context.Context,
+	builder buildRunner,
+	server envelopeBroadcaster,
+	changeEvents <-chan daemon.FileChangeEvent,
+) error {
+	for {
+		select {
+		case <-ctx.Done():
+			return nil
+		case event := <-changeEvents:
+			result, err := builder.Build(ctx, event.Paths)
+			if err != nil {
+				result = build.Result{
+					BuildID:      fmt.Sprintf("build-failed-%d", atomic.AddUint64(&buildFailureSeq, 1)),
+					Success:      false,
+					DurationMS:   0,
+					ChangedFiles: event.Paths,
+					Errors:       []string{err.Error()},
+				}
+			}
+
+			if broadcastErr := server.Broadcast(
+				protocol.NewBuildComplete(
+					protocol.Source{
+						Role: protocol.SourceDaemon,
+						ID:   "daemon-1",
+					},
+					protocol.BuildComplete{
+						BuildID:      result.BuildID,
+						Success:      result.Success,
+						DurationMS:   result.DurationMS,
+						ChangedFiles: result.ChangedFiles,
+					},
+				),
+			); broadcastErr != nil && !errors.Is(ctx.Err(), context.Canceled) {
+				// Broadcast failures are non-fatal to the daemon loop; disconnected clients should not stop builds.
+				_ = writef(os.Stderr, "broadcast build.complete failed: %v\n", broadcastErr)
+			}
+
+			// Keep diagnostics available in daemon logs until inspector/event-store steps are implemented.
+			for _, diagnostic := range result.Errors {
+				_ = writef(os.Stderr, "build %s error: %s\n", result.BuildID, diagnostic)
+			}
+		}
+	}
 }
