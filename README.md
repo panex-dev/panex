@@ -24,6 +24,11 @@ make test   # run tests with race detector
 make build  # compile to ./bin/panex
 ```
 
+## Frontend Packages
+
+- `agent/`: Chrome Dev Agent extension (`pnpm run check|test|build`)
+- `inspector/`: SolidJS timeline inspector (`pnpm run check|test|build`)
+
 ## Architecture Decisions
 
 See [docs/adr/](docs/adr/) for all architecture decision records.
