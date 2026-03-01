@@ -1,7 +1,14 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
-import { formatTime, fromLiveEnvelope, fromSnapshot, mergeEntries, summarizeEnvelope } from "../src/timeline";
+import {
+  filterEntries,
+  formatTime,
+  fromLiveEnvelope,
+  fromSnapshot,
+  mergeEntries,
+  summarizeEnvelope
+} from "../src/timeline";
 import type { Envelope, EventSnapshot } from "../src/protocol";
 
 function envelope(name: Envelope["name"]): Envelope {
@@ -67,5 +74,65 @@ describe("timeline summaries", () => {
     const label = formatTime(1700000000000);
     assert.equal(typeof label, "string");
     assert.notEqual(label.length, 0);
+  });
+});
+
+describe("timeline filters", () => {
+  it("filters by envelope type and source role", () => {
+    const first = fromSnapshot({
+      id: 1,
+      recorded_at_ms: 1,
+      envelope: {
+        ...envelope("build.complete"),
+        t: "event",
+        src: { role: "daemon", id: "daemon-1" }
+      }
+    });
+    const second = fromSnapshot({
+      id: 2,
+      recorded_at_ms: 2,
+      envelope: {
+        ...envelope("command.reload"),
+        t: "command",
+        src: { role: "dev-agent", id: "agent-1" }
+      }
+    });
+
+    const filtered = filterEntries([first, second], {
+      search: "",
+      messageType: "command",
+      sourceRole: "dev-agent"
+    });
+
+    assert.equal(filtered.length, 1);
+    assert.equal(filtered[0].id, 2);
+  });
+
+  it("searches against envelope metadata and summary text", () => {
+    const build = fromSnapshot({
+      id: 1,
+      recorded_at_ms: 1,
+      envelope: envelope("build.complete")
+    });
+    const reload = fromSnapshot({
+      id: 2,
+      recorded_at_ms: 2,
+      envelope: envelope("command.reload")
+    });
+
+    const byName = filterEntries([build, reload], {
+      search: "command.reload",
+      messageType: "all",
+      sourceRole: "all"
+    });
+    assert.equal(byName.length, 1);
+    assert.equal(byName[0].id, 2);
+
+    const bySummary = filterEntries([build, reload], {
+      search: "build=build-1",
+      messageType: "all",
+      sourceRole: "all"
+    });
+    assert.equal(bySummary.length, 2);
   });
 });
