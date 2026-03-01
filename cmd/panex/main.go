@@ -126,10 +126,11 @@ func writeString(w io.Writer, value string) error {
 
 func startDevServer(cfg panexconfig.Config, stdout io.Writer) error {
 	server, err := daemon.NewWebSocketServer(daemon.WebSocketConfig{
-		Port:          cfg.Server.Port,
-		AuthToken:     cfg.Server.AuthToken,
-		ServerVersion: version,
-		DaemonID:      "daemon-1",
+		Port:           cfg.Server.Port,
+		AuthToken:      cfg.Server.AuthToken,
+		EventStorePath: cfg.Server.EventStorePath,
+		ServerVersion:  version,
+		DaemonID:       "daemon-1",
 	})
 	if err != nil {
 		return err
