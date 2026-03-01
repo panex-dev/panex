@@ -33,15 +33,17 @@ if (!appRoot) {
 }
 
 const inspectorID = `inspector-${safeClientID()}`;
+const filterStorageKey = "panex.inspector.filters.v1";
 
 function App() {
+  const initialFilter = loadFilterPreferences();
   const [connection, setConnection] = createSignal("connecting");
   const [timeline, setTimeline] = createSignal<TimelineEntry[]>([]);
   const [socketURL, setSocketURL] = createSignal("");
   const [lastError, setLastError] = createSignal<string | null>(null);
-  const [search, setSearch] = createSignal(defaultTimelineFilter.search);
-  const [messageType, setMessageType] = createSignal(defaultTimelineFilter.messageType);
-  const [sourceRole, setSourceRole] = createSignal(defaultTimelineFilter.sourceRole);
+  const [search, setSearch] = createSignal(initialFilter.search);
+  const [messageType, setMessageType] = createSignal(initialFilter.messageType);
+  const [sourceRole, setSourceRole] = createSignal(initialFilter.sourceRole);
 
   let listRef: HTMLDivElement | undefined;
   let socket: WebSocket | null = null;
@@ -62,6 +64,13 @@ function App() {
       if (listRef) {
         listRef.scrollTop = listRef.scrollHeight;
       }
+    });
+  });
+  createEffect(() => {
+    saveFilterPreferences({
+      search: search(),
+      messageType: messageType(),
+      sourceRole: sourceRole()
     });
   });
 
@@ -160,6 +169,11 @@ function App() {
         <p>${summarizeEnvelope(entry.envelope)}</p>
       </article>`;
     });
+  const resetFilters = () => {
+    setSearch(defaultTimelineFilter.search);
+    setMessageType(defaultTimelineFilter.messageType);
+    setSourceRole(defaultTimelineFilter.sourceRole);
+  };
 
   return html`<main class="layout">
     <header class="topbar">
@@ -181,7 +195,7 @@ function App() {
           <input
             type="search"
             value=${search}
-            placeholder="name, source, payload"
+            placeholder="name:command.reload src:daemon build-42"
             onInput=${(event: Event) => {
               setSearch((event.currentTarget as HTMLInputElement).value);
             }}
@@ -219,7 +233,12 @@ function App() {
             <option value="inspector">inspector</option>
           </select>
         </label>
+
+        <button class="filter-reset" type="button" onClick=${resetFilters}>reset</button>
       </div>
+      <p class="filter-hint">
+        operators: <code>name:</code> <code>src:</code> <code>type:</code> (combine with free text)
+      </p>
 
       <div
         class="timeline"
@@ -289,6 +308,48 @@ function nonEmpty(value: string | null, fallback: string): string {
 
   const trimmed = value.trim();
   return trimmed.length > 0 ? trimmed : fallback;
+}
+
+function loadFilterPreferences() {
+  if (typeof window === "undefined") {
+    return defaultTimelineFilter;
+  }
+
+  try {
+    const raw = window.localStorage.getItem(filterStorageKey);
+    if (!raw) {
+      return defaultTimelineFilter;
+    }
+
+    const parsed = JSON.parse(raw) as Partial<typeof defaultTimelineFilter>;
+    return {
+      search: typeof parsed.search === "string" ? parsed.search : defaultTimelineFilter.search,
+      messageType: isMessageType(parsed.messageType) ? parsed.messageType : defaultTimelineFilter.messageType,
+      sourceRole: isSourceRole(parsed.sourceRole) ? parsed.sourceRole : defaultTimelineFilter.sourceRole
+    };
+  } catch {
+    return defaultTimelineFilter;
+  }
+}
+
+function saveFilterPreferences(filter: typeof defaultTimelineFilter): void {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  try {
+    window.localStorage.setItem(filterStorageKey, JSON.stringify(filter));
+  } catch {
+    // Ignore storage failures so private browsing limits do not break the inspector.
+  }
+}
+
+function isMessageType(value: unknown): value is typeof defaultTimelineFilter.messageType {
+  return value === "all" || value === "lifecycle" || value === "event" || value === "command";
+}
+
+function isSourceRole(value: unknown): value is typeof defaultTimelineFilter.sourceRole {
+  return value === "all" || value === "daemon" || value === "dev-agent" || value === "inspector";
 }
 
 render(App, appRoot);
