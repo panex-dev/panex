@@ -1,4 +1,9 @@
-import type { Envelope, EnvelopeType, EventSnapshot, Source } from "./protocol";
+import type {
+  Envelope,
+  EnvelopeType,
+  EventSnapshot,
+  Source
+} from "../../shared/protocol/src/index";
 
 export interface TimelineEntry {
   key: string;
