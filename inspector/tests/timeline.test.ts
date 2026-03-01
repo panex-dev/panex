@@ -7,6 +7,7 @@ import {
   fromLiveEnvelope,
   fromSnapshot,
   mergeEntries,
+  parseSearchQuery,
   summarizeEnvelope
 } from "../src/timeline";
 import type { Envelope, EventSnapshot } from "../src/protocol";
@@ -134,5 +135,51 @@ describe("timeline filters", () => {
       sourceRole: "all"
     });
     assert.equal(bySummary.length, 2);
+  });
+
+  it("supports structured search operators", () => {
+    const daemonBuild = fromSnapshot({
+      id: 1,
+      recorded_at_ms: 1,
+      envelope: {
+        ...envelope("build.complete"),
+        src: { role: "daemon", id: "daemon-1" }
+      }
+    });
+    const agentReload = fromSnapshot({
+      id: 2,
+      recorded_at_ms: 2,
+      envelope: {
+        ...envelope("command.reload"),
+        t: "command",
+        src: { role: "dev-agent", id: "agent-1" }
+      }
+    });
+
+    const filtered = filterEntries([daemonBuild, agentReload], {
+      search: "name:command.reload src:agent type:command",
+      messageType: "all",
+      sourceRole: "all"
+    });
+
+    assert.equal(filtered.length, 1);
+    assert.equal(filtered[0].id, 2);
+  });
+});
+
+describe("search parser", () => {
+  it("parses known operators and preserves plain text tokens", () => {
+    const clauses = parseSearchQuery("name:build.complete src:daemon type:event build-1");
+    assert.deepEqual(clauses, [
+      { key: "name", value: "build.complete" },
+      { key: "src", value: "daemon" },
+      { key: "type", value: "event" },
+      { key: "text", value: "build-1" }
+    ]);
+  });
+
+  it("treats unknown prefixes as text clauses", () => {
+    const clauses = parseSearchQuery("foo:bar");
+    assert.deepEqual(clauses, [{ key: "text", value: "foo:bar" }]);
   });
 });
