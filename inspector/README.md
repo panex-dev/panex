@@ -19,6 +19,7 @@ Search operators:
 - `src:<role-or-id>`
 - `type:<lifecycle|event|command>`
 Filter values are persisted in browser localStorage per host.
+Inspector reconnects automatically with exponential backoff if the daemon drops.
 
 Optional URL params:
 - `ws`: daemon websocket endpoint (default `ws://127.0.0.1:4317/ws`)

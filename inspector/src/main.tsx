@@ -1,6 +1,6 @@
 import { decode, encode } from "@msgpack/msgpack";
 import html from "solid-js/html";
-import { createEffect, createSignal, onCleanup } from "solid-js";
+import { ErrorBoundary, createEffect, createMemo, createSignal, onCleanup } from "solid-js";
 import { render } from "solid-js/web";
 
 import "./styles.css";
@@ -26,6 +26,7 @@ import {
   summarizeEnvelope,
   type TimelineEntry
 } from "./timeline";
+import { reconnectDelay } from "./reconnect";
 
 const appRoot = document.getElementById("app");
 if (!appRoot) {
@@ -39,7 +40,6 @@ function App() {
   const initialFilter = loadFilterPreferences();
   const [connection, setConnection] = createSignal("connecting");
   const [timeline, setTimeline] = createSignal<TimelineEntry[]>([]);
-  const [socketURL, setSocketURL] = createSignal("");
   const [lastError, setLastError] = createSignal<string | null>(null);
   const [search, setSearch] = createSignal(initialFilter.search);
   const [messageType, setMessageType] = createSignal(initialFilter.messageType);
@@ -47,12 +47,17 @@ function App() {
 
   let listRef: HTMLDivElement | undefined;
   let socket: WebSocket | null = null;
-  const filteredTimeline = () =>
+  let reconnectTimer: number | undefined;
+  let reconnectAttempt = 0;
+  let stopped = false;
+
+  const filteredTimeline = createMemo(() =>
     filterEntries(timeline(), {
       search: search(),
       messageType: messageType(),
       sourceRole: sourceRole()
-    });
+    })
+  );
 
   createEffect(() => {
     // Keep the list tail visible while streaming live events.
@@ -75,77 +80,115 @@ function App() {
   });
 
   const { wsURL, token } = resolveConnectionParams();
-  setSocketURL(buildDaemonURL(wsURL, token));
+  const socketURL = buildDaemonURL(wsURL, token);
 
-  socket = new WebSocket(socketURL());
-  socket.binaryType = "arraybuffer";
+  const connect = () => {
+    if (stopped) {
+      return;
+    }
 
-  socket.addEventListener("open", () => {
-    setConnection("open");
-    setLastError(null);
+    const next = new WebSocket(socketURL);
+    next.binaryType = "arraybuffer";
+    socket = next;
 
-    const hello: Envelope<Hello> = {
-      v: PROTOCOL_VERSION,
-      t: "lifecycle",
-      name: "hello",
-      src: { role: "inspector", id: inspectorID },
-      data: {
-        protocol_version: PROTOCOL_VERSION,
-        capabilities: ["query.events"]
+    next.addEventListener("open", () => {
+      if (socket !== next) {
+        return;
       }
-    };
 
-    socket?.send(encode(hello));
-  });
+      reconnectAttempt = 0;
+      setConnection("open");
+      setLastError(null);
 
-  socket.addEventListener("message", (event) => {
-    if (!(event.data instanceof ArrayBuffer)) {
-      return;
-    }
-
-    let decoded: unknown;
-    try {
-      decoded = decode(new Uint8Array(event.data));
-    } catch {
-      return;
-    }
-    if (!isEnvelope(decoded)) {
-      return;
-    }
-
-    if (isWelcome(decoded)) {
-      const query: Envelope<QueryEvents> = {
+      const hello: Envelope<Hello> = {
         v: PROTOCOL_VERSION,
-        t: "command",
-        name: "query.events",
+        t: "lifecycle",
+        name: "hello",
         src: { role: "inspector", id: inspectorID },
-        data: { limit: 200 }
+        data: {
+          protocol_version: PROTOCOL_VERSION,
+          capabilities: ["query.events"]
+        }
       };
-      socket?.send(encode(query));
-      return;
-    }
 
-    if (isQueryEventsResult(decoded)) {
-      applyQueryResult(decoded.data, setTimeline);
-      return;
-    }
+      next.send(encode(hello));
+    });
 
-    setTimeline((existing) =>
-      mergeEntries(existing, [fromLiveEnvelope(decoded)], defaultTimelineLimit)
-    );
-  });
+    next.addEventListener("message", (event) => {
+      if (!(event.data instanceof ArrayBuffer)) {
+        return;
+      }
 
-  socket.addEventListener("close", () => {
-    setConnection("closed");
-  });
+      let decoded: unknown;
+      try {
+        decoded = decode(new Uint8Array(event.data));
+      } catch {
+        return;
+      }
+      if (!isEnvelope(decoded)) {
+        return;
+      }
 
-  socket.addEventListener("error", () => {
-    setLastError("websocket transport error");
-    socket?.close();
-  });
+      if (isWelcome(decoded)) {
+        const query: Envelope<QueryEvents> = {
+          v: PROTOCOL_VERSION,
+          t: "command",
+          name: "query.events",
+          src: { role: "inspector", id: inspectorID },
+          data: { limit: defaultTimelineLimit }
+        };
+        next.send(encode(query));
+        return;
+      }
+
+      if (isQueryEventsResult(decoded)) {
+        applyQueryResult(decoded.data, setTimeline);
+        return;
+      }
+
+      setTimeline((existing) =>
+        mergeEntries(existing, [fromLiveEnvelope(decoded)], defaultTimelineLimit)
+      );
+    });
+
+    next.addEventListener("close", () => {
+      if (socket !== next) {
+        return;
+      }
+      if (stopped) {
+        setConnection("closed");
+        return;
+      }
+
+      setConnection("reconnecting");
+      const delay = reconnectDelay(reconnectAttempt);
+      reconnectAttempt += 1;
+
+      reconnectTimer = window.setTimeout(() => {
+        reconnectTimer = undefined;
+        connect();
+      }, delay);
+    });
+
+    next.addEventListener("error", () => {
+      if (socket !== next) {
+        return;
+      }
+
+      setLastError("websocket transport error");
+      next.close();
+    });
+  };
+
+  connect();
 
   onCleanup(() => {
+    stopped = true;
+    if (typeof reconnectTimer === "number") {
+      window.clearTimeout(reconnectTimer);
+    }
     socket?.close();
+    setConnection("closed");
   });
 
   const errorBlock = () => {
@@ -352,4 +395,23 @@ function isSourceRole(value: unknown): value is typeof defaultTimelineFilter.sou
   return value === "all" || value === "daemon" || value === "dev-agent" || value === "inspector";
 }
 
-render(App, appRoot);
+function renderFallback(error: unknown, reset: () => void) {
+  return html`<main class="layout">
+    <header class="topbar">
+      <h1>Panex Inspector</h1>
+      <p class="error">render failure: ${String(error)}</p>
+      <button class="filter-reset" type="button" onClick=${reset}>retry</button>
+    </header>
+  </main>`;
+}
+
+render(
+  () =>
+    ErrorBoundary({
+      fallback: renderFallback,
+      get children() {
+        return App();
+      }
+    }),
+  appRoot
+);
