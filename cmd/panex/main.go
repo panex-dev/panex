@@ -1,13 +1,17 @@
 package main
 
 import (
+	"context"
 	"errors"
 	"flag"
 	"fmt"
 	"io"
 	"os"
+	"os/signal"
+	"syscall"
 
 	panexconfig "github.com/panex-dev/panex/internal/config"
+	"github.com/panex-dev/panex/internal/daemon"
 )
 
 const usageText = `panex - development runtime for Chrome extensions
@@ -19,6 +23,8 @@ Usage:
 
 // This is overridden in release builds via -ldflags "-X main.version=<semver>".
 var version = "dev"
+
+var startDev = startDevServer
 
 func main() {
 	if err := run(os.Args[1:], os.Stdout); err != nil {
@@ -93,14 +99,7 @@ func runDev(args []string, stdout io.Writer) error {
 		}
 	}
 
-	return writef(
-		stdout,
-		"panex dev (skeleton)\nconfig=%s\nsource_dir=%s\nout_dir=%s\nport=%d\n",
-		*configPath,
-		cfg.Extension.SourceDir,
-		cfg.Extension.OutDir,
-		cfg.Server.Port,
-	)
+	return startDev(cfg, stdout)
 }
 
 func writef(w io.Writer, format string, args ...any) error {
@@ -111,4 +110,25 @@ func writef(w io.Writer, format string, args ...any) error {
 func writeString(w io.Writer, value string) error {
 	_, err := io.WriteString(w, value)
 	return err
+}
+
+func startDevServer(cfg panexconfig.Config, stdout io.Writer) error {
+	server, err := daemon.NewWebSocketServer(daemon.WebSocketConfig{
+		Port:          cfg.Server.Port,
+		AuthToken:     cfg.Server.AuthToken,
+		ServerVersion: version,
+		DaemonID:      "daemon-1",
+	})
+	if err != nil {
+		return err
+	}
+
+	if err := writef(stdout, "panex dev\nws_url=ws://127.0.0.1:%d/ws\n", cfg.Server.Port); err != nil {
+		return err
+	}
+
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+
+	return server.Run(ctx)
 }

@@ -16,6 +16,7 @@ out_dir = "./dist"
 
 [server]
 port = 4317
+auth_token = "test-token"
 `)
 
 	cfg, err := Load(configPath)
@@ -32,6 +33,9 @@ port = 4317
 	if cfg.Server.Port != 4317 {
 		t.Fatalf("unexpected port: got %d", cfg.Server.Port)
 	}
+	if cfg.Server.AuthToken != "test-token" {
+		t.Fatalf("unexpected auth_token: got %q", cfg.Server.AuthToken)
+	}
 }
 
 func TestLoadRejectsUnknownKeys(t *testing.T) {
@@ -44,6 +48,7 @@ extra = "oops"
 
 [server]
 port = 4317
+auth_token = "test-token"
 `)
 
 	_, err := Load(configPath)
@@ -72,6 +77,7 @@ out_dir = "./dist"
 
 [server]
 port = 4317
+auth_token = "test-token"
 `,
 			wantError: "extension.source_dir is required",
 		},
@@ -83,6 +89,7 @@ source_dir = "./extension-src"
 
 [server]
 port = 4317
+auth_token = "test-token"
 `,
 			wantError: "extension.out_dir is required",
 		},
@@ -95,6 +102,7 @@ out_dir = "./dist"
 
 [server]
 port = 0
+auth_token = "test-token"
 `,
 			wantError: "server.port must be between",
 		},
@@ -107,8 +115,21 @@ out_dir = "./dist"
 
 [server]
 port = 70000
+auth_token = "test-token"
 `,
 			wantError: "server.port must be between",
+		},
+		{
+			name: "missing auth token",
+			tomlData: `
+[extension]
+source_dir = "./extension-src"
+out_dir = "./dist"
+
+[server]
+port = 4317
+`,
+			wantError: "server.auth_token is required",
 		},
 	}
 

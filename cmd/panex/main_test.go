@@ -8,6 +8,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	panexconfig "github.com/panex-dev/panex/internal/config"
 )
 
 func TestRunVersion(t *testing.T) {
@@ -96,9 +98,16 @@ out_dir = "./dist"
 
 [server]
 port = 3000
+auth_token = "token-123"
 `)
 
 	var out bytes.Buffer
+	var captured panexconfig.Config
+	withStubbedStartDev(t, func(cfg panexconfig.Config, stdout io.Writer) error {
+		captured = cfg
+		_, err := io.WriteString(stdout, "dev started\n")
+		return err
+	})
 
 	err := withWorkingDir(tempDir, func() error {
 		return run([]string{"dev"}, &out)
@@ -107,9 +116,15 @@ port = 3000
 		t.Fatalf("run(dev) returned error: %v", err)
 	}
 
-	const want = "panex dev (skeleton)\nconfig=panex.toml\nsource_dir=./src\nout_dir=./dist\nport=3000\n"
+	const want = "dev started\n"
 	if out.String() != want {
 		t.Fatalf("unexpected dev output: got %q, want %q", out.String(), want)
+	}
+	if captured.Server.Port != 3000 {
+		t.Fatalf("unexpected server port: got %d", captured.Server.Port)
+	}
+	if captured.Server.AuthToken != "token-123" {
+		t.Fatalf("unexpected auth token: got %q", captured.Server.AuthToken)
 	}
 }
 
@@ -122,18 +137,37 @@ out_dir = "./build"
 
 [server]
 port = 4317
+auth_token = "custom-token"
 `)
 
 	var out bytes.Buffer
+	var captured panexconfig.Config
+	withStubbedStartDev(t, func(cfg panexconfig.Config, stdout io.Writer) error {
+		captured = cfg
+		_, err := io.WriteString(stdout, "dev started\n")
+		return err
+	})
 
 	err := run([]string{"dev", "--config", configPath}, &out)
 	if err != nil {
 		t.Fatalf("run(dev --config) returned error: %v", err)
 	}
 
-	want := "panex dev (skeleton)\nconfig=" + configPath + "\nsource_dir=./extension-src\nout_dir=./build\nport=4317\n"
+	want := "dev started\n"
 	if out.String() != want {
 		t.Fatalf("unexpected dev output: got %q, want %q", out.String(), want)
+	}
+	if captured.Extension.SourceDir != "./extension-src" {
+		t.Fatalf("unexpected source_dir: got %q", captured.Extension.SourceDir)
+	}
+	if captured.Extension.OutDir != "./build" {
+		t.Fatalf("unexpected out_dir: got %q", captured.Extension.OutDir)
+	}
+	if captured.Server.Port != 4317 {
+		t.Fatalf("unexpected port: got %d", captured.Server.Port)
+	}
+	if captured.Server.AuthToken != "custom-token" {
+		t.Fatalf("unexpected auth token: got %q", captured.Server.AuthToken)
 	}
 }
 
@@ -238,4 +272,14 @@ func withWorkingDir(dir string, fn func() error) error {
 	}()
 
 	return fn()
+}
+
+func withStubbedStartDev(t *testing.T, stub func(cfg panexconfig.Config, stdout io.Writer) error) {
+	t.Helper()
+
+	original := startDev
+	startDev = stub
+	t.Cleanup(func() {
+		startDev = original
+	})
 }

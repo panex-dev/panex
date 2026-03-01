@@ -27,7 +27,8 @@ type Extension struct {
 }
 
 type Server struct {
-	Port int `toml:"port"`
+	Port      int    `toml:"port"`
+	AuthToken string `toml:"auth_token"`
 }
 
 func Load(path string) (Config, error) {
@@ -83,6 +84,9 @@ func (c Config) Validate() error {
 	}
 	if c.Server.Port < minPort || c.Server.Port > maxPort {
 		return fmt.Errorf("server.port must be between %d and %d", minPort, maxPort)
+	}
+	if strings.TrimSpace(c.Server.AuthToken) == "" {
+		return errors.New("server.auth_token is required")
 	}
 
 	return nil
