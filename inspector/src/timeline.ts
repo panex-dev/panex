@@ -1,4 +1,4 @@
-import type { Envelope, EventSnapshot } from "./protocol";
+import type { Envelope, EnvelopeType, EventSnapshot, Source } from "./protocol";
 
 export interface TimelineEntry {
   key: string;
@@ -7,7 +7,18 @@ export interface TimelineEntry {
   envelope: Envelope;
 }
 
+export interface TimelineFilter {
+  search: string;
+  messageType: EnvelopeType | "all";
+  sourceRole: Source["role"] | "all";
+}
+
 export const defaultTimelineLimit = 500;
+export const defaultTimelineFilter: TimelineFilter = {
+  search: "",
+  messageType: "all",
+  sourceRole: "all"
+};
 
 let liveSeq = 0;
 
@@ -82,4 +93,32 @@ export function summarizeEnvelope(envelope: Envelope): string {
 
 export function formatTime(msEpoch: number): string {
   return new Date(msEpoch).toLocaleTimeString();
+}
+
+export function filterEntries(entries: TimelineEntry[], filter: TimelineFilter): TimelineEntry[] {
+  const query = filter.search.trim().toLowerCase();
+
+  return entries.filter((entry) => {
+    if (filter.messageType !== "all" && entry.envelope.t !== filter.messageType) {
+      return false;
+    }
+    if (filter.sourceRole !== "all" && entry.envelope.src.role !== filter.sourceRole) {
+      return false;
+    }
+    if (query.length === 0) {
+      return true;
+    }
+
+    const indexedText = [
+      entry.envelope.name,
+      entry.envelope.t,
+      entry.envelope.src.role,
+      entry.envelope.src.id,
+      summarizeEnvelope(entry.envelope)
+    ]
+      .join(" ")
+      .toLowerCase();
+
+    return indexedText.includes(query);
+  });
 }
