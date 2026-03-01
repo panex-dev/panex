@@ -1,0 +1,22 @@
+{
+  "name": "@panex/inspector",
+  "private": true,
+  "version": "0.0.1",
+  "description": "Panex Inspector timeline UI",
+  "type": "module",
+  "scripts": {
+    "build": "node ./scripts/build.mjs",
+    "check": "tsc --noEmit",
+    "test": "node --import tsx --test tests/*.test.ts"
+  },
+  "dependencies": {
+    "@msgpack/msgpack": "^3.1.2",
+    "solid-js": "^1.9.9"
+  },
+  "devDependencies": {
+    "@types/node": "^22.13.8",
+    "esbuild": "^0.25.9",
+    "tsx": "^4.20.5",
+    "typescript": "^5.9.2"
+  }
+}

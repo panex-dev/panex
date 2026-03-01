@@ -32,3 +32,4 @@ Thumbs.db
 .pnpm-store/
 package-lock.json
 agent/dist/
+inspector/dist/

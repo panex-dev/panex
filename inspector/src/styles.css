@@ -1,0 +1,108 @@
+:root {
+  color-scheme: light;
+  font-family: "IBM Plex Sans", "Segoe UI", sans-serif;
+  background: radial-gradient(circle at 20% 0%, #f9fbff 0%, #edf2f8 60%, #e5ecf4 100%);
+  color: #102033;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+}
+
+.layout {
+  max-width: 980px;
+  margin: 0 auto;
+  padding: 24px 16px 40px;
+}
+
+.topbar h1 {
+  margin: 0 0 8px;
+  font-size: 2rem;
+}
+
+.topbar p {
+  margin: 4px 0;
+}
+
+.subtle {
+  color: #3d5872;
+  font-size: 0.92rem;
+}
+
+.error {
+  color: #8a1f2d;
+  font-weight: 600;
+}
+
+.panel {
+  margin-top: 20px;
+  border: 1px solid #c8d6e6;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.8);
+  backdrop-filter: blur(2px);
+}
+
+.panel-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  padding: 16px;
+  border-bottom: 1px solid #d6e2ef;
+}
+
+.panel-header h2 {
+  margin: 0;
+  font-size: 1.1rem;
+}
+
+.timeline {
+  max-height: 66vh;
+  overflow-y: auto;
+  padding: 12px;
+  display: grid;
+  gap: 10px;
+}
+
+.event-card {
+  border: 1px solid #d6e2ef;
+  border-radius: 10px;
+  background: #ffffff;
+  padding: 12px;
+}
+
+.event-meta {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  font-size: 0.85rem;
+  color: #2f4a64;
+}
+
+.event-source {
+  margin-top: 6px;
+  font-size: 0.85rem;
+  color: #496684;
+}
+
+.event-card p {
+  margin: 8px 0 0;
+}
+
+@media (max-width: 640px) {
+  .layout {
+    padding: 18px 12px 28px;
+  }
+
+  .topbar h1 {
+    font-size: 1.55rem;
+  }
+
+  .timeline {
+    max-height: 70vh;
+  }
+}
