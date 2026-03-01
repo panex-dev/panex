@@ -258,14 +258,14 @@ func TestRunBuildLoopBroadcastsBuildComplete(t *testing.T) {
 
 	changes <- daemon.FileChangeEvent{Paths: []string{"src/index.ts"}, OccurredAt: time.Now()}
 
-	event := waitForBroadcast(t, broadcaster, 2*time.Second)
-	if event.Name != protocol.MessageBuildComplete {
-		t.Fatalf("unexpected message name: got %q, want %q", event.Name, protocol.MessageBuildComplete)
+	buildEvent := waitForBroadcast(t, broadcaster, 2*time.Second)
+	if buildEvent.Name != protocol.MessageBuildComplete {
+		t.Fatalf("unexpected message name: got %q, want %q", buildEvent.Name, protocol.MessageBuildComplete)
 	}
 
-	payload, ok := event.Data.(protocol.BuildComplete)
+	payload, ok := buildEvent.Data.(protocol.BuildComplete)
 	if !ok {
-		t.Fatalf("unexpected payload type: got %T", event.Data)
+		t.Fatalf("unexpected payload type: got %T", buildEvent.Data)
 	}
 	if payload.BuildID != "build-123" {
 		t.Fatalf("unexpected build id: got %q, want %q", payload.BuildID, "build-123")
@@ -275,6 +275,22 @@ func TestRunBuildLoopBroadcastsBuildComplete(t *testing.T) {
 	}
 	if len(payload.ChangedFiles) != 1 || payload.ChangedFiles[0] != "src/index.ts" {
 		t.Fatalf("unexpected changed files: %v", payload.ChangedFiles)
+	}
+
+	reloadEvent := waitForBroadcast(t, broadcaster, 2*time.Second)
+	if reloadEvent.Name != protocol.MessageCommandReload {
+		t.Fatalf("unexpected message name: got %q, want %q", reloadEvent.Name, protocol.MessageCommandReload)
+	}
+
+	reloadPayload, ok := reloadEvent.Data.(protocol.CommandReload)
+	if !ok {
+		t.Fatalf("unexpected payload type: got %T", reloadEvent.Data)
+	}
+	if reloadPayload.Reason != "build.complete" {
+		t.Fatalf("unexpected reload reason: got %q, want %q", reloadPayload.Reason, "build.complete")
+	}
+	if reloadPayload.BuildID != "build-123" {
+		t.Fatalf("unexpected reload build id: got %q, want %q", reloadPayload.BuildID, "build-123")
 	}
 
 	cancel()
@@ -308,6 +324,10 @@ func TestRunBuildLoopBuilderErrorStillBroadcastsFailure(t *testing.T) {
 	changes <- daemon.FileChangeEvent{Paths: []string{"src/invalid.ts"}, OccurredAt: time.Now()}
 
 	event := waitForBroadcast(t, broadcaster, 2*time.Second)
+	if event.Name != protocol.MessageBuildComplete {
+		t.Fatalf("unexpected message name: got %q, want %q", event.Name, protocol.MessageBuildComplete)
+	}
+
 	payload, ok := event.Data.(protocol.BuildComplete)
 	if !ok {
 		t.Fatalf("unexpected payload type: got %T", event.Data)
@@ -320,6 +340,9 @@ func TestRunBuildLoopBuilderErrorStillBroadcastsFailure(t *testing.T) {
 	}
 	if len(payload.ChangedFiles) != 1 || payload.ChangedFiles[0] != "src/invalid.ts" {
 		t.Fatalf("unexpected changed files: %v", payload.ChangedFiles)
+	}
+	if countBroadcastsByName(broadcaster, protocol.MessageCommandReload) != 0 {
+		t.Fatal("did not expect command.reload broadcast for failed build")
 	}
 
 	cancel()
@@ -448,4 +471,18 @@ func waitForBroadcast(t *testing.T, broadcaster *fakeBroadcaster, timeout time.D
 
 	t.Fatalf("timed out waiting for broadcast after %s", timeout)
 	return protocol.Envelope{}
+}
+
+func countBroadcastsByName(broadcaster *fakeBroadcaster, name protocol.MessageName) int {
+	broadcaster.mu.Lock()
+	defer broadcaster.mu.Unlock()
+
+	count := 0
+	for _, event := range broadcaster.events {
+		if event.Name == name {
+			count++
+		}
+	}
+
+	return count
 }
