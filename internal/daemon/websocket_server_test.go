@@ -3,6 +3,7 @@ package daemon
 import (
 	"net/http"
 	"net/http/httptest"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -171,6 +172,80 @@ func TestWebSocketRejectsFirstMessageThatIsNotHello(t *testing.T) {
 	waitForConnectionCount(t, server.ws, 0)
 }
 
+func TestWebSocketQueryEventsReturnsRecentStoredMessages(t *testing.T) {
+	server := newTestServer(t)
+	defer server.httpServer.Close()
+
+	conn := dialAuthorizedConnection(t, server.wsURL, server.token)
+	t.Cleanup(func() {
+		_ = conn.Close()
+	})
+
+	_ = mustHandshake(t, conn)
+	waitForConnectionCount(t, server.ws, 1)
+
+	buildComplete := protocol.NewBuildComplete(
+		protocol.Source{Role: protocol.SourceDaemon, ID: "daemon-test"},
+		protocol.BuildComplete{
+			BuildID:      "build-query",
+			Success:      true,
+			DurationMS:   42,
+			ChangedFiles: []string{"index.ts"},
+		},
+	)
+	reload := protocol.NewCommandReload(
+		protocol.Source{Role: protocol.SourceDaemon, ID: "daemon-test"},
+		protocol.CommandReload{
+			Reason:  "build.complete",
+			BuildID: "build-query",
+		},
+	)
+	if err := server.ws.Broadcast(buildComplete); err != nil {
+		t.Fatalf("Broadcast(build.complete) returned error: %v", err)
+	}
+	if err := server.ws.Broadcast(reload); err != nil {
+		t.Fatalf("Broadcast(command.reload) returned error: %v", err)
+	}
+
+	// Drain direct broadcasts so the next read captures query response deterministically.
+	_ = mustReadEnvelope(t, conn)
+	_ = mustReadEnvelope(t, conn)
+
+	query := protocol.NewQueryEvents(
+		protocol.Source{Role: protocol.SourceInspector, ID: "inspector-1"},
+		protocol.QueryEvents{Limit: 2},
+	)
+	rawQuery, err := protocol.Encode(query)
+	if err != nil {
+		t.Fatalf("Encode(query.events) returned error: %v", err)
+	}
+	if err := conn.WriteMessage(websocket.BinaryMessage, rawQuery); err != nil {
+		t.Fatalf("WriteMessage(query.events) returned error: %v", err)
+	}
+
+	response := mustReadEnvelope(t, conn)
+	if response.Name != protocol.MessageQueryResult {
+		t.Fatalf("unexpected response name: got %q, want %q", response.Name, protocol.MessageQueryResult)
+	}
+	if response.T != protocol.TypeEvent {
+		t.Fatalf("unexpected response type: got %q, want %q", response.T, protocol.TypeEvent)
+	}
+
+	var payload protocol.QueryEventsResult
+	if err := protocol.DecodePayload(response.Data, &payload); err != nil {
+		t.Fatalf("DecodePayload(query.events.result) returned error: %v", err)
+	}
+	if len(payload.Events) != 2 {
+		t.Fatalf("unexpected event count: got %d, want %d", len(payload.Events), 2)
+	}
+	if payload.Events[0].Envelope.Name != protocol.MessageBuildComplete {
+		t.Fatalf("unexpected first event: got %q, want %q", payload.Events[0].Envelope.Name, protocol.MessageBuildComplete)
+	}
+	if payload.Events[1].Envelope.Name != protocol.MessageCommandReload {
+		t.Fatalf("unexpected second event: got %q, want %q", payload.Events[1].Envelope.Name, protocol.MessageCommandReload)
+	}
+}
+
 type testServer struct {
 	ws         *WebSocketServer
 	httpServer *httptest.Server
@@ -184,14 +259,18 @@ func newTestServer(t *testing.T) testServer {
 	const token = "test-token"
 
 	ws, err := NewWebSocketServer(WebSocketConfig{
-		Port:          18080,
-		AuthToken:     token,
-		ServerVersion: "test-version",
-		DaemonID:      "daemon-test",
+		Port:           18080,
+		AuthToken:      token,
+		EventStorePath: filepath.Join(t.TempDir(), "events.db"),
+		ServerVersion:  "test-version",
+		DaemonID:       "daemon-test",
 	})
 	if err != nil {
 		t.Fatalf("NewWebSocketServer() returned error: %v", err)
 	}
+	t.Cleanup(func() {
+		_ = ws.Close()
+	})
 
 	httpServer := httptest.NewServer(ws.Handler())
 	wsURL := "ws" + strings.TrimPrefix(httpServer.URL, "http")
@@ -267,4 +346,20 @@ func mustHandshake(t *testing.T, conn *websocket.Conn) protocol.Envelope {
 	}
 
 	return welcomeEnv
+}
+
+func mustReadEnvelope(t *testing.T, conn *websocket.Conn) protocol.Envelope {
+	t.Helper()
+
+	_, rawMessage, err := conn.ReadMessage()
+	if err != nil {
+		t.Fatalf("ReadMessage() returned error: %v", err)
+	}
+
+	envelope, err := protocol.DecodeEnvelope(rawMessage)
+	if err != nil {
+		t.Fatalf("DecodeEnvelope() returned error: %v", err)
+	}
+
+	return envelope
 }
