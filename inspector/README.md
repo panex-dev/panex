@@ -13,6 +13,7 @@ pnpm run build
 ```
 
 Open `inspector/index.html` after building.
+The timeline supports search + filter controls for message type and source role.
 
 Optional URL params:
 - `ws`: daemon websocket endpoint (default `ws://127.0.0.1:4317/ws`)

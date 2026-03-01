@@ -16,7 +16,9 @@ import {
   type QueryEventsResult
 } from "./protocol";
 import {
+  defaultTimelineFilter,
   defaultTimelineLimit,
+  filterEntries,
   formatTime,
   fromLiveEnvelope,
   fromSnapshot,
@@ -37,16 +39,25 @@ function App() {
   const [timeline, setTimeline] = createSignal<TimelineEntry[]>([]);
   const [socketURL, setSocketURL] = createSignal("");
   const [lastError, setLastError] = createSignal<string | null>(null);
+  const [search, setSearch] = createSignal(defaultTimelineFilter.search);
+  const [messageType, setMessageType] = createSignal(defaultTimelineFilter.messageType);
+  const [sourceRole, setSourceRole] = createSignal(defaultTimelineFilter.sourceRole);
 
   let listRef: HTMLDivElement | undefined;
   let socket: WebSocket | null = null;
+  const filteredTimeline = () =>
+    filterEntries(timeline(), {
+      search: search(),
+      messageType: messageType(),
+      sourceRole: sourceRole()
+    });
 
   createEffect(() => {
     // Keep the list tail visible while streaming live events.
     if (!listRef) {
       return;
     }
-    timeline().length;
+    filteredTimeline().length;
     queueMicrotask(() => {
       if (listRef) {
         listRef.scrollTop = listRef.scrollHeight;
@@ -138,7 +149,7 @@ function App() {
   };
 
   const eventCards = () =>
-    timeline().map((entry) => {
+    filteredTimeline().map((entry) => {
       return html`<article class="event-card">
         <div class="event-meta">
           <span>${formatTime(entry.recordedAtMS)}</span>
@@ -161,7 +172,53 @@ function App() {
     <section class="panel">
       <div class="panel-header">
         <h2>Event Timeline</h2>
-        <p>${() => timeline().length} events</p>
+        <p>${() => `${filteredTimeline().length}/${timeline().length} events`}</p>
+      </div>
+
+      <div class="filters">
+        <label class="filter-control">
+          <span>Search</span>
+          <input
+            type="search"
+            value=${search}
+            placeholder="name, source, payload"
+            onInput=${(event: Event) => {
+              setSearch((event.currentTarget as HTMLInputElement).value);
+            }}
+          />
+        </label>
+
+        <label class="filter-control">
+          <span>Type</span>
+          <select
+            value=${messageType}
+            onChange=${(event: Event) => {
+              setMessageType(
+                (event.currentTarget as HTMLSelectElement).value as "all" | "lifecycle" | "event" | "command"
+              );
+            }}
+          >
+            <option value="all">all</option>
+            <option value="lifecycle">lifecycle</option>
+            <option value="event">event</option>
+            <option value="command">command</option>
+          </select>
+        </label>
+
+        <label class="filter-control">
+          <span>Source</span>
+          <select
+            value=${sourceRole}
+            onChange=${(event: Event) => {
+              setSourceRole((event.currentTarget as HTMLSelectElement).value as "all" | "daemon" | "dev-agent" | "inspector");
+            }}
+          >
+            <option value="all">all</option>
+            <option value="daemon">daemon</option>
+            <option value="dev-agent">dev-agent</option>
+            <option value="inspector">inspector</option>
+          </select>
+        </label>
       </div>
 
       <div
