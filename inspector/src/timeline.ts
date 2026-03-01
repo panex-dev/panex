@@ -13,6 +13,11 @@ export interface TimelineFilter {
   sourceRole: Source["role"] | "all";
 }
 
+export interface QueryClause {
+  key: "text" | "name" | "src" | "type";
+  value: string;
+}
+
 export const defaultTimelineLimit = 500;
 export const defaultTimelineFilter: TimelineFilter = {
   search: "",
@@ -96,7 +101,7 @@ export function formatTime(msEpoch: number): string {
 }
 
 export function filterEntries(entries: TimelineEntry[], filter: TimelineFilter): TimelineEntry[] {
-  const query = filter.search.trim().toLowerCase();
+  const clauses = parseSearchQuery(filter.search);
 
   return entries.filter((entry) => {
     if (filter.messageType !== "all" && entry.envelope.t !== filter.messageType) {
@@ -105,20 +110,79 @@ export function filterEntries(entries: TimelineEntry[], filter: TimelineFilter):
     if (filter.sourceRole !== "all" && entry.envelope.src.role !== filter.sourceRole) {
       return false;
     }
-    if (query.length === 0) {
+    if (clauses.length === 0) {
       return true;
     }
 
-    const indexedText = [
-      entry.envelope.name,
-      entry.envelope.t,
-      entry.envelope.src.role,
-      entry.envelope.src.id,
-      summarizeEnvelope(entry.envelope)
-    ]
-      .join(" ")
-      .toLowerCase();
+    let indexedText = "";
+    const source = `${entry.envelope.src.role}:${entry.envelope.src.id}`.toLowerCase();
 
-    return indexedText.includes(query);
+    for (const clause of clauses) {
+      switch (clause.key) {
+        case "name":
+          if (!entry.envelope.name.toLowerCase().includes(clause.value)) {
+            return false;
+          }
+          break;
+        case "src":
+          if (!source.includes(clause.value)) {
+            return false;
+          }
+          break;
+        case "type":
+          if (!entry.envelope.t.toLowerCase().startsWith(clause.value)) {
+            return false;
+          }
+          break;
+        default:
+          if (indexedText.length === 0) {
+            indexedText = [
+              entry.envelope.name,
+              entry.envelope.t,
+              entry.envelope.src.role,
+              entry.envelope.src.id,
+              summarizeEnvelope(entry.envelope)
+            ]
+              .join(" ")
+              .toLowerCase();
+          }
+          if (!indexedText.includes(clause.value)) {
+            return false;
+          }
+      }
+    }
+
+    return true;
   });
+}
+
+export function parseSearchQuery(search: string): QueryClause[] {
+  // Tiny query DSL for fast triage: name:<msg> src:<role|id> type:<kind> + free text tokens.
+  const rawTokens = search
+    .trim()
+    .split(/\s+/)
+    .map((token) => token.trim())
+    .filter((token) => token.length > 0);
+
+  const clauses: QueryClause[] = [];
+  for (const rawToken of rawTokens) {
+    const token = rawToken.toLowerCase();
+    const splitIndex = token.indexOf(":");
+    if (splitIndex > 0) {
+      const key = token.slice(0, splitIndex);
+      const value = token.slice(splitIndex + 1);
+      if (value.length === 0) {
+        continue;
+      }
+
+      if (key === "name" || key === "src" || key === "type") {
+        clauses.push({ key, value });
+        continue;
+      }
+    }
+
+    clauses.push({ key: "text", value: token });
+  }
+
+  return clauses;
 }
