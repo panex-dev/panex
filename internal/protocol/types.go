@@ -24,6 +24,8 @@ const (
 	MessageBuildComplete MessageName = "build.complete"
 	MessageContextLog    MessageName = "context.log"
 	MessageCommandReload MessageName = "command.reload"
+	MessageQueryEvents   MessageName = "query.events"
+	MessageQueryResult   MessageName = "query.events.result"
 )
 
 type SourceRole string
@@ -108,12 +110,28 @@ type CommandReload struct {
 	BuildID string `msgpack:"build_id,omitempty"`
 }
 
+type QueryEvents struct {
+	Limit int `msgpack:"limit,omitempty"`
+}
+
+type EventSnapshot struct {
+	ID           int64    `msgpack:"id"`
+	RecordedAtMS int64    `msgpack:"recorded_at_ms"`
+	Envelope     Envelope `msgpack:"envelope"`
+}
+
+type QueryEventsResult struct {
+	Events []EventSnapshot `msgpack:"events"`
+}
+
 var messageTypeByName = map[MessageName]MessageType{
 	MessageHello:         TypeLifecycle,
 	MessageWelcome:       TypeLifecycle,
 	MessageBuildComplete: TypeEvent,
 	MessageContextLog:    TypeEvent,
 	MessageCommandReload: TypeCommand,
+	MessageQueryEvents:   TypeCommand,
+	MessageQueryResult:   TypeEvent,
 }
 
 func MessageTypeForName(name MessageName) (MessageType, bool) {
@@ -139,6 +157,14 @@ func NewContextLog(src Source, data ContextLog) Envelope {
 
 func NewCommandReload(src Source, data CommandReload) Envelope {
 	return newEnvelope(TypeCommand, MessageCommandReload, src, data)
+}
+
+func NewQueryEvents(src Source, data QueryEvents) Envelope {
+	return newEnvelope(TypeCommand, MessageQueryEvents, src, data)
+}
+
+func NewQueryEventsResult(src Source, data QueryEventsResult) Envelope {
+	return newEnvelope(TypeEvent, MessageQueryResult, src, data)
 }
 
 func newEnvelope(messageType MessageType, name MessageName, src Source, data any) Envelope {

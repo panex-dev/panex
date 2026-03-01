@@ -15,15 +15,23 @@ import (
 	"github.com/gorilla/websocket"
 
 	"github.com/panex-dev/panex/internal/protocol"
+	"github.com/panex-dev/panex/internal/store"
 )
 
 const maxMessageBytes = 1 << 20 // 1 MiB keeps accidental payload explosions bounded.
 
 type WebSocketConfig struct {
-	Port          int
-	AuthToken     string
-	ServerVersion string
-	DaemonID      string
+	Port           int
+	AuthToken      string
+	EventStorePath string
+	ServerVersion  string
+	DaemonID       string
+}
+
+type eventStore interface {
+	Append(ctx context.Context, envelope protocol.Envelope) error
+	Recent(ctx context.Context, limit int) ([]store.Record, error)
+	Close() error
 }
 
 type WebSocketServer struct {
@@ -33,7 +41,11 @@ type WebSocketServer struct {
 	mu       sync.RWMutex
 	sessions map[string]*sessionConn
 
-	seq uint64
+	seq        uint64
+	eventStore eventStore
+
+	closeOnce sync.Once
+	closeErr  error
 }
 
 type sessionConn struct {
@@ -54,6 +66,14 @@ func NewWebSocketServer(cfg WebSocketConfig) (*WebSocketServer, error) {
 	if strings.TrimSpace(cfg.DaemonID) == "" {
 		cfg.DaemonID = "daemon-1"
 	}
+	if strings.TrimSpace(cfg.EventStorePath) == "" {
+		cfg.EventStorePath = ".panex/events.db"
+	}
+
+	eventStore, err := store.NewSQLiteEventStore(cfg.EventStorePath)
+	if err != nil {
+		return nil, fmt.Errorf("configure event store: %w", err)
+	}
 
 	return &WebSocketServer{
 		cfg: cfg,
@@ -62,7 +82,8 @@ func NewWebSocketServer(cfg WebSocketConfig) (*WebSocketServer, error) {
 			// and rely on token auth; tighten this once the agent connection story is finalized.
 			CheckOrigin: func(_ *http.Request) bool { return true },
 		},
-		sessions: make(map[string]*sessionConn),
+		sessions:   make(map[string]*sessionConn),
+		eventStore: eventStore,
 	}, nil
 }
 
@@ -73,7 +94,13 @@ func (s *WebSocketServer) Handler() http.Handler {
 	return mux
 }
 
-func (s *WebSocketServer) Run(ctx context.Context) error {
+func (s *WebSocketServer) Run(ctx context.Context) (runErr error) {
+	defer func() {
+		if closeErr := s.Close(); closeErr != nil && runErr == nil {
+			runErr = fmt.Errorf("close event store: %w", closeErr)
+		}
+	}()
+
 	server := &http.Server{
 		Addr:              ":" + strconv.Itoa(s.cfg.Port),
 		Handler:           s.Handler(),
@@ -116,6 +143,14 @@ func (s *WebSocketServer) ConnectionCount() int {
 	defer s.mu.RUnlock()
 
 	return len(s.sessions)
+}
+
+func (s *WebSocketServer) Close() error {
+	s.closeOnce.Do(func() {
+		s.closeErr = s.eventStore.Close()
+	})
+
+	return s.closeErr
 }
 
 func (s *WebSocketServer) handleWebSocket(w http.ResponseWriter, r *http.Request) {
@@ -180,6 +215,9 @@ func (s *WebSocketServer) handshake(conn *websocket.Conn) (string, error) {
 			protocol.CurrentVersion,
 		)
 	}
+	if err := s.eventStore.Append(context.Background(), message); err != nil {
+		return "", fmt.Errorf("persist hello message: %w", err)
+	}
 
 	sessionID := s.nextSessionID()
 	welcome := protocol.NewWelcome(
@@ -201,6 +239,9 @@ func (s *WebSocketServer) handshake(conn *websocket.Conn) (string, error) {
 	if err := conn.WriteMessage(websocket.BinaryMessage, encodedWelcome); err != nil {
 		return "", fmt.Errorf("write welcome message: %w", err)
 	}
+	if err := s.eventStore.Append(context.Background(), welcome); err != nil {
+		return "", fmt.Errorf("persist welcome message: %w", err)
+	}
 
 	return sessionID, nil
 }
@@ -212,13 +253,26 @@ func (s *WebSocketServer) readLoop(sessionID string, conn *websocket.Conn) {
 	}()
 
 	for {
-		if _, _, err := conn.ReadMessage(); err != nil {
+		_, rawMessage, err := conn.ReadMessage()
+		if err != nil {
+			return
+		}
+		if err := s.handleClientMessage(sessionID, rawMessage); err != nil {
+			_ = conn.WriteControl(
+				websocket.CloseMessage,
+				websocket.FormatCloseMessage(websocket.ClosePolicyViolation, err.Error()),
+				time.Now().Add(time.Second),
+			)
 			return
 		}
 	}
 }
 
 func (s *WebSocketServer) Broadcast(message protocol.Envelope) error {
+	if err := s.eventStore.Append(context.Background(), message); err != nil {
+		return fmt.Errorf("persist broadcast message: %w", err)
+	}
+
 	encoded, err := protocol.Encode(message)
 	if err != nil {
 		return fmt.Errorf("encode broadcast message: %w", err)
@@ -252,6 +306,75 @@ func (s *WebSocketServer) Broadcast(message protocol.Envelope) error {
 	}
 
 	return nil
+}
+
+func (s *WebSocketServer) handleClientMessage(sessionID string, rawMessage []byte) error {
+	message, err := protocol.DecodeEnvelope(rawMessage)
+	if err != nil {
+		return fmt.Errorf("decode client message: %w", err)
+	}
+	if err := message.ValidateBase(); err != nil {
+		return fmt.Errorf("validate client message: %w", err)
+	}
+	if message.Name != protocol.MessageQueryEvents {
+		return nil
+	}
+	if message.T != protocol.TypeCommand {
+		return fmt.Errorf("unexpected query.events message type %q", message.T)
+	}
+
+	var query protocol.QueryEvents
+	if err := protocol.DecodePayload(message.Data, &query); err != nil {
+		return fmt.Errorf("decode query.events payload: %w", err)
+	}
+
+	records, err := s.eventStore.Recent(context.Background(), query.Limit)
+	if err != nil {
+		return fmt.Errorf("query recent events: %w", err)
+	}
+
+	events := make([]protocol.EventSnapshot, 0, len(records))
+	for _, record := range records {
+		events = append(events, protocol.EventSnapshot{
+			ID:           record.ID,
+			RecordedAtMS: record.RecordedAtMS,
+			Envelope:     record.Envelope,
+		})
+	}
+
+	response := protocol.NewQueryEventsResult(
+		protocol.Source{
+			Role: protocol.SourceDaemon,
+			ID:   s.cfg.DaemonID,
+		},
+		protocol.QueryEventsResult{
+			Events: events,
+		},
+	)
+
+	encoded, err := protocol.Encode(response)
+	if err != nil {
+		return fmt.Errorf("encode query.events.result response: %w", err)
+	}
+	if err := s.writeSessionMessage(sessionID, encoded); err != nil {
+		return fmt.Errorf("write query.events.result response: %w", err)
+	}
+
+	return nil
+}
+
+func (s *WebSocketServer) writeSessionMessage(sessionID string, encoded []byte) error {
+	s.mu.RLock()
+	session, ok := s.sessions[sessionID]
+	s.mu.RUnlock()
+	if !ok {
+		return fmt.Errorf("session %q is not connected", sessionID)
+	}
+
+	session.mu.Lock()
+	defer session.mu.Unlock()
+
+	return session.conn.WriteMessage(websocket.BinaryMessage, encoded)
 }
 
 func (s *WebSocketServer) nextSessionID() string {

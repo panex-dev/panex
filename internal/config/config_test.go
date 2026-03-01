@@ -36,6 +36,31 @@ auth_token = "test-token"
 	if cfg.Server.AuthToken != "test-token" {
 		t.Fatalf("unexpected auth_token: got %q", cfg.Server.AuthToken)
 	}
+	if cfg.Server.EventStorePath != DefaultEventStorePath {
+		t.Fatalf("unexpected default event_store_path: got %q, want %q", cfg.Server.EventStorePath, DefaultEventStorePath)
+	}
+}
+
+func TestLoadExplicitEventStorePath(t *testing.T) {
+	configPath := filepath.Join(t.TempDir(), "panex.toml")
+	writeConfig(t, configPath, `
+[extension]
+source_dir = "./extension-src"
+out_dir = "./dist"
+
+[server]
+port = 4317
+auth_token = "test-token"
+event_store_path = "./.panex/custom-events.db"
+`)
+
+	cfg, err := Load(configPath)
+	if err != nil {
+		t.Fatalf("Load() returned error: %v", err)
+	}
+	if cfg.Server.EventStorePath != "./.panex/custom-events.db" {
+		t.Fatalf("unexpected event_store_path: got %q", cfg.Server.EventStorePath)
+	}
 }
 
 func TestLoadRejectsUnknownKeys(t *testing.T) {

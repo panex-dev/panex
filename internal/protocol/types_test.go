@@ -18,6 +18,8 @@ func TestMessageTypeForName(t *testing.T) {
 		{name: MessageBuildComplete, want: TypeEvent, wantOK: true, caseTag: "build.complete"},
 		{name: MessageContextLog, want: TypeEvent, wantOK: true, caseTag: "context.log"},
 		{name: MessageCommandReload, want: TypeCommand, wantOK: true, caseTag: "command.reload"},
+		{name: MessageQueryEvents, want: TypeCommand, wantOK: true, caseTag: "query.events"},
+		{name: MessageQueryResult, want: TypeEvent, wantOK: true, caseTag: "query.events.result"},
 		{name: MessageName("unknown"), want: "", wantOK: false, caseTag: "unknown"},
 	}
 
@@ -210,6 +212,32 @@ func TestConstructors(t *testing.T) {
 			wantType:     TypeCommand,
 			wantName:     MessageCommandReload,
 			wantDataType: CommandReload{},
+		},
+		{
+			name:         "query.events",
+			got:          NewQueryEvents(src, QueryEvents{Limit: 10}),
+			wantType:     TypeCommand,
+			wantName:     MessageQueryEvents,
+			wantDataType: QueryEvents{},
+		},
+		{
+			name: "query.events.result",
+			got: NewQueryEventsResult(src, QueryEventsResult{
+				Events: []EventSnapshot{
+					{
+						ID:           1,
+						RecordedAtMS: 1234,
+						Envelope: NewBuildComplete(src, BuildComplete{
+							BuildID:    "b1",
+							Success:    true,
+							DurationMS: 9,
+						}),
+					},
+				},
+			}),
+			wantType:     TypeEvent,
+			wantName:     MessageQueryResult,
+			wantDataType: QueryEventsResult{},
 		},
 	}
 
