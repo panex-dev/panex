@@ -13,6 +13,7 @@ pnpm run build
 ```
 
 Open `inspector/index.html` after building.
+Protocol definitions are imported from `../shared/protocol/src/index.ts`.
 The timeline supports search + filter controls for message type and source role.
 Search operators:
 - `name:<message-name>`

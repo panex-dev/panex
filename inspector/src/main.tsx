@@ -1,10 +1,4 @@
 import { decode, encode } from "@msgpack/msgpack";
-import html from "solid-js/html";
-import { ErrorBoundary, createEffect, createMemo, createSignal, onCleanup } from "solid-js";
-import { render } from "solid-js/web";
-
-import "./styles.css";
-
 import {
   PROTOCOL_VERSION,
   isEnvelope,
@@ -14,7 +8,13 @@ import {
   type Hello,
   type QueryEvents,
   type QueryEventsResult
-} from "./protocol";
+} from "../../shared/protocol/src/index";
+import html from "solid-js/html";
+import { ErrorBoundary, createEffect, createMemo, createSignal, onCleanup } from "solid-js";
+import { render } from "solid-js/web";
+
+import "./styles.css";
+
 import {
   defaultTimelineFilter,
   defaultTimelineLimit,

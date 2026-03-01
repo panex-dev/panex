@@ -10,7 +10,7 @@ import {
   parseSearchQuery,
   summarizeEnvelope
 } from "../src/timeline";
-import type { Envelope, EventSnapshot } from "../src/protocol";
+import type { Envelope, EventSnapshot } from "../../shared/protocol/src/index";
 
 function envelope(name: Envelope["name"]): Envelope {
   return {

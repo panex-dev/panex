@@ -1,0 +1,11 @@
+{
+  "name": "@panex/protocol",
+  "private": true,
+  "version": "0.0.1",
+  "description": "Shared Panex protocol types and runtime guards",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "types": "./src/index.ts"
+}

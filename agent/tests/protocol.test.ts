@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
-import { isEnvelope } from "../src/protocol";
+import { isEnvelope } from "../../shared/protocol/src/index";
 
 describe("isEnvelope", () => {
   it("accepts protocol-shaped envelopes", () => {
