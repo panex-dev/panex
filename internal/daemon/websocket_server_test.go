@@ -41,33 +41,7 @@ func TestWebSocketHandshakeSendsWelcomeAndTracksConnection(t *testing.T) {
 		_ = conn.Close()
 	})
 
-	hello := protocol.NewHello(
-		protocol.Source{
-			Role: protocol.SourceDevAgent,
-			ID:   "agent-1",
-		},
-		protocol.Hello{
-			ProtocolVersion: protocol.CurrentVersion,
-			Capabilities:    []string{"reload"},
-		},
-	)
-	rawHello, err := protocol.Encode(hello)
-	if err != nil {
-		t.Fatalf("Encode(hello) returned error: %v", err)
-	}
-	if err := conn.WriteMessage(websocket.BinaryMessage, rawHello); err != nil {
-		t.Fatalf("WriteMessage(hello) returned error: %v", err)
-	}
-
-	_, rawWelcome, err := conn.ReadMessage()
-	if err != nil {
-		t.Fatalf("ReadMessage(welcome) returned error: %v", err)
-	}
-
-	welcomeEnv, err := protocol.DecodeEnvelope(rawWelcome)
-	if err != nil {
-		t.Fatalf("DecodeEnvelope(welcome) returned error: %v", err)
-	}
+	welcomeEnv := mustHandshake(t, conn)
 	if welcomeEnv.Name != protocol.MessageWelcome {
 		t.Fatalf("unexpected message name: got %q, want %q", welcomeEnv.Name, protocol.MessageWelcome)
 	}
@@ -98,6 +72,59 @@ func TestWebSocketHandshakeSendsWelcomeAndTracksConnection(t *testing.T) {
 		t.Fatalf("Close() returned error: %v", err)
 	}
 	waitForConnectionCount(t, server.ws, 0)
+}
+
+func TestWebSocketBroadcastToConnectedClient(t *testing.T) {
+	server := newTestServer(t)
+	defer server.httpServer.Close()
+
+	conn := dialAuthorizedConnection(t, server.wsURL, server.token)
+	t.Cleanup(func() {
+		_ = conn.Close()
+	})
+
+	_ = mustHandshake(t, conn)
+	waitForConnectionCount(t, server.ws, 1)
+
+	buildComplete := protocol.NewBuildComplete(
+		protocol.Source{
+			Role: protocol.SourceDaemon,
+			ID:   "daemon-test",
+		},
+		protocol.BuildComplete{
+			BuildID:      "build-1",
+			Success:      true,
+			DurationMS:   42,
+			ChangedFiles: []string{"index.ts"},
+		},
+	)
+	if err := server.ws.Broadcast(buildComplete); err != nil {
+		t.Fatalf("Broadcast() returned error: %v", err)
+	}
+
+	_, rawMessage, err := conn.ReadMessage()
+	if err != nil {
+		t.Fatalf("ReadMessage(broadcast) returned error: %v", err)
+	}
+
+	envelope, err := protocol.DecodeEnvelope(rawMessage)
+	if err != nil {
+		t.Fatalf("DecodeEnvelope(broadcast) returned error: %v", err)
+	}
+	if envelope.Name != protocol.MessageBuildComplete {
+		t.Fatalf("unexpected message name: got %q, want %q", envelope.Name, protocol.MessageBuildComplete)
+	}
+
+	var payload protocol.BuildComplete
+	if err := protocol.DecodePayload(envelope.Data, &payload); err != nil {
+		t.Fatalf("DecodePayload(broadcast) returned error: %v", err)
+	}
+	if payload.BuildID != "build-1" {
+		t.Fatalf("unexpected build id: got %q, want %q", payload.BuildID, "build-1")
+	}
+	if len(payload.ChangedFiles) != 1 || payload.ChangedFiles[0] != "index.ts" {
+		t.Fatalf("unexpected changed files: %v", payload.ChangedFiles)
+	}
 }
 
 func TestWebSocketRejectsFirstMessageThatIsNotHello(t *testing.T) {
@@ -206,4 +233,38 @@ func waitForConnectionCount(t *testing.T, server *WebSocketServer, want int) {
 	}
 
 	t.Fatalf("timed out waiting for connection count %d (last=%d)", want, server.ConnectionCount())
+}
+
+func mustHandshake(t *testing.T, conn *websocket.Conn) protocol.Envelope {
+	t.Helper()
+
+	hello := protocol.NewHello(
+		protocol.Source{
+			Role: protocol.SourceDevAgent,
+			ID:   "agent-1",
+		},
+		protocol.Hello{
+			ProtocolVersion: protocol.CurrentVersion,
+			Capabilities:    []string{"reload"},
+		},
+	)
+	rawHello, err := protocol.Encode(hello)
+	if err != nil {
+		t.Fatalf("Encode(hello) returned error: %v", err)
+	}
+	if err := conn.WriteMessage(websocket.BinaryMessage, rawHello); err != nil {
+		t.Fatalf("WriteMessage(hello) returned error: %v", err)
+	}
+
+	_, rawWelcome, err := conn.ReadMessage()
+	if err != nil {
+		t.Fatalf("ReadMessage(welcome) returned error: %v", err)
+	}
+
+	welcomeEnv, err := protocol.DecodeEnvelope(rawWelcome)
+	if err != nil {
+		t.Fatalf("DecodeEnvelope(welcome) returned error: %v", err)
+	}
+
+	return welcomeEnv
 }

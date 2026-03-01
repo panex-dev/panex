@@ -2,14 +2,20 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"io"
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
+	"time"
 
+	"github.com/panex-dev/panex/internal/build"
 	panexconfig "github.com/panex-dev/panex/internal/config"
+	"github.com/panex-dev/panex/internal/daemon"
+	"github.com/panex-dev/panex/internal/protocol"
 )
 
 func TestRunVersion(t *testing.T) {
@@ -228,6 +234,105 @@ func TestRunWriteFailurePropagates(t *testing.T) {
 	}
 }
 
+func TestRunBuildLoopBroadcastsBuildComplete(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	changes := make(chan daemon.FileChangeEvent, 1)
+	broadcaster := &fakeBroadcaster{}
+	builder := fakeBuildRunner{
+		build: func(_ context.Context, changedPaths []string) (build.Result, error) {
+			return build.Result{
+				BuildID:      "build-123",
+				Success:      true,
+				DurationMS:   21,
+				ChangedFiles: changedPaths,
+			}, nil
+		},
+	}
+
+	done := make(chan error, 1)
+	go func() {
+		done <- runBuildLoop(ctx, builder, broadcaster, changes)
+	}()
+
+	changes <- daemon.FileChangeEvent{Paths: []string{"src/index.ts"}, OccurredAt: time.Now()}
+
+	event := waitForBroadcast(t, broadcaster, 2*time.Second)
+	if event.Name != protocol.MessageBuildComplete {
+		t.Fatalf("unexpected message name: got %q, want %q", event.Name, protocol.MessageBuildComplete)
+	}
+
+	payload, ok := event.Data.(protocol.BuildComplete)
+	if !ok {
+		t.Fatalf("unexpected payload type: got %T", event.Data)
+	}
+	if payload.BuildID != "build-123" {
+		t.Fatalf("unexpected build id: got %q, want %q", payload.BuildID, "build-123")
+	}
+	if !payload.Success {
+		t.Fatal("expected successful payload")
+	}
+	if len(payload.ChangedFiles) != 1 || payload.ChangedFiles[0] != "src/index.ts" {
+		t.Fatalf("unexpected changed files: %v", payload.ChangedFiles)
+	}
+
+	cancel()
+	select {
+	case err := <-done:
+		if err != nil {
+			t.Fatalf("runBuildLoop() returned error: %v", err)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("timed out waiting for build loop shutdown")
+	}
+}
+
+func TestRunBuildLoopBuilderErrorStillBroadcastsFailure(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	changes := make(chan daemon.FileChangeEvent, 1)
+	broadcaster := &fakeBroadcaster{}
+	builder := fakeBuildRunner{
+		build: func(_ context.Context, _ []string) (build.Result, error) {
+			return build.Result{}, errors.New("boom")
+		},
+	}
+
+	done := make(chan error, 1)
+	go func() {
+		done <- runBuildLoop(ctx, builder, broadcaster, changes)
+	}()
+
+	changes <- daemon.FileChangeEvent{Paths: []string{"src/invalid.ts"}, OccurredAt: time.Now()}
+
+	event := waitForBroadcast(t, broadcaster, 2*time.Second)
+	payload, ok := event.Data.(protocol.BuildComplete)
+	if !ok {
+		t.Fatalf("unexpected payload type: got %T", event.Data)
+	}
+	if payload.Success {
+		t.Fatal("expected failure payload")
+	}
+	if !strings.HasPrefix(payload.BuildID, "build-failed-") {
+		t.Fatalf("unexpected failure build id: %q", payload.BuildID)
+	}
+	if len(payload.ChangedFiles) != 1 || payload.ChangedFiles[0] != "src/invalid.ts" {
+		t.Fatalf("unexpected changed files: %v", payload.ChangedFiles)
+	}
+
+	cancel()
+	select {
+	case err := <-done:
+		if err != nil {
+			t.Fatalf("runBuildLoop() returned error: %v", err)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("timed out waiting for build loop shutdown")
+	}
+}
+
 type failingWriter struct{}
 
 func (failingWriter) Write(p []byte) (int, error) {
@@ -282,4 +387,65 @@ func withStubbedStartDev(t *testing.T, stub func(cfg panexconfig.Config, stdout 
 	t.Cleanup(func() {
 		startDev = original
 	})
+}
+
+type fakeBuildRunner struct {
+	build func(ctx context.Context, changedPaths []string) (build.Result, error)
+}
+
+func (f fakeBuildRunner) Build(ctx context.Context, changedPaths []string) (build.Result, error) {
+	return f.build(ctx, changedPaths)
+}
+
+type fakeBroadcaster struct {
+	mu      sync.Mutex
+	events  []protocol.Envelope
+	eventCh chan struct{}
+}
+
+func (f *fakeBroadcaster) Broadcast(message protocol.Envelope) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	if f.eventCh == nil {
+		f.eventCh = make(chan struct{}, 1)
+	}
+	f.events = append(f.events, message)
+	select {
+	case f.eventCh <- struct{}{}:
+	default:
+	}
+
+	return nil
+}
+
+func waitForBroadcast(t *testing.T, broadcaster *fakeBroadcaster, timeout time.Duration) protocol.Envelope {
+	t.Helper()
+
+	deadline := time.Now().Add(timeout)
+	for time.Now().Before(deadline) {
+		broadcaster.mu.Lock()
+		if len(broadcaster.events) > 0 {
+			event := broadcaster.events[0]
+			broadcaster.events = broadcaster.events[1:]
+			broadcaster.mu.Unlock()
+			return event
+		}
+
+		eventCh := broadcaster.eventCh
+		broadcaster.mu.Unlock()
+
+		if eventCh == nil {
+			time.Sleep(10 * time.Millisecond)
+			continue
+		}
+
+		select {
+		case <-eventCh:
+		case <-time.After(10 * time.Millisecond):
+		}
+	}
+
+	t.Fatalf("timed out waiting for broadcast after %s", timeout)
+	return protocol.Envelope{}
 }
