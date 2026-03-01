@@ -11,9 +11,10 @@ import (
 )
 
 const (
-	DefaultPath = "panex.toml"
-	minPort     = 1
-	maxPort     = 65535
+	DefaultPath           = "panex.toml"
+	DefaultEventStorePath = ".panex/events.db"
+	minPort               = 1
+	maxPort               = 65535
 )
 
 type Config struct {
@@ -27,8 +28,9 @@ type Extension struct {
 }
 
 type Server struct {
-	Port      int    `toml:"port"`
-	AuthToken string `toml:"auth_token"`
+	Port           int    `toml:"port"`
+	AuthToken      string `toml:"auth_token"`
+	EventStorePath string `toml:"event_store_path"`
 }
 
 func Load(path string) (Config, error) {
@@ -51,6 +53,9 @@ func Load(path string) (Config, error) {
 	}
 	if err := validateUndecoded(meta); err != nil {
 		return Config{}, err
+	}
+	if strings.TrimSpace(cfg.Server.EventStorePath) == "" {
+		cfg.Server.EventStorePath = DefaultEventStorePath
 	}
 
 	if err := cfg.Validate(); err != nil {
