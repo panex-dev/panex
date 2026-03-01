@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -30,9 +31,14 @@ type WebSocketServer struct {
 	upgrader websocket.Upgrader
 
 	mu       sync.RWMutex
-	sessions map[string]*websocket.Conn
+	sessions map[string]*sessionConn
 
 	seq uint64
+}
+
+type sessionConn struct {
+	conn *websocket.Conn
+	mu   sync.Mutex
 }
 
 func NewWebSocketServer(cfg WebSocketConfig) (*WebSocketServer, error) {
@@ -56,7 +62,7 @@ func NewWebSocketServer(cfg WebSocketConfig) (*WebSocketServer, error) {
 			// and rely on token auth; tighten this once the agent connection story is finalized.
 			CheckOrigin: func(_ *http.Request) bool { return true },
 		},
-		sessions: make(map[string]*websocket.Conn),
+		sessions: make(map[string]*sessionConn),
 	}, nil
 }
 
@@ -135,7 +141,7 @@ func (s *WebSocketServer) handleWebSocket(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	s.register(sessionID, conn)
+	s.register(sessionID, &sessionConn{conn: conn})
 	go s.readLoop(sessionID, conn)
 }
 
@@ -212,12 +218,48 @@ func (s *WebSocketServer) readLoop(sessionID string, conn *websocket.Conn) {
 	}
 }
 
+func (s *WebSocketServer) Broadcast(message protocol.Envelope) error {
+	encoded, err := protocol.Encode(message)
+	if err != nil {
+		return fmt.Errorf("encode broadcast message: %w", err)
+	}
+
+	s.mu.RLock()
+	sessions := make(map[string]*sessionConn, len(s.sessions))
+	for sessionID, session := range s.sessions {
+		sessions[sessionID] = session
+	}
+	s.mu.RUnlock()
+
+	var failed []string
+	for sessionID, session := range sessions {
+		session.mu.Lock()
+		writeErr := session.conn.WriteMessage(websocket.BinaryMessage, encoded)
+		session.mu.Unlock()
+		if writeErr != nil {
+			_ = session.conn.Close()
+			failed = append(failed, sessionID)
+		}
+	}
+
+	for _, sessionID := range failed {
+		s.unregister(sessionID)
+	}
+
+	if len(failed) > 0 {
+		sort.Strings(failed)
+		return fmt.Errorf("broadcast failed for sessions: %s", strings.Join(failed, ", "))
+	}
+
+	return nil
+}
+
 func (s *WebSocketServer) nextSessionID() string {
 	seq := atomic.AddUint64(&s.seq, 1)
 	return "sess-" + strconv.FormatUint(seq, 10)
 }
 
-func (s *WebSocketServer) register(sessionID string, conn *websocket.Conn) {
+func (s *WebSocketServer) register(sessionID string, conn *sessionConn) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -233,13 +275,13 @@ func (s *WebSocketServer) unregister(sessionID string) {
 
 func (s *WebSocketServer) closeAllConnections() {
 	s.mu.RLock()
-	connections := make([]*websocket.Conn, 0, len(s.sessions))
-	for _, conn := range s.sessions {
-		connections = append(connections, conn)
+	connections := make([]*sessionConn, 0, len(s.sessions))
+	for _, session := range s.sessions {
+		connections = append(connections, session)
 	}
 	s.mu.RUnlock()
 
-	for _, conn := range connections {
-		_ = conn.Close()
+	for _, session := range connections {
+		_ = session.conn.Close()
 	}
 }
