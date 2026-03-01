@@ -229,6 +229,25 @@ func runBuildLoop(
 				_ = writef(os.Stderr, "broadcast build.complete failed: %v\n", broadcastErr)
 			}
 
+			if result.Success {
+				// Reload commands are emitted only after successful builds so clients can treat reload as a
+				// strong signal that new artifacts exist in the output directory.
+				if broadcastErr := server.Broadcast(
+					protocol.NewCommandReload(
+						protocol.Source{
+							Role: protocol.SourceDaemon,
+							ID:   "daemon-1",
+						},
+						protocol.CommandReload{
+							Reason:  "build.complete",
+							BuildID: result.BuildID,
+						},
+					),
+				); broadcastErr != nil && !errors.Is(ctx.Err(), context.Canceled) {
+					_ = writef(os.Stderr, "broadcast command.reload failed: %v\n", broadcastErr)
+				}
+			}
+
 			// Keep diagnostics available in daemon logs until inspector/event-store steps are implemented.
 			for _, diagnostic := range result.Errors {
 				_ = writef(os.Stderr, "build %s error: %s\n", result.BuildID, diagnostic)
