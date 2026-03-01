@@ -26,3 +26,9 @@ Thumbs.db
 *.swp
 *.swo
 *~
+
+# Node/pnpm artifacts
+**/node_modules/
+.pnpm-store/
+package-lock.json
+agent/dist/

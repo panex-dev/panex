@@ -1,0 +1,13 @@
+{
+  "manifest_version": 3,
+  "name": "Panex Dev Agent",
+  "version": "0.0.1",
+  "description": "Panex runtime bridge for live extension reload during development.",
+  "permissions": ["storage"],
+  "host_permissions": ["http://127.0.0.1/*", "ws://127.0.0.1/*"],
+  "background": {
+    "service_worker": "dist/background.js",
+    "type": "module"
+  },
+  "minimum_chrome_version": "116"
+}
