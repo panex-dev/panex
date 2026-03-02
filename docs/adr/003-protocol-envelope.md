@@ -8,7 +8,7 @@ Panex components (daemon, Dev Agent, Inspector) need a shared wire-level contrac
 Without an explicit envelope and message taxonomy, components tend to drift and integration failures move from compile time to runtime.
 
 The MVP needs to support:
-- connection handshake (`hello`, `welcome`)
+- connection handshake (`hello`, `hello.ack`)
 - daemon event stream (`build.complete`, `context.log`)
 - daemon-to-agent control command (`command.reload`)
 

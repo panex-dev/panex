@@ -11,7 +11,7 @@ Browser extensions cannot attach arbitrary HTTP headers in a WebSocket construct
 - Expose a single endpoint: `GET /ws`.
 - Require a `token` query parameter during upgrade (`/ws?token=<auth_token>`).
 - Require the first frame from clients to be `hello` (`lifecycle` type) with `protocol_version = 1`.
-- Respond with `welcome` carrying `session_id` and `server_version`.
+- Respond with `hello.ack` carrying `session_id`, `daemon_version`, `auth_ok`, and `capabilities_supported`.
 - Close the connection with policy-violation close code for invalid first message or malformed handshake payload.
 
 ## Consequences

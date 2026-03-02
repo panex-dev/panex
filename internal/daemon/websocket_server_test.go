@@ -33,7 +33,7 @@ func TestWebSocketAuthRejectsMissingToken(t *testing.T) {
 	}
 }
 
-func TestWebSocketHandshakeSendsWelcomeAndTracksConnection(t *testing.T) {
+func TestWebSocketHandshakeSendsHelloAckAndTracksConnection(t *testing.T) {
 	server := newTestServer(t)
 	defer server.httpServer.Close()
 
@@ -42,29 +42,35 @@ func TestWebSocketHandshakeSendsWelcomeAndTracksConnection(t *testing.T) {
 		_ = conn.Close()
 	})
 
-	welcomeEnv := mustHandshake(t, conn)
-	if welcomeEnv.Name != protocol.MessageWelcome {
-		t.Fatalf("unexpected message name: got %q, want %q", welcomeEnv.Name, protocol.MessageWelcome)
+	helloAckEnv := mustHandshake(t, conn)
+	if helloAckEnv.Name != protocol.MessageHelloAck {
+		t.Fatalf("unexpected message name: got %q, want %q", helloAckEnv.Name, protocol.MessageHelloAck)
 	}
-	if welcomeEnv.T != protocol.TypeLifecycle {
-		t.Fatalf("unexpected message type: got %q, want %q", welcomeEnv.T, protocol.TypeLifecycle)
+	if helloAckEnv.T != protocol.TypeLifecycle {
+		t.Fatalf("unexpected message type: got %q, want %q", helloAckEnv.T, protocol.TypeLifecycle)
 	}
-	if welcomeEnv.Src.Role != protocol.SourceDaemon {
-		t.Fatalf("unexpected source role: got %q, want %q", welcomeEnv.Src.Role, protocol.SourceDaemon)
+	if helloAckEnv.Src.Role != protocol.SourceDaemon {
+		t.Fatalf("unexpected source role: got %q, want %q", helloAckEnv.Src.Role, protocol.SourceDaemon)
 	}
 
-	var welcome protocol.Welcome
-	if err := protocol.DecodePayload(welcomeEnv.Data, &welcome); err != nil {
-		t.Fatalf("DecodePayload(welcome) returned error: %v", err)
+	var helloAck protocol.HelloAck
+	if err := protocol.DecodePayload(helloAckEnv.Data, &helloAck); err != nil {
+		t.Fatalf("DecodePayload(hello.ack) returned error: %v", err)
 	}
-	if welcome.ProtocolVersion != protocol.CurrentVersion {
-		t.Fatalf("unexpected protocol version: got %d, want %d", welcome.ProtocolVersion, protocol.CurrentVersion)
+	if helloAck.ProtocolVersion != protocol.CurrentVersion {
+		t.Fatalf("unexpected protocol version: got %d, want %d", helloAck.ProtocolVersion, protocol.CurrentVersion)
 	}
-	if welcome.SessionID == "" {
+	if helloAck.SessionID == "" {
 		t.Fatal("expected non-empty session id")
 	}
-	if welcome.ServerVersion != "test-version" {
-		t.Fatalf("unexpected server version: got %q, want %q", welcome.ServerVersion, "test-version")
+	if !helloAck.AuthOK {
+		t.Fatal("expected auth_ok=true")
+	}
+	if helloAck.DaemonVersion != "test-version" {
+		t.Fatalf("unexpected daemon version: got %q, want %q", helloAck.DaemonVersion, "test-version")
+	}
+	if len(helloAck.CapabilitiesSupported) != 1 || helloAck.CapabilitiesSupported[0] != "command.reload" {
+		t.Fatalf("unexpected supported capabilities: %v", helloAck.CapabilitiesSupported)
 	}
 
 	waitForConnectionCount(t, server.ws, 1)
@@ -73,6 +79,49 @@ func TestWebSocketHandshakeSendsWelcomeAndTracksConnection(t *testing.T) {
 		t.Fatalf("Close() returned error: %v", err)
 	}
 	waitForConnectionCount(t, server.ws, 0)
+}
+
+func TestWebSocketHandshakeNegotiatesCapabilities(t *testing.T) {
+	server := newTestServer(t)
+	defer server.httpServer.Close()
+
+	conn := dialAuthorizedConnection(t, server.wsURL, server.token)
+	t.Cleanup(func() {
+		_ = conn.Close()
+	})
+
+	hello := protocol.NewHello(
+		protocol.Source{
+			Role: protocol.SourceInspector,
+			ID:   "inspector-1",
+		},
+		protocol.Hello{
+			ProtocolVersion:       protocol.CurrentVersion,
+			ClientKind:            "inspector",
+			ClientVersion:         "dev",
+			CapabilitiesRequested: []string{"query.events", "unknown.capability", "query.events"},
+		},
+	)
+	rawHello, err := protocol.Encode(hello)
+	if err != nil {
+		t.Fatalf("Encode(hello) returned error: %v", err)
+	}
+	if err := conn.WriteMessage(websocket.BinaryMessage, rawHello); err != nil {
+		t.Fatalf("WriteMessage(hello) returned error: %v", err)
+	}
+
+	helloAck := mustReadEnvelope(t, conn)
+	if helloAck.Name != protocol.MessageHelloAck {
+		t.Fatalf("unexpected message name: got %q, want %q", helloAck.Name, protocol.MessageHelloAck)
+	}
+
+	var payload protocol.HelloAck
+	if err := protocol.DecodePayload(helloAck.Data, &payload); err != nil {
+		t.Fatalf("DecodePayload(hello.ack) returned error: %v", err)
+	}
+	if len(payload.CapabilitiesSupported) != 1 || payload.CapabilitiesSupported[0] != "query.events" {
+		t.Fatalf("unexpected supported capabilities: %v", payload.CapabilitiesSupported)
+	}
 }
 
 func TestWebSocketBroadcastToConnectedClient(t *testing.T) {
@@ -323,8 +372,10 @@ func mustHandshake(t *testing.T, conn *websocket.Conn) protocol.Envelope {
 			ID:   "agent-1",
 		},
 		protocol.Hello{
-			ProtocolVersion: protocol.CurrentVersion,
-			Capabilities:    []string{"reload"},
+			ProtocolVersion:       protocol.CurrentVersion,
+			ClientKind:            "dev-agent",
+			ClientVersion:         "dev",
+			CapabilitiesRequested: []string{"command.reload"},
 		},
 	)
 	rawHello, err := protocol.Encode(hello)
@@ -335,17 +386,17 @@ func mustHandshake(t *testing.T, conn *websocket.Conn) protocol.Envelope {
 		t.Fatalf("WriteMessage(hello) returned error: %v", err)
 	}
 
-	_, rawWelcome, err := conn.ReadMessage()
+	_, rawHelloAck, err := conn.ReadMessage()
 	if err != nil {
-		t.Fatalf("ReadMessage(welcome) returned error: %v", err)
+		t.Fatalf("ReadMessage(hello.ack) returned error: %v", err)
 	}
 
-	welcomeEnv, err := protocol.DecodeEnvelope(rawWelcome)
+	helloAckEnv, err := protocol.DecodeEnvelope(rawHelloAck)
 	if err != nil {
-		t.Fatalf("DecodeEnvelope(welcome) returned error: %v", err)
+		t.Fatalf("DecodeEnvelope(hello.ack) returned error: %v", err)
 	}
 
-	return welcomeEnv
+	return helloAckEnv
 }
 
 func mustReadEnvelope(t *testing.T, conn *websocket.Conn) protocol.Envelope {

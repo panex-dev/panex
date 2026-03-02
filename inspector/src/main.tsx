@@ -2,8 +2,8 @@ import { decode, encode } from "@msgpack/msgpack";
 import {
   PROTOCOL_VERSION,
   isEnvelope,
+  isHelloAck,
   isQueryEventsResult,
-  isWelcome,
   type Envelope,
   type Hello,
   type QueryEvents,
@@ -107,7 +107,9 @@ function App() {
         src: { role: "inspector", id: inspectorID },
         data: {
           protocol_version: PROTOCOL_VERSION,
-          capabilities: ["query.events"]
+          client_kind: "inspector",
+          client_version: "dev",
+          capabilities_requested: ["query.events"]
         }
       };
 
@@ -129,7 +131,13 @@ function App() {
         return;
       }
 
-      if (isWelcome(decoded)) {
+      if (isHelloAck(decoded)) {
+        if (!decoded.data.auth_ok) {
+          setLastError("handshake rejected by daemon");
+          next.close();
+          return;
+        }
+
         const query: Envelope<QueryEvents> = {
           v: PROTOCOL_VERSION,
           t: "command",

@@ -14,7 +14,7 @@ func TestMessageTypeForName(t *testing.T) {
 		caseTag string
 	}{
 		{name: MessageHello, want: TypeLifecycle, wantOK: true, caseTag: "hello"},
-		{name: MessageWelcome, want: TypeLifecycle, wantOK: true, caseTag: "welcome"},
+		{name: MessageHelloAck, want: TypeLifecycle, wantOK: true, caseTag: "hello.ack"},
 		{name: MessageBuildComplete, want: TypeEvent, wantOK: true, caseTag: "build.complete"},
 		{name: MessageContextLog, want: TypeEvent, wantOK: true, caseTag: "context.log"},
 		{name: MessageCommandReload, want: TypeCommand, wantOK: true, caseTag: "command.reload"},
@@ -186,11 +186,17 @@ func TestConstructors(t *testing.T) {
 			wantDataType: Hello{},
 		},
 		{
-			name:         "welcome",
-			got:          NewWelcome(src, Welcome{ProtocolVersion: CurrentVersion, SessionID: "s1", ServerVersion: "dev"}),
+			name: "hello.ack",
+			got: NewHelloAck(src, HelloAck{
+				ProtocolVersion:       CurrentVersion,
+				DaemonVersion:         "dev",
+				SessionID:             "s1",
+				AuthOK:                true,
+				CapabilitiesSupported: []string{"query.events"},
+			}),
 			wantType:     TypeLifecycle,
-			wantName:     MessageWelcome,
-			wantDataType: Welcome{},
+			wantName:     MessageHelloAck,
+			wantDataType: HelloAck{},
 		},
 		{
 			name:         "build.complete",
