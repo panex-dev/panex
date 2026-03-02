@@ -1,8 +1,8 @@
-# PR16 - Protocol hello.ack Capability Negotiation
+# PR17 - Protocol hello.ack Capability Negotiation
 
 ## Metadata
 - Date: 2026-03-02
-- PR: 16
+- PR: 17
 - Branch: `feat/protocol-hello-ack-cap-negotiation`
 - Title: switch handshake to hello.ack and add capability negotiation
 - Commit(s): pending
