@@ -20,6 +20,11 @@ import (
 
 const maxMessageBytes = 1 << 20 // 1 MiB keeps accidental payload explosions bounded.
 
+var daemonCapabilities = []string{
+	"command.reload",
+	"query.events",
+}
+
 type WebSocketConfig struct {
 	Port           int
 	AuthToken      string
@@ -219,28 +224,37 @@ func (s *WebSocketServer) handshake(conn *websocket.Conn) (string, error) {
 		return "", fmt.Errorf("persist hello message: %w", err)
 	}
 
+	requestedCapabilities := hello.CapabilitiesRequested
+	if len(requestedCapabilities) == 0 {
+		// Support older clients that sent `capabilities` before `capabilities_requested`.
+		requestedCapabilities = hello.Capabilities
+	}
+	supportedCapabilities := negotiateCapabilities(requestedCapabilities, daemonCapabilities)
+
 	sessionID := s.nextSessionID()
-	welcome := protocol.NewWelcome(
+	helloAck := protocol.NewHelloAck(
 		protocol.Source{
 			Role: protocol.SourceDaemon,
 			ID:   s.cfg.DaemonID,
 		},
-		protocol.Welcome{
-			ProtocolVersion: protocol.CurrentVersion,
-			SessionID:       sessionID,
-			ServerVersion:   s.cfg.ServerVersion,
+		protocol.HelloAck{
+			ProtocolVersion:       protocol.CurrentVersion,
+			DaemonVersion:         s.cfg.ServerVersion,
+			SessionID:             sessionID,
+			AuthOK:                true,
+			CapabilitiesSupported: supportedCapabilities,
 		},
 	)
 
-	encodedWelcome, err := protocol.Encode(welcome)
+	encodedHelloAck, err := protocol.Encode(helloAck)
 	if err != nil {
-		return "", fmt.Errorf("encode welcome message: %w", err)
+		return "", fmt.Errorf("encode hello.ack message: %w", err)
 	}
-	if err := conn.WriteMessage(websocket.BinaryMessage, encodedWelcome); err != nil {
-		return "", fmt.Errorf("write welcome message: %w", err)
+	if err := conn.WriteMessage(websocket.BinaryMessage, encodedHelloAck); err != nil {
+		return "", fmt.Errorf("write hello.ack message: %w", err)
 	}
-	if err := s.eventStore.Append(context.Background(), welcome); err != nil {
-		return "", fmt.Errorf("persist welcome message: %w", err)
+	if err := s.eventStore.Append(context.Background(), helloAck); err != nil {
+		return "", fmt.Errorf("persist hello.ack message: %w", err)
 	}
 
 	return sessionID, nil
@@ -407,4 +421,38 @@ func (s *WebSocketServer) closeAllConnections() {
 	for _, session := range connections {
 		_ = session.conn.Close()
 	}
+}
+
+func negotiateCapabilities(requested, supported []string) []string {
+	if len(requested) == 0 {
+		return append([]string(nil), supported...)
+	}
+
+	supportedSet := make(map[string]struct{}, len(supported))
+	for _, capability := range supported {
+		trimmed := strings.TrimSpace(capability)
+		if trimmed == "" {
+			continue
+		}
+		supportedSet[trimmed] = struct{}{}
+	}
+
+	accepted := make([]string, 0, len(requested))
+	seen := make(map[string]struct{}, len(requested))
+	for _, capability := range requested {
+		trimmed := strings.TrimSpace(capability)
+		if trimmed == "" {
+			continue
+		}
+		if _, alreadyIncluded := seen[trimmed]; alreadyIncluded {
+			continue
+		}
+		if _, ok := supportedSet[trimmed]; !ok {
+			continue
+		}
+		accepted = append(accepted, trimmed)
+		seen[trimmed] = struct{}{}
+	}
+
+	return accepted
 }

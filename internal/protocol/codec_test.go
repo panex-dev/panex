@@ -11,8 +11,10 @@ func TestEncodeDecodeRoundTrip(t *testing.T) {
 			ID:   "agent-1",
 		},
 		Hello{
-			ProtocolVersion: CurrentVersion,
-			Capabilities:    []string{"reload"},
+			ProtocolVersion:       CurrentVersion,
+			ClientKind:            "dev-agent",
+			ClientVersion:         "dev",
+			CapabilitiesRequested: []string{"command.reload"},
 		},
 	)
 
@@ -46,7 +48,13 @@ func TestEncodeDecodeRoundTrip(t *testing.T) {
 	if hello.ProtocolVersion != CurrentVersion {
 		t.Fatalf("unexpected protocol version: got %d, want %d", hello.ProtocolVersion, CurrentVersion)
 	}
-	if len(hello.Capabilities) != 1 || hello.Capabilities[0] != "reload" {
-		t.Fatalf("unexpected capabilities: %+v", hello.Capabilities)
+	if hello.ClientKind != "dev-agent" {
+		t.Fatalf("unexpected client kind: got %q, want %q", hello.ClientKind, "dev-agent")
+	}
+	if hello.ClientVersion != "dev" {
+		t.Fatalf("unexpected client version: got %q, want %q", hello.ClientVersion, "dev")
+	}
+	if len(hello.CapabilitiesRequested) != 1 || hello.CapabilitiesRequested[0] != "command.reload" {
+		t.Fatalf("unexpected capabilities requested: %+v", hello.CapabilitiesRequested)
 	}
 }

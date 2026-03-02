@@ -20,7 +20,7 @@ type MessageName string
 
 const (
 	MessageHello         MessageName = "hello"
-	MessageWelcome       MessageName = "welcome"
+	MessageHelloAck      MessageName = "hello.ack"
 	MessageBuildComplete MessageName = "build.complete"
 	MessageContextLog    MessageName = "context.log"
 	MessageCommandReload MessageName = "command.reload"
@@ -81,14 +81,20 @@ func (e Envelope) ValidateBase() error {
 }
 
 type Hello struct {
-	ProtocolVersion uint8    `msgpack:"protocol_version"`
-	Capabilities    []string `msgpack:"capabilities,omitempty"`
+	ProtocolVersion       uint8    `msgpack:"protocol_version"`
+	ClientKind            string   `msgpack:"client_kind,omitempty"`
+	ClientVersion         string   `msgpack:"client_version,omitempty"`
+	CapabilitiesRequested []string `msgpack:"capabilities_requested,omitempty"`
+	// Capabilities is retained for backward compatibility with early clients.
+	Capabilities []string `msgpack:"capabilities,omitempty"`
 }
 
-type Welcome struct {
-	ProtocolVersion uint8  `msgpack:"protocol_version"`
-	SessionID       string `msgpack:"session_id"`
-	ServerVersion   string `msgpack:"server_version"`
+type HelloAck struct {
+	ProtocolVersion       uint8    `msgpack:"protocol_version"`
+	DaemonVersion         string   `msgpack:"daemon_version"`
+	SessionID             string   `msgpack:"session_id"`
+	AuthOK                bool     `msgpack:"auth_ok"`
+	CapabilitiesSupported []string `msgpack:"capabilities_supported"`
 }
 
 type BuildComplete struct {
@@ -126,7 +132,7 @@ type QueryEventsResult struct {
 
 var messageTypeByName = map[MessageName]MessageType{
 	MessageHello:         TypeLifecycle,
-	MessageWelcome:       TypeLifecycle,
+	MessageHelloAck:      TypeLifecycle,
 	MessageBuildComplete: TypeEvent,
 	MessageContextLog:    TypeEvent,
 	MessageCommandReload: TypeCommand,
@@ -143,8 +149,8 @@ func NewHello(src Source, data Hello) Envelope {
 	return newEnvelope(TypeLifecycle, MessageHello, src, data)
 }
 
-func NewWelcome(src Source, data Welcome) Envelope {
-	return newEnvelope(TypeLifecycle, MessageWelcome, src, data)
+func NewHelloAck(src Source, data HelloAck) Envelope {
+	return newEnvelope(TypeLifecycle, MessageHelloAck, src, data)
 }
 
 func NewBuildComplete(src Source, data BuildComplete) Envelope {

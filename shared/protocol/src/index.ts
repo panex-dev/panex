@@ -8,7 +8,7 @@ export type SourceRole = (typeof sourceRoles)[number];
 
 export const envelopeNames = [
   "hello",
-  "welcome",
+  "hello.ack",
   "build.complete",
   "context.log",
   "command.reload",
@@ -19,7 +19,7 @@ export type EnvelopeName = (typeof envelopeNames)[number];
 
 export const messageTypeByName: Readonly<Record<EnvelopeName, EnvelopeType>> = {
   hello: "lifecycle",
-  welcome: "lifecycle",
+  "hello.ack": "lifecycle",
   "build.complete": "event",
   "context.log": "event",
   "command.reload": "command",
@@ -42,13 +42,19 @@ export interface Envelope<TData = unknown> {
 
 export interface Hello {
   protocol_version: number;
+  client_kind?: string;
+  client_version?: string;
+  capabilities_requested?: string[];
+  // Retained for backward compatibility with early clients.
   capabilities?: string[];
 }
 
-export interface Welcome {
+export interface HelloAck {
   protocol_version: number;
+  daemon_version: string;
   session_id: string;
-  server_version: string;
+  auth_ok: boolean;
+  capabilities_supported: string[];
 }
 
 export interface BuildComplete {
@@ -131,8 +137,8 @@ export function isEnvelope(value: unknown): value is Envelope {
   return "data" in value;
 }
 
-export function isWelcome(envelope: Envelope): envelope is Envelope<Welcome> {
-  return envelope.t === "lifecycle" && envelope.name === "welcome";
+export function isHelloAck(envelope: Envelope): envelope is Envelope<HelloAck> {
+  return envelope.t === "lifecycle" && envelope.name === "hello.ack";
 }
 
 export function isQueryEventsResult(envelope: Envelope): envelope is Envelope<QueryEventsResult> {

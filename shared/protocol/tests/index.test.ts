@@ -4,9 +4,9 @@ import { describe, it } from "node:test";
 import {
   envelopeNames,
   isEnvelope,
+  isHelloAck,
   isQueryEventsResult,
   isReloadCommand,
-  isWelcome,
   messageTypeByName,
   messageTypeForName,
   type Envelope,
@@ -64,9 +64,9 @@ describe("isEnvelope", () => {
 });
 
 describe("message guards", () => {
-  it("identifies welcome envelopes", () => {
-    assert.equal(isWelcome(makeEnvelope("welcome")), true);
-    assert.equal(isWelcome(makeEnvelope("hello")), false);
+  it("identifies hello.ack envelopes", () => {
+    assert.equal(isHelloAck(makeEnvelope("hello.ack")), true);
+    assert.equal(isHelloAck(makeEnvelope("hello")), false);
   });
 
   it("identifies query.events.result envelopes", () => {

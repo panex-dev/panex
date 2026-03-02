@@ -29,7 +29,9 @@ async function connect(): Promise<void> {
       src: { role: "dev-agent", id: config.agentId },
       data: {
         protocol_version: PROTOCOL_VERSION,
-        capabilities: ["command.reload"]
+        client_kind: "dev-agent",
+        client_version: "dev",
+        capabilities_requested: ["command.reload"]
       }
     };
 

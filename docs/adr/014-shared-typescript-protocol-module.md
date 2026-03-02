@@ -12,7 +12,7 @@ That duplication made protocol evolution risky:
 - Runtime envelope validation could diverge.
 - Type-level drift stayed invisible until integration testing.
 
-At this stage the protocol is already central to the product loop (`hello`/`welcome`, `build.complete`, `command.reload`, `query.events`), so duplication now creates compounding maintenance cost.
+At this stage the protocol is already central to the product loop (`hello`/`hello.ack`, `build.complete`, `command.reload`, `query.events`), so duplication now creates compounding maintenance cost.
 
 ## Decision
 

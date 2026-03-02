@@ -10,7 +10,7 @@ The first inspector milestone is a lightweight UI that can bootstrap with histor
 ## Decision
 - Build inspector as a dedicated SolidJS package under `inspector/`.
 - Use the existing daemon WebSocket channel and protocol envelope format instead of adding a second API surface.
-- On connect, send `hello`, wait for `welcome`, then issue `query.events` to hydrate timeline history.
+- On connect, send `hello`, wait for `hello.ack`, then issue `query.events` to hydrate timeline history.
 - Merge `query.events.result` snapshots with live envelopes in one bounded in-memory timeline list.
 - Keep rendering intentionally simple (event cards + metadata summary) until inspector interaction requirements are clearer.
 
