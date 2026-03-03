@@ -26,3 +26,4 @@ Any protocol shape change must update both:
 - `shared/protocol/src/index.ts`
 
 The tests in `shared/protocol/tests` verify the TypeScript side stays self-consistent.
+Cross-language drift is checked by `internal/protocol/parity_test.go`, which compares Go protocol constants against this TypeScript source.

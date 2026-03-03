@@ -40,3 +40,4 @@ Tradeoff:
 Follow-up:
 
 - Consider generating TS protocol constants from Go in a future hardening pass.
+- Added a cross-language parity test in `internal/protocol/parity_test.go` to detect Go/TS contract drift in CI.
