@@ -2,6 +2,7 @@ package daemon
 
 import (
 	"context"
+	"crypto/subtle"
 	"errors"
 	"fmt"
 	"net/http"
@@ -195,7 +196,10 @@ func (s *WebSocketServer) handleWebSocket(w http.ResponseWriter, r *http.Request
 }
 
 func (s *WebSocketServer) authorized(r *http.Request) bool {
-	return r.URL.Query().Get("token") == s.cfg.AuthToken
+	// Token is passed as a query parameter because the browser WebSocket API
+	// does not support custom headers (no Authorization header possible).
+	token := r.URL.Query().Get("token")
+	return subtle.ConstantTimeCompare([]byte(token), []byte(s.cfg.AuthToken)) == 1
 }
 
 func (s *WebSocketServer) handshake(ctx context.Context, conn *websocket.Conn) (string, error) {
