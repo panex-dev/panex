@@ -10,6 +10,18 @@ permissions:
   contents: read
 
 jobs:
+  branch-base-guard:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Verify branch is rebased on origin/main
+        run: ./scripts/pr-ensure-rebased.sh
+
   lint-and-test:
     runs-on: ubuntu-latest
     steps:

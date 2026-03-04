@@ -16,6 +16,10 @@
 - [ ] `go test ./internal/protocol -run TestTypeScriptProtocolParity -count=1` passes.
 - [ ] I described protocol compatibility impact (additive vs breaking) in this PR.
 
+## Branch base guard
+- [ ] Branch was created from latest `origin/main` in its own worktree (`./scripts/pr-start.sh`).
+- [ ] Branch is rebased onto latest `origin/main` (`./scripts/pr-ensure-rebased.sh` passes).
+
 ## Risk and mitigation
 - Risk:
 - Mitigation:

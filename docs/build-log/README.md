@@ -39,7 +39,7 @@ In every PR description:
 3. Implement the thinnest vertical slice that can be tested end-to-end.
 4. Add negative-path tests in the same PR as feature code.
 5. Record architectural decisions in ADRs at decision time, not later.
-6. Keep branches short-lived and stacked; each PR should be mergeable on its own.
+6. Keep branches short-lived and non-stacked; every PR branch starts from latest `origin/main` in its own worktree.
 
 ## Current build check (2026-03-04)
 - Completed log entries: PR1-PR26 (PR20 reserved for numbering reconciliation).
