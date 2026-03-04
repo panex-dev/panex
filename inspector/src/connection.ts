@@ -4,10 +4,14 @@ import {
   isEnvelope,
   isHelloAck,
   isQueryEventsResult,
+  isQueryStorageResult,
   type Envelope,
   type Hello,
   type QueryEvents,
-  type QueryEventsResult
+  type QueryEventsResult,
+  type QueryStorage,
+  type QueryStorageResult,
+  type StorageSnapshot
 } from "../../shared/protocol/src/index";
 import {
   createContext,
@@ -26,15 +30,18 @@ import {
   mergeEntries,
   type TimelineEntry
 } from "./timeline";
+import { normalizeStorageSnapshots } from "./storage";
 
 export type ConnectionStatus = "connecting" | "open" | "reconnecting" | "closed";
 
 interface ConnectionContextValue {
   status: Accessor<ConnectionStatus>;
   timeline: Accessor<TimelineEntry[]>;
+  storage: Accessor<StorageSnapshot[]>;
   lastError: Accessor<string | null>;
   socketURL: Accessor<string>;
   send: (envelope: Envelope) => boolean;
+  refreshStorage: (area?: QueryStorage["area"]) => boolean;
 }
 
 const ConnectionContext = createContext<ConnectionContextValue>();
@@ -43,6 +50,7 @@ const inspectorID = `inspector-${safeClientID()}`;
 export function ConnectionProvider(props: ParentProps) {
   const [status, setStatus] = createSignal<ConnectionStatus>("connecting");
   const [timeline, setTimeline] = createSignal<TimelineEntry[]>([]);
+  const [storage, setStorage] = createSignal<StorageSnapshot[]>([]);
   const [lastError, setLastError] = createSignal<string | null>(null);
   const { wsURL, token } = resolveConnectionParams();
   const daemonURL = buildDaemonURL(wsURL, token);
@@ -61,6 +69,15 @@ export function ConnectionProvider(props: ParentProps) {
     return true;
   };
 
+  const refreshStorage = (area?: QueryStorage["area"]): boolean => {
+    if (!socket || socket.readyState !== WebSocket.OPEN) {
+      return false;
+    }
+
+    socket.send(encode(buildStorageQuery(area)));
+    return true;
+  };
+
   const connect = () => {
     if (stopped) {
       return;
@@ -76,7 +93,6 @@ export function ConnectionProvider(props: ParentProps) {
       }
 
       reconnectAttempt = 0;
-      setStatus("open");
       setLastError(null);
 
       const hello: Envelope<Hello> = {
@@ -88,7 +104,7 @@ export function ConnectionProvider(props: ParentProps) {
           protocol_version: PROTOCOL_VERSION,
           client_kind: "inspector",
           client_version: "dev",
-          capabilities_requested: ["query.events"]
+          capabilities_requested: ["query.events", "query.storage"]
         }
       };
 
@@ -117,6 +133,9 @@ export function ConnectionProvider(props: ParentProps) {
           return;
         }
 
+        setStatus("open");
+        setLastError(null);
+
         const query: Envelope<QueryEvents> = {
           v: PROTOCOL_VERSION,
           t: "command",
@@ -125,11 +144,17 @@ export function ConnectionProvider(props: ParentProps) {
           data: { limit: defaultTimelineLimit }
         };
         next.send(encode(query));
+        next.send(encode(buildStorageQuery()));
         return;
       }
 
       if (isQueryEventsResult(decoded)) {
         applyQueryResult(decoded.data, setTimeline);
+        return;
+      }
+
+      if (isQueryStorageResult(decoded)) {
+        applyStorageQueryResult(decoded.data, setStorage);
         return;
       }
 
@@ -182,9 +207,11 @@ export function ConnectionProvider(props: ParentProps) {
     value: {
       status,
       timeline,
+      storage,
       lastError,
       socketURL: () => daemonURL,
-      send
+      send,
+      refreshStorage
     },
     get children() {
       return props.children;
@@ -227,6 +254,25 @@ function applyQueryResult(
   );
 }
 
+function applyStorageQueryResult(
+  payload: QueryStorageResult,
+  setStorage: (next: StorageSnapshot[]) => void
+): void {
+  setStorage(normalizeStorageSnapshots(payload));
+}
+
+function buildStorageQuery(area?: QueryStorage["area"]): Envelope<QueryStorage> {
+  const normalizedArea = normalizeArea(area);
+
+  return {
+    v: PROTOCOL_VERSION,
+    t: "command",
+    name: "query.storage",
+    src: { role: "inspector", id: inspectorID },
+    data: typeof normalizedArea === "string" ? { area: normalizedArea } : {}
+  };
+}
+
 function resolveConnectionParams(): { wsURL: string; token: string } {
   const params = new URLSearchParams(window.location.search);
   return {
@@ -256,4 +302,13 @@ function nonEmpty(value: string | null, fallback: string): string {
 
   const trimmed = value.trim();
   return trimmed.length > 0 ? trimmed : fallback;
+}
+
+function normalizeArea(area: QueryStorage["area"]): string | undefined {
+  if (typeof area !== "string") {
+    return undefined;
+  }
+
+  const trimmed = area.trim().toLowerCase();
+  return trimmed.length > 0 ? trimmed : undefined;
 }
