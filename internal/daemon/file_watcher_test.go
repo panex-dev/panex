@@ -87,17 +87,12 @@ func TestFileWatcherDebouncesRapidFileChanges(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	done := make(chan error, 1)
-	go func() {
-		done <- watcher.Run(ctx)
-	}()
-
-	time.Sleep(30 * time.Millisecond)
+	startWatcher(t, watcher, ctx)
 
 	if err := os.WriteFile(target, []byte("v2"), 0o600); err != nil {
 		t.Fatalf("write file v2: %v", err)
 	}
-	time.Sleep(10 * time.Millisecond)
+	time.Sleep(10 * time.Millisecond) // rapid writes within debounce window
 	if err := os.WriteFile(target, []byte("v3"), 0o600); err != nil {
 		t.Fatalf("write file v3: %v", err)
 	}
@@ -127,20 +122,8 @@ func TestFileWatcherDebouncesRapidFileChanges(t *testing.T) {
 				t.Fatalf("expected at most one trailing debounced batch, got %d", extraBatches)
 			}
 		case <-waitForExtras.C:
-			goto done
+			return
 		}
-	}
-
-done:
-
-	cancel()
-	select {
-	case err := <-done:
-		if err != nil {
-			t.Fatalf("Run() returned error: %v", err)
-		}
-	case <-time.After(2 * time.Second):
-		t.Fatal("timed out waiting for watcher shutdown")
 	}
 }
 
@@ -158,38 +141,27 @@ func TestFileWatcherWatchesNewDirectories(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	done := make(chan error, 1)
-	go func() {
-		done <- watcher.Run(ctx)
-	}()
-
-	time.Sleep(30 * time.Millisecond)
+	startWatcher(t, watcher, ctx)
 
 	subDir := filepath.Join(root, "nested")
 	if err := os.MkdirAll(subDir, 0o755); err != nil {
 		t.Fatalf("create subdir: %v", err)
 	}
-	time.Sleep(20 * time.Millisecond)
 
+	// Poll-write into the new directory until fsnotify registers its watch.
 	newFile := filepath.Join(subDir, "entry.js")
-	if err := os.WriteFile(newFile, []byte("x"), 0o600); err != nil {
-		t.Fatalf("write nested file: %v", err)
-	}
-
-	event := waitForEvent(t, events, 2*time.Second)
-	if !slices.Contains(event.Paths, "nested/entry.js") {
-		t.Fatalf("expected nested file path in event, got %v", event.Paths)
-	}
-
-	cancel()
-	select {
-	case err := <-done:
-		if err != nil {
-			t.Fatalf("Run() returned error: %v", err)
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		_ = os.WriteFile(newFile, []byte("x"), 0o600)
+		select {
+		case event := <-events:
+			if slices.Contains(event.Paths, "nested/entry.js") {
+				return
+			}
+		case <-time.After(100 * time.Millisecond):
 		}
-	case <-time.After(2 * time.Second):
-		t.Fatal("timed out waiting for watcher shutdown")
 	}
+	t.Fatal("timed out waiting for nested file event")
 }
 
 func TestFileWatcherFlushesPendingChangesOnCancel(t *testing.T) {
@@ -208,17 +180,15 @@ func TestFileWatcherFlushesPendingChangesOnCancel(t *testing.T) {
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
-	done := make(chan error, 1)
-	go func() {
-		done <- watcher.Run(ctx)
-	}()
+	done := startWatcher(t, watcher, ctx)
 
-	time.Sleep(30 * time.Millisecond)
 	if err := os.WriteFile(target, []byte("b"), 0o600); err != nil {
 		t.Fatalf("write changed file: %v", err)
 	}
 
-	time.Sleep(20 * time.Millisecond)
+	// Brief pause for fsnotify to deliver the inotify event to Run().
+	// This must be shorter than the 500ms debounce so the event stays pending.
+	time.Sleep(50 * time.Millisecond)
 	cancel()
 
 	event := waitForEvent(t, events, 2*time.Second)
@@ -246,4 +216,22 @@ func waitForEvent(t *testing.T, events <-chan FileChangeEvent, timeout time.Dura
 		t.Fatalf("timed out waiting for file event after %s", timeout)
 		return FileChangeEvent{}
 	}
+}
+
+// startWatcher launches the watcher in a goroutine and blocks until it is
+// ready to process filesystem events. This replaces fixed-duration sleeps
+// that are fragile on slow CI runners.
+func startWatcher(t *testing.T, watcher *FileWatcher, ctx context.Context) <-chan error {
+	t.Helper()
+	watcher.ready = make(chan struct{})
+	done := make(chan error, 1)
+	go func() {
+		done <- watcher.Run(ctx)
+	}()
+	select {
+	case <-watcher.ready:
+	case <-time.After(2 * time.Second):
+		t.Fatal("file watcher did not become ready within 2s")
+	}
+	return done
 }

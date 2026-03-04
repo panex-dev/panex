@@ -6,7 +6,6 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
-	"time"
 )
 
 func TestNewEsbuildBuilderValidation(t *testing.T) {
@@ -196,7 +195,6 @@ func TestNextBuildIDMonotonic(t *testing.T) {
 	}
 
 	first := builder.nextBuildID()
-	time.Sleep(time.Millisecond)
 	second := builder.nextBuildID()
 	if first == second {
 		t.Fatalf("expected unique build ids, got %q and %q", first, second)

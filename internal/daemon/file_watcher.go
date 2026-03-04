@@ -25,6 +25,7 @@ type FileWatcher struct {
 	root     string
 	debounce time.Duration
 	emit     func(FileChangeEvent)
+	ready    chan struct{} // closed when Run enters its event loop; nil if unused
 }
 
 func NewFileWatcher(root string, debounce time.Duration, emit func(FileChangeEvent)) (*FileWatcher, error) {
@@ -69,6 +70,9 @@ func (w *FileWatcher) Run(ctx context.Context) error {
 
 	if err := w.addDirectoryTree(watcher, w.root); err != nil {
 		return err
+	}
+	if w.ready != nil {
+		close(w.ready)
 	}
 
 	pending := make(map[string]struct{})
