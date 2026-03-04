@@ -179,7 +179,8 @@ func (s *WebSocketServer) handleWebSocket(w http.ResponseWriter, r *http.Request
 	}
 	conn.SetReadLimit(maxMessageBytes)
 
-	sessionID, err := s.handshake(conn)
+	ctx := r.Context()
+	sessionID, err := s.handshake(ctx, conn)
 	if err != nil {
 		_ = conn.WriteControl(
 			websocket.CloseMessage,
@@ -198,7 +199,7 @@ func (s *WebSocketServer) authorized(r *http.Request) bool {
 	return r.URL.Query().Get("token") == s.cfg.AuthToken
 }
 
-func (s *WebSocketServer) handshake(conn *websocket.Conn) (string, error) {
+func (s *WebSocketServer) handshake(ctx context.Context, conn *websocket.Conn) (string, error) {
 	_, raw, err := conn.ReadMessage()
 	if err != nil {
 		return "", fmt.Errorf("read hello message: %w", err)
@@ -229,7 +230,7 @@ func (s *WebSocketServer) handshake(conn *websocket.Conn) (string, error) {
 			protocol.CurrentVersion,
 		)
 	}
-	if err := s.eventStore.Append(context.Background(), message); err != nil {
+	if err := s.eventStore.Append(ctx, message); err != nil {
 		return "", fmt.Errorf("persist hello message: %w", err)
 	}
 
@@ -262,7 +263,7 @@ func (s *WebSocketServer) handshake(conn *websocket.Conn) (string, error) {
 	if err := conn.WriteMessage(websocket.BinaryMessage, encodedHelloAck); err != nil {
 		return "", fmt.Errorf("write hello.ack message: %w", err)
 	}
-	if err := s.eventStore.Append(context.Background(), helloAck); err != nil {
+	if err := s.eventStore.Append(ctx, helloAck); err != nil {
 		return "", fmt.Errorf("persist hello.ack message: %w", err)
 	}
 
@@ -283,7 +284,7 @@ func (s *WebSocketServer) readLoop(sessionID string, conn *websocket.Conn) {
 			}
 			return
 		}
-		if err := s.handleClientMessage(sessionID, rawMessage); err != nil {
+		if err := s.handleClientMessage(context.Background(), sessionID, rawMessage); err != nil {
 			_ = conn.WriteControl(
 				websocket.CloseMessage,
 				websocket.FormatCloseMessage(websocket.ClosePolicyViolation, err.Error()),
@@ -294,8 +295,8 @@ func (s *WebSocketServer) readLoop(sessionID string, conn *websocket.Conn) {
 	}
 }
 
-func (s *WebSocketServer) Broadcast(message protocol.Envelope) error {
-	if err := s.eventStore.Append(context.Background(), message); err != nil {
+func (s *WebSocketServer) Broadcast(ctx context.Context, message protocol.Envelope) error {
+	if err := s.eventStore.Append(ctx, message); err != nil {
 		return fmt.Errorf("persist broadcast message: %w", err)
 	}
 
@@ -334,7 +335,7 @@ func (s *WebSocketServer) Broadcast(message protocol.Envelope) error {
 	return nil
 }
 
-func (s *WebSocketServer) handleClientMessage(sessionID string, rawMessage []byte) error {
+func (s *WebSocketServer) handleClientMessage(ctx context.Context, sessionID string, rawMessage []byte) error {
 	message, err := protocol.DecodeEnvelope(rawMessage)
 	if err != nil {
 		return fmt.Errorf("decode client message: %w", err)
@@ -353,7 +354,7 @@ func (s *WebSocketServer) handleClientMessage(sessionID string, rawMessage []byt
 			return fmt.Errorf("decode query.events payload: %w", err)
 		}
 
-		records, err := s.eventStore.Recent(context.Background(), query.Limit)
+		records, err := s.eventStore.Recent(ctx, query.Limit)
 		if err != nil {
 			return fmt.Errorf("query recent events: %w", err)
 		}
@@ -425,7 +426,7 @@ func (s *WebSocketServer) handleClientMessage(sessionID string, rawMessage []byt
 	}
 }
 
-func (s *WebSocketServer) SetStorageItem(area, key string, value any) error {
+func (s *WebSocketServer) SetStorageItem(ctx context.Context, area, key string, value any) error {
 	normalizedArea, err := normalizeStorageArea(area)
 	if err != nil {
 		return err
@@ -450,10 +451,10 @@ func (s *WebSocketServer) SetStorageItem(area, key string, value any) error {
 		change.OldValue = oldValue
 	}
 
-	return s.broadcastStorageDiff(normalizedArea, []protocol.StorageChange{change})
+	return s.broadcastStorageDiff(ctx, normalizedArea, []protocol.StorageChange{change})
 }
 
-func (s *WebSocketServer) RemoveStorageItem(area, key string) error {
+func (s *WebSocketServer) RemoveStorageItem(ctx context.Context, area, key string) error {
 	normalizedArea, err := normalizeStorageArea(area)
 	if err != nil {
 		return err
@@ -480,10 +481,10 @@ func (s *WebSocketServer) RemoveStorageItem(area, key string) error {
 		Key:      normalizedKey,
 		OldValue: oldValue,
 	}
-	return s.broadcastStorageDiff(normalizedArea, []protocol.StorageChange{change})
+	return s.broadcastStorageDiff(ctx, normalizedArea, []protocol.StorageChange{change})
 }
 
-func (s *WebSocketServer) ClearStorageArea(area string) error {
+func (s *WebSocketServer) ClearStorageArea(ctx context.Context, area string) error {
 	normalizedArea, err := normalizeStorageArea(area)
 	if err != nil {
 		return err
@@ -510,7 +511,7 @@ func (s *WebSocketServer) ClearStorageArea(area string) error {
 		return changes[left].Key < changes[right].Key
 	})
 
-	return s.broadcastStorageDiff(normalizedArea, changes)
+	return s.broadcastStorageDiff(ctx, normalizedArea, changes)
 }
 
 func (s *WebSocketServer) writeSessionMessage(sessionID string, encoded []byte) error {
@@ -589,7 +590,7 @@ func (s *WebSocketServer) buildStorageSnapshots(area string) ([]protocol.Storage
 	}, nil
 }
 
-func (s *WebSocketServer) broadcastStorageDiff(area string, changes []protocol.StorageChange) error {
+func (s *WebSocketServer) broadcastStorageDiff(ctx context.Context, area string, changes []protocol.StorageChange) error {
 	if len(changes) == 0 {
 		return nil
 	}
@@ -605,7 +606,7 @@ func (s *WebSocketServer) broadcastStorageDiff(area string, changes []protocol.S
 		},
 	)
 
-	return s.Broadcast(diff)
+	return s.Broadcast(ctx, diff)
 }
 
 func normalizeStorageArea(area string) (string, error) {

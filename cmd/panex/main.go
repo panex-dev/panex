@@ -35,7 +35,7 @@ type buildRunner interface {
 }
 
 type envelopeBroadcaster interface {
-	Broadcast(message protocol.Envelope) error
+	Broadcast(ctx context.Context, message protocol.Envelope) error
 }
 
 func main() {
@@ -212,7 +212,7 @@ func runBuildLoop(
 				}
 			}
 
-			if broadcastErr := server.Broadcast(
+			if broadcastErr := server.Broadcast(ctx,
 				protocol.NewBuildComplete(
 					protocol.Source{
 						Role: protocol.SourceDaemon,
@@ -233,7 +233,7 @@ func runBuildLoop(
 			if result.Success {
 				// Reload commands are emitted only after successful builds so clients can treat reload as a
 				// strong signal that new artifacts exist in the output directory.
-				if broadcastErr := server.Broadcast(
+				if broadcastErr := server.Broadcast(ctx,
 					protocol.NewCommandReload(
 						protocol.Source{
 							Role: protocol.SourceDaemon,

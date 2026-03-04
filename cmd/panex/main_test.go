@@ -426,7 +426,7 @@ type fakeBroadcaster struct {
 	eventCh chan struct{}
 }
 
-func (f *fakeBroadcaster) Broadcast(message protocol.Envelope) error {
+func (f *fakeBroadcaster) Broadcast(_ context.Context, message protocol.Envelope) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 
