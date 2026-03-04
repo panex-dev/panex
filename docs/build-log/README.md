@@ -12,6 +12,7 @@ This folder is the project memory for how Panex was built, one PR-sized incremen
 - One file per meaningful increment, named: `YYYY-MM-DD-pr-<n>-<slug>.md`.
 - Keep entries append-only; do not rewrite history unless correcting factual errors.
 - Use [TEMPLATE.md](./TEMPLATE.md) for every new entry.
+- Keep [STATUS.md](./STATUS.md) current with completed/in-flight/upcoming increments.
 
 ## Citation standard (required)
 When documenting approach or PR descriptions, include exact file and line references.
@@ -39,3 +40,7 @@ In every PR description:
 4. Add negative-path tests in the same PR as feature code.
 5. Record architectural decisions in ADRs at decision time, not later.
 6. Keep branches short-lived and stacked; each PR should be mergeable on its own.
+
+## Current build check (2026-03-04)
+- Completed log entries: PR1-PR19.
+- Next target increment: validate TypeScript CI lane in GitHub-hosted runners, then continue unified inspector shell work.
