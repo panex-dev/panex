@@ -346,6 +346,123 @@ func TestWebSocketQueryStorageReturnsAllAreasByDefault(t *testing.T) {
 	}
 }
 
+func TestWebSocketQueryStorageReturnsMutatedStateByArea(t *testing.T) {
+	server := newTestServer(t)
+	defer server.httpServer.Close()
+
+	if err := server.ws.SetStorageItem("local", "theme", "dark"); err != nil {
+		t.Fatalf("SetStorageItem(local theme) returned error: %v", err)
+	}
+	if err := server.ws.SetStorageItem("sync", "beta", true); err != nil {
+		t.Fatalf("SetStorageItem(sync beta) returned error: %v", err)
+	}
+
+	conn := dialAuthorizedConnection(t, server.wsURL, server.token)
+	t.Cleanup(func() {
+		_ = conn.Close()
+	})
+
+	_ = mustHandshake(t, conn)
+	waitForConnectionCount(t, server.ws, 1)
+
+	query := protocol.NewQueryStorage(
+		protocol.Source{Role: protocol.SourceInspector, ID: "inspector-1"},
+		protocol.QueryStorage{},
+	)
+	rawQuery, err := protocol.Encode(query)
+	if err != nil {
+		t.Fatalf("Encode(query.storage) returned error: %v", err)
+	}
+	if err := conn.WriteMessage(websocket.BinaryMessage, rawQuery); err != nil {
+		t.Fatalf("WriteMessage(query.storage) returned error: %v", err)
+	}
+
+	response := mustReadEnvelope(t, conn)
+	if response.Name != protocol.MessageStorageResult {
+		t.Fatalf("unexpected response name: got %q, want %q", response.Name, protocol.MessageStorageResult)
+	}
+
+	var payload protocol.QueryStorageResult
+	if err := protocol.DecodePayload(response.Data, &payload); err != nil {
+		t.Fatalf("DecodePayload(query.storage.result) returned error: %v", err)
+	}
+
+	localSnapshot := snapshotByArea(t, payload.Snapshots, "local")
+	if got := localSnapshot.Items["theme"]; got != "dark" {
+		t.Fatalf("unexpected local theme: got %#v, want %#v", got, "dark")
+	}
+
+	syncSnapshot := snapshotByArea(t, payload.Snapshots, "sync")
+	if got := syncSnapshot.Items["beta"]; got != true {
+		t.Fatalf("unexpected sync beta: got %#v, want %#v", got, true)
+	}
+
+	sessionSnapshot := snapshotByArea(t, payload.Snapshots, "session")
+	if len(sessionSnapshot.Items) != 0 {
+		t.Fatalf("expected empty session items, got %v", sessionSnapshot.Items)
+	}
+}
+
+func TestWebSocketStorageMutationBroadcastsDiff(t *testing.T) {
+	server := newTestServer(t)
+	defer server.httpServer.Close()
+
+	conn := dialAuthorizedConnection(t, server.wsURL, server.token)
+	t.Cleanup(func() {
+		_ = conn.Close()
+	})
+
+	_ = mustHandshake(t, conn)
+	waitForConnectionCount(t, server.ws, 1)
+
+	if err := server.ws.SetStorageItem("local", "feature", "on"); err != nil {
+		t.Fatalf("SetStorageItem(local feature) returned error: %v", err)
+	}
+
+	diffEnvelope := mustReadEnvelope(t, conn)
+	if diffEnvelope.Name != protocol.MessageStorageDiff {
+		t.Fatalf("unexpected diff response name: got %q, want %q", diffEnvelope.Name, protocol.MessageStorageDiff)
+	}
+
+	var diffPayload protocol.StorageDiff
+	if err := protocol.DecodePayload(diffEnvelope.Data, &diffPayload); err != nil {
+		t.Fatalf("DecodePayload(storage.diff) returned error: %v", err)
+	}
+	if diffPayload.Area != "local" {
+		t.Fatalf("unexpected diff area: got %q, want %q", diffPayload.Area, "local")
+	}
+	if len(diffPayload.Changes) != 1 {
+		t.Fatalf("unexpected diff changes length: got %d, want %d", len(diffPayload.Changes), 1)
+	}
+	if diffPayload.Changes[0].Key != "feature" {
+		t.Fatalf("unexpected diff key: got %q, want %q", diffPayload.Changes[0].Key, "feature")
+	}
+	if diffPayload.Changes[0].NewValue != "on" {
+		t.Fatalf("unexpected diff new value: got %#v, want %#v", diffPayload.Changes[0].NewValue, "on")
+	}
+}
+
+func TestWebSocketStorageMutationValidation(t *testing.T) {
+	server := newTestServer(t)
+	defer server.httpServer.Close()
+
+	if err := server.ws.SetStorageItem("cookies", "x", "1"); err == nil {
+		t.Fatal("expected SetStorageItem invalid area error, got nil")
+	}
+	if err := server.ws.SetStorageItem("local", "", "1"); err == nil {
+		t.Fatal("expected SetStorageItem empty key error, got nil")
+	}
+	if err := server.ws.RemoveStorageItem("cookies", "x"); err == nil {
+		t.Fatal("expected RemoveStorageItem invalid area error, got nil")
+	}
+	if err := server.ws.RemoveStorageItem("local", ""); err == nil {
+		t.Fatal("expected RemoveStorageItem empty key error, got nil")
+	}
+	if err := server.ws.ClearStorageArea("cookies"); err == nil {
+		t.Fatal("expected ClearStorageArea invalid area error, got nil")
+	}
+}
+
 func TestWebSocketQueryStorageRejectsUnsupportedArea(t *testing.T) {
 	server := newTestServer(t)
 	defer server.httpServer.Close()
@@ -382,6 +499,23 @@ func TestWebSocketQueryStorageRejectsUnsupportedArea(t *testing.T) {
 	if closeErr.Code != websocket.ClosePolicyViolation {
 		t.Fatalf("unexpected close code: got %d, want %d", closeErr.Code, websocket.ClosePolicyViolation)
 	}
+}
+
+func snapshotByArea(
+	t *testing.T,
+	snapshots []protocol.StorageSnapshot,
+	area string,
+) protocol.StorageSnapshot {
+	t.Helper()
+
+	for _, snapshot := range snapshots {
+		if snapshot.Area == area {
+			return snapshot
+		}
+	}
+
+	t.Fatalf("missing storage snapshot for area %q in %v", area, snapshots)
+	return protocol.StorageSnapshot{}
 }
 
 type testServer struct {

@@ -24,7 +24,10 @@ var daemonCapabilities = []string{
 	"command.reload",
 	"query.events",
 	"query.storage",
+	"storage.diff",
 }
+
+var storageAreaOrder = []string{"local", "sync", "session"}
 
 type WebSocketConfig struct {
 	Port           int
@@ -46,6 +49,9 @@ type WebSocketServer struct {
 
 	mu       sync.RWMutex
 	sessions map[string]*sessionConn
+
+	storageMu sync.RWMutex
+	storage   map[string]map[string]any
 
 	seq        uint64
 	eventStore eventStore
@@ -89,6 +95,7 @@ func NewWebSocketServer(cfg WebSocketConfig) (*WebSocketServer, error) {
 			CheckOrigin: func(_ *http.Request) bool { return true },
 		},
 		sessions:   make(map[string]*sessionConn),
+		storage:    defaultStorageState(),
 		eventStore: eventStore,
 	}, nil
 }
@@ -385,7 +392,7 @@ func (s *WebSocketServer) handleClientMessage(sessionID string, rawMessage []byt
 			return fmt.Errorf("decode query.storage payload: %w", err)
 		}
 
-		snapshots, err := buildStorageSnapshots(query.Area)
+		snapshots, err := s.buildStorageSnapshots(query.Area)
 		if err != nil {
 			return fmt.Errorf("build query.storage snapshots: %w", err)
 		}
@@ -412,6 +419,94 @@ func (s *WebSocketServer) handleClientMessage(sessionID string, rawMessage []byt
 	default:
 		return nil
 	}
+}
+
+func (s *WebSocketServer) SetStorageItem(area, key string, value any) error {
+	normalizedArea, err := normalizeStorageArea(area)
+	if err != nil {
+		return err
+	}
+
+	normalizedKey := strings.TrimSpace(key)
+	if normalizedKey == "" {
+		return errors.New("storage key is required")
+	}
+
+	s.storageMu.Lock()
+	items := s.storage[normalizedArea]
+	oldValue, hadOldValue := items[normalizedKey]
+	items[normalizedKey] = value
+	s.storageMu.Unlock()
+
+	change := protocol.StorageChange{
+		Key:      normalizedKey,
+		NewValue: value,
+	}
+	if hadOldValue {
+		change.OldValue = oldValue
+	}
+
+	return s.broadcastStorageDiff(normalizedArea, []protocol.StorageChange{change})
+}
+
+func (s *WebSocketServer) RemoveStorageItem(area, key string) error {
+	normalizedArea, err := normalizeStorageArea(area)
+	if err != nil {
+		return err
+	}
+
+	normalizedKey := strings.TrimSpace(key)
+	if normalizedKey == "" {
+		return errors.New("storage key is required")
+	}
+
+	s.storageMu.Lock()
+	items := s.storage[normalizedArea]
+	oldValue, hadOldValue := items[normalizedKey]
+	if hadOldValue {
+		delete(items, normalizedKey)
+	}
+	s.storageMu.Unlock()
+
+	if !hadOldValue {
+		return nil
+	}
+
+	change := protocol.StorageChange{
+		Key:      normalizedKey,
+		OldValue: oldValue,
+	}
+	return s.broadcastStorageDiff(normalizedArea, []protocol.StorageChange{change})
+}
+
+func (s *WebSocketServer) ClearStorageArea(area string) error {
+	normalizedArea, err := normalizeStorageArea(area)
+	if err != nil {
+		return err
+	}
+
+	s.storageMu.Lock()
+	items := s.storage[normalizedArea]
+	if len(items) == 0 {
+		s.storageMu.Unlock()
+		return nil
+	}
+
+	changes := make([]protocol.StorageChange, 0, len(items))
+	for key, oldValue := range items {
+		changes = append(changes, protocol.StorageChange{
+			Key:      key,
+			OldValue: oldValue,
+		})
+	}
+	clear(items)
+	s.storageMu.Unlock()
+
+	sort.Slice(changes, func(left, right int) bool {
+		return changes[left].Key < changes[right].Key
+	})
+
+	return s.broadcastStorageDiff(normalizedArea, changes)
 }
 
 func (s *WebSocketServer) writeSessionMessage(sessionID string, encoded []byte) error {
@@ -460,24 +555,82 @@ func (s *WebSocketServer) closeAllConnections() {
 	}
 }
 
-func buildStorageSnapshots(area string) ([]protocol.StorageSnapshot, error) {
+func (s *WebSocketServer) buildStorageSnapshots(area string) ([]protocol.StorageSnapshot, error) {
 	trimmed := strings.TrimSpace(area)
 	if trimmed == "" {
-		return []protocol.StorageSnapshot{
-			{Area: "local", Items: map[string]any{}},
-			{Area: "sync", Items: map[string]any{}},
-			{Area: "session", Items: map[string]any{}},
-		}, nil
+		s.storageMu.RLock()
+		defer s.storageMu.RUnlock()
+
+		snapshots := make([]protocol.StorageSnapshot, 0, len(storageAreaOrder))
+		for _, storageArea := range storageAreaOrder {
+			snapshots = append(snapshots, protocol.StorageSnapshot{
+				Area:  storageArea,
+				Items: cloneStorageItems(s.storage[storageArea]),
+			})
+		}
+
+		return snapshots, nil
 	}
 
-	normalized := strings.ToLower(trimmed)
-	if normalized != "local" && normalized != "sync" && normalized != "session" {
-		return nil, fmt.Errorf("unsupported storage area %q", area)
+	normalized, err := normalizeStorageArea(trimmed)
+	if err != nil {
+		return nil, err
 	}
+
+	s.storageMu.RLock()
+	defer s.storageMu.RUnlock()
 
 	return []protocol.StorageSnapshot{
-		{Area: normalized, Items: map[string]any{}},
+		{Area: normalized, Items: cloneStorageItems(s.storage[normalized])},
 	}, nil
+}
+
+func (s *WebSocketServer) broadcastStorageDiff(area string, changes []protocol.StorageChange) error {
+	if len(changes) == 0 {
+		return nil
+	}
+
+	diff := protocol.NewStorageDiff(
+		protocol.Source{
+			Role: protocol.SourceDaemon,
+			ID:   s.cfg.DaemonID,
+		},
+		protocol.StorageDiff{
+			Area:    area,
+			Changes: changes,
+		},
+	)
+
+	return s.Broadcast(diff)
+}
+
+func normalizeStorageArea(area string) (string, error) {
+	normalized := strings.ToLower(strings.TrimSpace(area))
+	if normalized != "local" && normalized != "sync" && normalized != "session" {
+		return "", fmt.Errorf("unsupported storage area %q", area)
+	}
+
+	return normalized, nil
+}
+
+func defaultStorageState() map[string]map[string]any {
+	return map[string]map[string]any{
+		"local":   {},
+		"sync":    {},
+		"session": {},
+	}
+}
+
+func cloneStorageItems(items map[string]any) map[string]any {
+	if len(items) == 0 {
+		return map[string]any{}
+	}
+
+	cloned := make(map[string]any, len(items))
+	for key, value := range items {
+		cloned[key] = value
+	}
+	return cloned
 }
 
 func negotiateCapabilities(requested, supported []string) []string {

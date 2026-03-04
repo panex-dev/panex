@@ -26,12 +26,13 @@ As of 2026-03-04.
 | 23 | Storage protocol extension + daemon stub handler | `docs/build-log/2026-03-04-pr-023-storage-protocol-extension.md` |
 | 24 | Storage viewer UI with `query.storage.result` area filtering | `docs/build-log/2026-03-04-pr-024-storage-viewer-ui.md` |
 | 25 | Storage diff ingestion + row highlight in inspector storage tab | `docs/build-log/2026-03-04-pr-025-storage-diff-highlights.md` |
+| 26 | Daemon storage mutation pipeline + `storage.diff` fanout | `docs/build-log/2026-03-04-pr-026-daemon-storage-diff-pipeline.md` |
 
 ## In progress
 - None.
 
 ## Next
-- Implement PR26 daemon-side storage mutation pipeline that emits `storage.diff` events.
+- Implement PR27 transport wiring from storage simulation operations into daemon mutation APIs.
 
 ## Notes
 - PR20 is intentionally reserved as documentation reconciliation so sequence alignment is explicit and auditable.
