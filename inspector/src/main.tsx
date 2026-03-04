@@ -6,6 +6,7 @@ import "./styles.css";
 
 import { ConnectionProvider, useConnection } from "./connection";
 import { createInspectorRouter, type InspectorTab } from "./router";
+import { Sidebar } from "./sidebar";
 import { Shell, type ShellTabSpec } from "./shell";
 import { StorageTab } from "./tabs/storage";
 import { TimelineTab } from "./tabs/timeline";
@@ -26,22 +27,6 @@ function InspectorApp() {
   const connection = useConnection();
   const router = createInspectorRouter("timeline");
 
-  const renderSidebar = () => {
-    const value = connection.lastError();
-
-    return html`<section class="sidebar-panel">
-      <h2>Connection</h2>
-      <p>status: <strong>${connection.status}</strong></p>
-      <p class="subtle">${connection.socketURL}</p>
-      ${value ? html`<p class="error">${value}</p>` : null}
-
-      <div class="sidebar-actions">
-        <button class="filter-reset" type="button" disabled>reload (soon)</button>
-        <button class="filter-reset" type="button" disabled>reinject (soon)</button>
-      </div>
-    </section>`;
-  };
-
   const renderContent = () => {
     const activeTab = router.activeTab();
     switch (activeTab) {
@@ -61,7 +46,12 @@ function InspectorApp() {
     activeTab: router.activeTab,
     tabs,
     onTabSelect: router.navigate,
-    sidebar: renderSidebar,
+    sidebar: () =>
+      Sidebar({
+        status: connection.status,
+        socketURL: connection.socketURL,
+        lastError: connection.lastError
+      }),
     content: renderContent
   });
 }
