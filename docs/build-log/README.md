@@ -42,5 +42,5 @@ In every PR description:
 6. Keep branches short-lived and non-stacked; every PR branch starts from latest `origin/main` in its own worktree.
 
 ## Current build check (2026-03-04)
-- Completed log entries: PR1-PR32 (PR20 reserved for numbering reconciliation, PR27 process-only).
-- Next target increment: auth header migration, integration tests, then transport wiring.
+- Completed log entries: PR1-PR33 (PR20 reserved for numbering reconciliation, PR27 process-only).
+- Next target increment: integration test suite, then transport wiring.
