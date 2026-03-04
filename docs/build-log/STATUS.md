@@ -24,12 +24,13 @@ As of 2026-03-04.
 | 21 | Unified inspector shell + hash router decomposition | `docs/build-log/2026-03-04-pr-021-unified-inspector-shell.md` |
 | 22 | Sidebar component extraction | `docs/build-log/2026-03-04-pr-022-sidebar-component.md` |
 | 23 | Storage protocol extension + daemon stub handler | `docs/build-log/2026-03-04-pr-023-storage-protocol-extension.md` |
+| 24 | Storage viewer UI with `query.storage.result` area filtering | `docs/build-log/2026-03-04-pr-024-storage-viewer-ui.md` |
 
 ## In progress
 - None.
 
 ## Next
-- Implement PR24 storage viewer UI using `query.storage.result` snapshots and storage-area filtering.
+- Implement PR25 storage-diff ingestion and highlight updates in the Storage tab.
 
 ## Notes
 - PR20 is intentionally reserved as documentation reconciliation so sequence alignment is explicit and auditable.

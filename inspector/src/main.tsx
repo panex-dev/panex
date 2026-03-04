@@ -33,7 +33,11 @@ function InspectorApp() {
       case "timeline":
         return TimelineTab({ timeline: connection.timeline });
       case "storage":
-        return StorageTab();
+        return StorageTab({
+          status: connection.status,
+          storage: connection.storage,
+          refreshStorage: connection.refreshStorage
+        });
       case "workbench":
       case "replay":
         return disabledTab(activeTab);

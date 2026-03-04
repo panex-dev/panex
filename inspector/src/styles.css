@@ -211,6 +211,46 @@ body {
   gap: 10px;
 }
 
+.storage-filters {
+  grid-template-columns: 1fr auto;
+}
+
+.storage-table-wrap {
+  overflow-x: auto;
+  padding-top: 8px;
+}
+
+.storage-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.88rem;
+}
+
+.storage-table th,
+.storage-table td {
+  text-align: left;
+  border-bottom: 1px solid #d6e2ef;
+  padding: 8px;
+  vertical-align: top;
+}
+
+.storage-table th {
+  color: #2f4a64;
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+
+.storage-value {
+  font-family: "IBM Plex Mono", "Cascadia Mono", "SFMono-Regular", Menlo, monospace;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.storage-empty {
+  color: #496684;
+}
+
 .event-card {
   border: 1px solid #d6e2ef;
   border-radius: 10px;
@@ -266,6 +306,10 @@ body {
   }
 
   .filters {
+    grid-template-columns: 1fr;
+  }
+
+  .storage-filters {
     grid-template-columns: 1fr;
   }
 
