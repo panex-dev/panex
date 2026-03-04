@@ -22,12 +22,13 @@ As of 2026-03-04.
 | 19 | PR template parity gate + status tracker | `docs/build-log/2026-03-04-pr-019-pr-template-protocol-parity.md` |
 | 20 | Numbering reconciliation (plan vs build-log sequence) | `docs/build-log/2026-03-04-pr-020-numbering-reconciliation.md` |
 | 21 | Unified inspector shell + hash router decomposition | `docs/build-log/2026-03-04-pr-021-unified-inspector-shell.md` |
+| 22 | Sidebar component extraction | `docs/build-log/2026-03-04-pr-022-sidebar-component.md` |
 
 ## In progress
 - None.
 
 ## Next
-- Implement PR22 sidebar component extraction and keep shell/sidebar contracts stable across Timeline/Storage tabs.
+- Implement PR23 storage protocol extension (`query.storage`, `query.storage.result`, `storage.diff`) with daemon stubs.
 
 ## Notes
 - PR20 is intentionally reserved as documentation reconciliation so sequence alignment is explicit and auditable.

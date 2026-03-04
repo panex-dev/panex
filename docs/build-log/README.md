@@ -42,5 +42,5 @@ In every PR description:
 6. Keep branches short-lived and stacked; each PR should be mergeable on its own.
 
 ## Current build check (2026-03-04)
-- Completed log entries: PR1-PR21 (PR20 reserved for numbering reconciliation).
-- Next target increment: PR22 sidebar extraction and shared shell actions.
+- Completed log entries: PR1-PR22 (PR20 reserved for numbering reconciliation).
+- Next target increment: PR23 storage protocol extension.
