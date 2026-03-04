@@ -29,6 +29,7 @@ As of 2026-03-04.
 | 26 | Daemon storage mutation pipeline + `storage.diff` fanout | `docs/build-log/2026-03-04-pr-026-daemon-storage-diff-pipeline.md` |
 | 27 | Branch hygiene workflow + CI guardrails | (process PR, no build-log entry) |
 | 28 | Audit cleanup: validation, error handling, debuggability | `docs/build-log/2026-03-04-pr-028-audit-cleanup.md` |
+| 29 | Inspector Content-Security-Policy | `docs/build-log/2026-03-04-pr-029-inspector-csp.md` |
 
 ## In progress
 - None.
