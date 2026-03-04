@@ -502,6 +502,59 @@ func TestWebSocketQueryStorageRejectsUnsupportedArea(t *testing.T) {
 	}
 }
 
+func TestIsLocalOrigin(t *testing.T) {
+	testCases := []struct {
+		name   string
+		origin string
+		want   bool
+	}{
+		{name: "no origin header", origin: "", want: true},
+		{name: "localhost http", origin: "http://localhost", want: true},
+		{name: "localhost with port", origin: "http://localhost:4317", want: true},
+		{name: "127.0.0.1", origin: "http://127.0.0.1", want: true},
+		{name: "127.0.0.1 with port", origin: "http://127.0.0.1:8080", want: true},
+		{name: "ipv6 loopback", origin: "http://[::1]", want: true},
+		{name: "ipv6 loopback with port", origin: "http://[::1]:4317", want: true},
+		{name: "remote host", origin: "http://evil.com", want: false},
+		{name: "remote ip", origin: "http://192.168.1.1", want: false},
+		{name: "invalid url", origin: "://bad", want: false},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			r := &http.Request{Header: http.Header{}}
+			if tc.origin != "" {
+				r.Header.Set("Origin", tc.origin)
+			}
+			if got := isLocalOrigin(r); got != tc.want {
+				t.Fatalf("isLocalOrigin(%q) = %v, want %v", tc.origin, got, tc.want)
+			}
+		})
+	}
+}
+
+func TestWebSocketRejectsNonLocalOrigin(t *testing.T) {
+	server := newTestServer(t)
+	defer server.httpServer.Close()
+
+	dialer := websocket.Dialer{HandshakeTimeout: time.Second}
+	_, resp, err := dialer.Dial(
+		server.wsURL+"/ws?token="+server.token,
+		http.Header{"Origin": []string{"http://evil.com"}},
+	)
+	if resp != nil {
+		defer func() {
+			_ = resp.Body.Close()
+		}()
+	}
+	if err == nil {
+		t.Fatal("expected connection to be rejected for non-local origin")
+	}
+	if resp == nil || resp.StatusCode != http.StatusForbidden {
+		t.Fatalf("expected 403 Forbidden, got %v", resp)
+	}
+}
+
 func snapshotByArea(
 	t *testing.T,
 	snapshots []protocol.StorageSnapshot,
