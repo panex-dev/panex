@@ -12,6 +12,7 @@ import {
 interface StorageTabProps {
   status: Accessor<ConnectionStatus>;
   storage: Accessor<StorageSnapshot[]>;
+  storageHighlights: Accessor<Set<string>>;
   refreshStorage: (area?: QueryStorage["area"]) => boolean;
 }
 
@@ -42,7 +43,7 @@ export function StorageTab(props: StorageTabProps) {
     }
 
     return rows().map((row) => {
-      return html`<tr>
+      return html`<tr class=${props.storageHighlights().has(row.rowID) ? "storage-row-highlight" : ""}>
         <td><code>${row.area}</code></td>
         <td><code>${row.key}</code></td>
         <td><span class="storage-value">${truncateStorageValue(row.valueText)}</span></td>

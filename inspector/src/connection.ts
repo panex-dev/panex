@@ -11,6 +11,7 @@ import {
   type QueryEventsResult,
   type QueryStorage,
   type QueryStorageResult,
+  type StorageDiff,
   type StorageSnapshot
 } from "../../shared/protocol/src/index";
 import {
@@ -24,13 +25,17 @@ import {
 
 import { reconnectDelay } from "./reconnect";
 import {
+  applyStorageDiff,
+  normalizeStorageSnapshots,
+  type AppliedStorageDiff
+} from "./storage";
+import {
   defaultTimelineLimit,
   fromLiveEnvelope,
   fromSnapshot,
   mergeEntries,
   type TimelineEntry
 } from "./timeline";
-import { normalizeStorageSnapshots } from "./storage";
 
 export type ConnectionStatus = "connecting" | "open" | "reconnecting" | "closed";
 
@@ -38,6 +43,7 @@ interface ConnectionContextValue {
   status: Accessor<ConnectionStatus>;
   timeline: Accessor<TimelineEntry[]>;
   storage: Accessor<StorageSnapshot[]>;
+  storageHighlights: Accessor<Set<string>>;
   lastError: Accessor<string | null>;
   socketURL: Accessor<string>;
   send: (envelope: Envelope) => boolean;
@@ -51,6 +57,7 @@ export function ConnectionProvider(props: ParentProps) {
   const [status, setStatus] = createSignal<ConnectionStatus>("connecting");
   const [timeline, setTimeline] = createSignal<TimelineEntry[]>([]);
   const [storage, setStorage] = createSignal<StorageSnapshot[]>([]);
+  const [storageHighlights, setStorageHighlights] = createSignal(new Set<string>());
   const [lastError, setLastError] = createSignal<string | null>(null);
   const { wsURL, token } = resolveConnectionParams();
   const daemonURL = buildDaemonURL(wsURL, token);
@@ -104,7 +111,7 @@ export function ConnectionProvider(props: ParentProps) {
           protocol_version: PROTOCOL_VERSION,
           client_kind: "inspector",
           client_version: "dev",
-          capabilities_requested: ["query.events", "query.storage"]
+          capabilities_requested: ["query.events", "query.storage", "storage.diff"]
         }
       };
 
@@ -154,7 +161,14 @@ export function ConnectionProvider(props: ParentProps) {
       }
 
       if (isQueryStorageResult(decoded)) {
-        applyStorageQueryResult(decoded.data, setStorage);
+        applyStorageQueryResult(decoded.data, setStorage, setStorageHighlights);
+      }
+
+      if (isStorageDiffEnvelope(decoded)) {
+        applyStorageDiffEnvelope(decoded.data, storage, setStorage, setStorageHighlights);
+      }
+
+      if (decoded.name === "query.storage.result") {
         return;
       }
 
@@ -208,6 +222,7 @@ export function ConnectionProvider(props: ParentProps) {
       status,
       timeline,
       storage,
+      storageHighlights,
       lastError,
       socketURL: () => daemonURL,
       send,
@@ -256,9 +271,34 @@ function applyQueryResult(
 
 function applyStorageQueryResult(
   payload: QueryStorageResult,
-  setStorage: (next: StorageSnapshot[]) => void
+  setStorage: (next: StorageSnapshot[]) => void,
+  setStorageHighlights: (next: Set<string>) => void
 ): void {
   setStorage(normalizeStorageSnapshots(payload));
+  setStorageHighlights(new Set());
+}
+
+function applyStorageDiffEnvelope(
+  payload: StorageDiff,
+  storage: Accessor<StorageSnapshot[]>,
+  setStorage: (next: StorageSnapshot[]) => void,
+  setStorageHighlights: (next: Set<string>) => void
+): void {
+  const next = applyStorageDiff(storage(), payload);
+  applyStorageDiffState(next, setStorage, setStorageHighlights);
+}
+
+function applyStorageDiffState(
+  next: AppliedStorageDiff,
+  setStorage: (next: StorageSnapshot[]) => void,
+  setStorageHighlights: (next: Set<string>) => void
+): void {
+  if (next.changedRowIDs.length === 0) {
+    return;
+  }
+
+  setStorage(next.snapshots);
+  setStorageHighlights(new Set(next.changedRowIDs));
 }
 
 function buildStorageQuery(area?: QueryStorage["area"]): Envelope<QueryStorage> {
@@ -311,4 +351,8 @@ function normalizeArea(area: QueryStorage["area"]): string | undefined {
 
   const trimmed = area.trim().toLowerCase();
   return trimmed.length > 0 ? trimmed : undefined;
+}
+
+function isStorageDiffEnvelope(envelope: Envelope): envelope is Envelope<StorageDiff> {
+  return envelope.t === "event" && envelope.name === "storage.diff";
 }

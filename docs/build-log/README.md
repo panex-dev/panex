@@ -42,5 +42,5 @@ In every PR description:
 6. Keep branches short-lived and stacked; each PR should be mergeable on its own.
 
 ## Current build check (2026-03-04)
-- Completed log entries: PR1-PR24 (PR20 reserved for numbering reconciliation).
-- Next target increment: PR25 storage-diff ingestion in the inspector storage tab.
+- Completed log entries: PR1-PR25 (PR20 reserved for numbering reconciliation).
+- Next target increment: PR26 daemon-side storage mutation pipeline with `storage.diff` emission.

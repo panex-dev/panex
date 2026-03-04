@@ -25,12 +25,13 @@ As of 2026-03-04.
 | 22 | Sidebar component extraction | `docs/build-log/2026-03-04-pr-022-sidebar-component.md` |
 | 23 | Storage protocol extension + daemon stub handler | `docs/build-log/2026-03-04-pr-023-storage-protocol-extension.md` |
 | 24 | Storage viewer UI with `query.storage.result` area filtering | `docs/build-log/2026-03-04-pr-024-storage-viewer-ui.md` |
+| 25 | Storage diff ingestion + row highlight in inspector storage tab | `docs/build-log/2026-03-04-pr-025-storage-diff-highlights.md` |
 
 ## In progress
 - None.
 
 ## Next
-- Implement PR25 storage-diff ingestion and highlight updates in the Storage tab.
+- Implement PR26 daemon-side storage mutation pipeline that emits `storage.diff` events.
 
 ## Notes
 - PR20 is intentionally reserved as documentation reconciliation so sequence alignment is explicit and auditable.
