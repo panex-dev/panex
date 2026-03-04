@@ -42,5 +42,5 @@ In every PR description:
 6. Keep branches short-lived and stacked; each PR should be mergeable on its own.
 
 ## Current build check (2026-03-04)
-- Completed log entries: PR1-PR19.
-- Next target increment: validate TypeScript CI lane in GitHub-hosted runners, then continue unified inspector shell work.
+- Completed log entries: PR1-PR21 (PR20 reserved for numbering reconciliation).
+- Next target increment: PR22 sidebar extraction and shared shell actions.

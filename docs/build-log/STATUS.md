@@ -20,12 +20,14 @@ As of 2026-03-04.
 | 17 | `hello.ack` + capability negotiation | `docs/build-log/2026-03-02-pr-017-hello-ack-capability-negotiation.md` |
 | 18 | Go/TS protocol drift check | `docs/build-log/2026-03-02-pr-018-protocol-drift-check.md` |
 | 19 | PR template parity gate + status tracker | `docs/build-log/2026-03-04-pr-019-pr-template-protocol-parity.md` |
+| 20 | Numbering reconciliation (plan vs build-log sequence) | `docs/build-log/2026-03-04-pr-020-numbering-reconciliation.md` |
+| 21 | Unified inspector shell + hash router decomposition | `docs/build-log/2026-03-04-pr-021-unified-inspector-shell.md` |
 
 ## In progress
 - None.
 
 ## Next
-- Validate the new TypeScript CI lane in GitHub-hosted runners, then proceed to the next product increment (unified inspector shell decomposition).
+- Implement PR22 sidebar component extraction and keep shell/sidebar contracts stable across Timeline/Storage tabs.
 
 ## Notes
-- This tracker follows build-log entry numbering, which may not perfectly match the original PR numbering in `panex-engineering-plan.md`.
+- PR20 is intentionally reserved as documentation reconciliation so sequence alignment is explicit and auditable.
