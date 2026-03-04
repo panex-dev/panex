@@ -46,6 +46,11 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 8
+
       - name: Set up Node
         uses: actions/setup-node@v4
         with:
@@ -55,11 +60,6 @@ jobs:
             shared/protocol/package.json
             agent/pnpm-lock.yaml
             inspector/pnpm-lock.yaml
-
-      - name: Set up pnpm
-        uses: pnpm/action-setup@v4
-        with:
-          version: 8
 
       - name: Install dependencies
         shell: bash
