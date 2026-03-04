@@ -30,6 +30,7 @@ As of 2026-03-04.
 | 27 | Branch hygiene workflow + CI guardrails | (process PR, no build-log entry) |
 | 28 | Audit cleanup: validation, error handling, debuggability | `docs/build-log/2026-03-04-pr-028-audit-cleanup.md` |
 | 29 | Inspector Content-Security-Policy | `docs/build-log/2026-03-04-pr-029-inspector-csp.md` |
+| 30 | Replace test time.Sleep with polling+deadline | `docs/build-log/2026-03-04-pr-030-test-sleep-polling.md` |
 
 ## In progress
 - None.
