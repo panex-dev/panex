@@ -24,6 +24,32 @@ make test   # run tests with race detector
 make build  # compile to ./bin/panex
 ```
 
+## Branch Workflow
+
+Start every new PR from latest `origin/main` in a dedicated worktree:
+
+```bash
+./scripts/pr-start.sh feat/my-change
+```
+
+Install pre-push hooks once per clone to block stale branch pushes:
+
+```bash
+./scripts/install-git-hooks.sh
+```
+
+Before push (and in CI), verify branch base:
+
+```bash
+./scripts/pr-ensure-rebased.sh
+```
+
+After a PR is merged, delete branch/worktree and return to `main`:
+
+```bash
+./scripts/pr-finish.sh feat/my-change
+```
+
 ## Frontend Packages
 
 - `agent/`: Chrome Dev Agent extension (`pnpm run check|test|build`)
