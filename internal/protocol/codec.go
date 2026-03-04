@@ -1,6 +1,10 @@
 package protocol
 
-import "github.com/vmihailenco/msgpack/v5"
+import (
+	"fmt"
+
+	"github.com/vmihailenco/msgpack/v5"
+)
 
 func Encode(message Envelope) ([]byte, error) {
 	return msgpack.Marshal(message)
@@ -18,8 +22,10 @@ func DecodeEnvelope(raw []byte) (Envelope, error) {
 func DecodePayload(raw any, out any) error {
 	encoded, err := msgpack.Marshal(raw)
 	if err != nil {
-		return err
+		return fmt.Errorf("marshal payload for re-decode: %w", err)
 	}
-
-	return msgpack.Unmarshal(encoded, out)
+	if err := msgpack.Unmarshal(encoded, out); err != nil {
+		return fmt.Errorf("unmarshal payload: %w", err)
+	}
+	return nil
 }

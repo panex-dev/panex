@@ -87,6 +87,9 @@ func (c Config) Validate() error {
 	if strings.TrimSpace(c.Extension.OutDir) == "" {
 		return errors.New("extension.out_dir is required")
 	}
+	if c.Extension.SourceDir == c.Extension.OutDir {
+		return errors.New("extension.source_dir and extension.out_dir must differ")
+	}
 	if c.Server.Port < minPort || c.Server.Port > maxPort {
 		return fmt.Errorf("server.port must be between %d and %d", minPort, maxPort)
 	}

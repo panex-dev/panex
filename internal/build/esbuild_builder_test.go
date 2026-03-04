@@ -40,6 +40,12 @@ func TestNewEsbuildBuilderValidation(t *testing.T) {
 			outDir:    filepath.Join(tmpDir, "out"),
 			wantError: "source directory must be a directory",
 		},
+		{
+			name:      "source equals output directory",
+			sourceDir: tmpDir,
+			outDir:    tmpDir,
+			wantError: "source and output directories must differ",
+		},
 	}
 
 	for _, tc := range testCases {

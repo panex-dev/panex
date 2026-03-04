@@ -127,6 +127,9 @@ func (w *FileWatcher) Run(ctx context.Context) error {
 				flush()
 				return nil
 			}
+			if timer != nil {
+				timer.Stop()
+			}
 			return fmt.Errorf("watch filesystem: %w", err)
 		case event, ok := <-watcher.Events:
 			if !ok {

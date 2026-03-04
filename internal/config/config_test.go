@@ -156,6 +156,19 @@ port = 4317
 `,
 			wantError: "server.auth_token is required",
 		},
+		{
+			name: "source_dir equals out_dir",
+			tomlData: `
+[extension]
+source_dir = "./same-dir"
+out_dir = "./same-dir"
+
+[server]
+port = 4317
+auth_token = "test-token"
+`,
+			wantError: "extension.source_dir and extension.out_dir must differ",
+		},
 	}
 
 	for _, tc := range testCases {
