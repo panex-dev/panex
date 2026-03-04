@@ -1,6 +1,7 @@
 package daemon
 
 import (
+	"context"
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
@@ -148,7 +149,7 @@ func TestWebSocketBroadcastToConnectedClient(t *testing.T) {
 			ChangedFiles: []string{"index.ts"},
 		},
 	)
-	if err := server.ws.Broadcast(buildComplete); err != nil {
+	if err := server.ws.Broadcast(context.Background(), buildComplete); err != nil {
 		t.Fatalf("Broadcast() returned error: %v", err)
 	}
 
@@ -249,10 +250,10 @@ func TestWebSocketQueryEventsReturnsRecentStoredMessages(t *testing.T) {
 			BuildID: "build-query",
 		},
 	)
-	if err := server.ws.Broadcast(buildComplete); err != nil {
+	if err := server.ws.Broadcast(context.Background(), buildComplete); err != nil {
 		t.Fatalf("Broadcast(build.complete) returned error: %v", err)
 	}
-	if err := server.ws.Broadcast(reload); err != nil {
+	if err := server.ws.Broadcast(context.Background(), reload); err != nil {
 		t.Fatalf("Broadcast(command.reload) returned error: %v", err)
 	}
 
@@ -350,10 +351,10 @@ func TestWebSocketQueryStorageReturnsMutatedStateByArea(t *testing.T) {
 	server := newTestServer(t)
 	defer server.httpServer.Close()
 
-	if err := server.ws.SetStorageItem("local", "theme", "dark"); err != nil {
+	if err := server.ws.SetStorageItem(context.Background(), "local", "theme", "dark"); err != nil {
 		t.Fatalf("SetStorageItem(local theme) returned error: %v", err)
 	}
-	if err := server.ws.SetStorageItem("sync", "beta", true); err != nil {
+	if err := server.ws.SetStorageItem(context.Background(), "sync", "beta", true); err != nil {
 		t.Fatalf("SetStorageItem(sync beta) returned error: %v", err)
 	}
 
@@ -415,7 +416,7 @@ func TestWebSocketStorageMutationBroadcastsDiff(t *testing.T) {
 	_ = mustHandshake(t, conn)
 	waitForConnectionCount(t, server.ws, 1)
 
-	if err := server.ws.SetStorageItem("local", "feature", "on"); err != nil {
+	if err := server.ws.SetStorageItem(context.Background(), "local", "feature", "on"); err != nil {
 		t.Fatalf("SetStorageItem(local feature) returned error: %v", err)
 	}
 
@@ -446,19 +447,19 @@ func TestWebSocketStorageMutationValidation(t *testing.T) {
 	server := newTestServer(t)
 	defer server.httpServer.Close()
 
-	if err := server.ws.SetStorageItem("cookies", "x", "1"); err == nil {
+	if err := server.ws.SetStorageItem(context.Background(), "cookies", "x", "1"); err == nil {
 		t.Fatal("expected SetStorageItem invalid area error, got nil")
 	}
-	if err := server.ws.SetStorageItem("local", "", "1"); err == nil {
+	if err := server.ws.SetStorageItem(context.Background(), "local", "", "1"); err == nil {
 		t.Fatal("expected SetStorageItem empty key error, got nil")
 	}
-	if err := server.ws.RemoveStorageItem("cookies", "x"); err == nil {
+	if err := server.ws.RemoveStorageItem(context.Background(), "cookies", "x"); err == nil {
 		t.Fatal("expected RemoveStorageItem invalid area error, got nil")
 	}
-	if err := server.ws.RemoveStorageItem("local", ""); err == nil {
+	if err := server.ws.RemoveStorageItem(context.Background(), "local", ""); err == nil {
 		t.Fatal("expected RemoveStorageItem empty key error, got nil")
 	}
-	if err := server.ws.ClearStorageArea("cookies"); err == nil {
+	if err := server.ws.ClearStorageArea(context.Background(), "cookies"); err == nil {
 		t.Fatal("expected ClearStorageArea invalid area error, got nil")
 	}
 }
