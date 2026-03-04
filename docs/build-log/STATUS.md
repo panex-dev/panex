@@ -32,6 +32,7 @@ As of 2026-03-04.
 | 29 | Inspector Content-Security-Policy | `docs/build-log/2026-03-04-pr-029-inspector-csp.md` |
 | 30 | Replace test time.Sleep with polling+deadline | `docs/build-log/2026-03-04-pr-030-test-sleep-polling.md` |
 | 31 | Thread context.Context through store calls | `docs/build-log/2026-03-04-pr-031-store-context-threading.md` |
+| 32 | WebSocket origin validation (localhost-only) | `docs/build-log/2026-03-05-pr-032-websocket-origin-validation.md` |
 
 ## In progress
 - None.

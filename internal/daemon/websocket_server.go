@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"net/url"
 	"os"
 	"sort"
 	"strconv"
@@ -91,9 +92,7 @@ func NewWebSocketServer(cfg WebSocketConfig) (*WebSocketServer, error) {
 	return &WebSocketServer{
 		cfg: cfg,
 		upgrader: websocket.Upgrader{
-			// The daemon is for local developer workflows. We keep origin checks simple for MVP
-			// and rely on token auth; tighten this once the agent connection story is finalized.
-			CheckOrigin: func(_ *http.Request) bool { return true },
+			CheckOrigin: isLocalOrigin,
 		},
 		sessions:   make(map[string]*sessionConn),
 		storage:    defaultStorageState(),
@@ -670,4 +669,21 @@ func negotiateCapabilities(requested, supported []string) []string {
 	}
 
 	return accepted
+}
+
+// isLocalOrigin validates that WebSocket upgrade requests originate from localhost.
+// Chrome extensions connect without an Origin header, which gorilla/websocket
+// treats as a same-origin request (returns true). For browser-based inspector
+// connections, only localhost origins are permitted.
+func isLocalOrigin(r *http.Request) bool {
+	origin := r.Header.Get("Origin")
+	if origin == "" {
+		return true
+	}
+	u, err := url.Parse(origin)
+	if err != nil {
+		return false
+	}
+	host := strings.ToLower(u.Hostname())
+	return host == "127.0.0.1" || host == "localhost" || host == "::1"
 }
