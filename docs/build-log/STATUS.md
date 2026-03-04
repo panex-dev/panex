@@ -27,12 +27,14 @@ As of 2026-03-04.
 | 24 | Storage viewer UI with `query.storage.result` area filtering | `docs/build-log/2026-03-04-pr-024-storage-viewer-ui.md` |
 | 25 | Storage diff ingestion + row highlight in inspector storage tab | `docs/build-log/2026-03-04-pr-025-storage-diff-highlights.md` |
 | 26 | Daemon storage mutation pipeline + `storage.diff` fanout | `docs/build-log/2026-03-04-pr-026-daemon-storage-diff-pipeline.md` |
+| 27 | Branch hygiene workflow + CI guardrails | (process PR, no build-log entry) |
+| 28 | Audit cleanup: validation, error handling, debuggability | `docs/build-log/2026-03-04-pr-028-audit-cleanup.md` |
 
 ## In progress
 - None.
 
 ## Next
-- Implement PR27 transport wiring from storage simulation operations into daemon mutation APIs.
+- Implement transport wiring from inspector storage simulation into daemon mutation APIs via WebSocket.
 
 ## Notes
 - PR20 is intentionally reserved as documentation reconciliation so sequence alignment is explicit and auditable.

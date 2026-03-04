@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"os"
 	"sort"
 	"strconv"
 	"strings"
@@ -277,6 +278,9 @@ func (s *WebSocketServer) readLoop(sessionID string, conn *websocket.Conn) {
 	for {
 		_, rawMessage, err := conn.ReadMessage()
 		if err != nil {
+			if !websocket.IsCloseError(err, websocket.CloseNormalClosure, websocket.CloseGoingAway) {
+				fmt.Fprintf(os.Stderr, "panex: readLoop session %s: %v\n", sessionID, err)
+			}
 			return
 		}
 		if err := s.handleClientMessage(sessionID, rawMessage); err != nil {

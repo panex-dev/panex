@@ -52,6 +52,9 @@ func NewEsbuildBuilder(sourceDir, outDir string) (*EsbuildBuilder, error) {
 	if err != nil {
 		return nil, fmt.Errorf("resolve output directory %q: %w", outDir, err)
 	}
+	if absSourceDir == absOutDir {
+		return nil, errors.New("source and output directories must differ")
+	}
 
 	return &EsbuildBuilder{
 		sourceDir: absSourceDir,
@@ -169,7 +172,6 @@ func collectMessages(messages []api.Message) []string {
 
 		out = append(out, fmt.Sprintf("%s:%d:%d: %s", message.Location.File, message.Location.Line, message.Location.Column, text))
 	}
-	sort.Strings(out)
 	return out
 }
 
