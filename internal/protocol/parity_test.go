@@ -46,6 +46,9 @@ func TestTypeScriptProtocolParity(t *testing.T) {
 		string(MessageCommandReload),
 		string(MessageQueryEvents),
 		string(MessageQueryResult),
+		string(MessageQueryStorage),
+		string(MessageStorageResult),
+		string(MessageStorageDiff),
 	}; !slices.Equal(got, want) {
 		t.Fatalf("message name drift:\n  ts=%v\n  go=%v", got, want)
 	}

@@ -13,7 +13,10 @@ export const envelopeNames = [
   "context.log",
   "command.reload",
   "query.events",
-  "query.events.result"
+  "query.events.result",
+  "query.storage",
+  "query.storage.result",
+  "storage.diff"
 ] as const;
 export type EnvelopeName = (typeof envelopeNames)[number];
 
@@ -24,7 +27,10 @@ export const messageTypeByName: Readonly<Record<EnvelopeName, EnvelopeType>> = {
   "context.log": "event",
   "command.reload": "command",
   "query.events": "command",
-  "query.events.result": "event"
+  "query.events.result": "event",
+  "query.storage": "command",
+  "query.storage.result": "event",
+  "storage.diff": "event"
 };
 
 export interface Source {
@@ -90,6 +96,30 @@ export interface QueryEventsResult {
   events: EventSnapshot[];
 }
 
+export interface QueryStorage {
+  area?: string;
+}
+
+export interface StorageSnapshot {
+  area: string;
+  items: Record<string, unknown>;
+}
+
+export interface QueryStorageResult {
+  snapshots: StorageSnapshot[];
+}
+
+export interface StorageChange {
+  key: string;
+  old_value?: unknown;
+  new_value?: unknown;
+}
+
+export interface StorageDiff {
+  area: string;
+  changes: StorageChange[];
+}
+
 export function isEnvelopeType(value: unknown): value is EnvelopeType {
   return typeof value === "string" && (envelopeTypes as readonly string[]).includes(value);
 }
@@ -143,6 +173,10 @@ export function isHelloAck(envelope: Envelope): envelope is Envelope<HelloAck> {
 
 export function isQueryEventsResult(envelope: Envelope): envelope is Envelope<QueryEventsResult> {
   return envelope.t === "event" && envelope.name === "query.events.result";
+}
+
+export function isQueryStorageResult(envelope: Envelope): envelope is Envelope<QueryStorageResult> {
+  return envelope.t === "event" && envelope.name === "query.storage.result";
 }
 
 export function isReloadCommand(envelope: Envelope): envelope is Envelope<CommandReload> {

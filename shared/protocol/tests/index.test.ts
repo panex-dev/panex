@@ -6,6 +6,7 @@ import {
   isEnvelope,
   isHelloAck,
   isQueryEventsResult,
+  isQueryStorageResult,
   isReloadCommand,
   messageTypeByName,
   messageTypeForName,
@@ -77,5 +78,10 @@ describe("message guards", () => {
   it("identifies command.reload envelopes", () => {
     assert.equal(isReloadCommand(makeEnvelope("command.reload")), true);
     assert.equal(isReloadCommand(makeEnvelope("context.log")), false);
+  });
+
+  it("identifies query.storage.result envelopes", () => {
+    assert.equal(isQueryStorageResult(makeEnvelope("query.storage.result")), true);
+    assert.equal(isQueryStorageResult(makeEnvelope("query.events.result")), false);
   });
 });

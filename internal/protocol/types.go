@@ -26,6 +26,9 @@ const (
 	MessageCommandReload MessageName = "command.reload"
 	MessageQueryEvents   MessageName = "query.events"
 	MessageQueryResult   MessageName = "query.events.result"
+	MessageQueryStorage  MessageName = "query.storage"
+	MessageStorageResult MessageName = "query.storage.result"
+	MessageStorageDiff   MessageName = "storage.diff"
 )
 
 type SourceRole string
@@ -130,6 +133,30 @@ type QueryEventsResult struct {
 	Events []EventSnapshot `msgpack:"events"`
 }
 
+type QueryStorage struct {
+	Area string `msgpack:"area,omitempty"`
+}
+
+type StorageSnapshot struct {
+	Area  string         `msgpack:"area"`
+	Items map[string]any `msgpack:"items"`
+}
+
+type QueryStorageResult struct {
+	Snapshots []StorageSnapshot `msgpack:"snapshots"`
+}
+
+type StorageDiff struct {
+	Area    string          `msgpack:"area"`
+	Changes []StorageChange `msgpack:"changes"`
+}
+
+type StorageChange struct {
+	Key      string `msgpack:"key"`
+	OldValue any    `msgpack:"old_value,omitempty"`
+	NewValue any    `msgpack:"new_value,omitempty"`
+}
+
 var messageTypeByName = map[MessageName]MessageType{
 	MessageHello:         TypeLifecycle,
 	MessageHelloAck:      TypeLifecycle,
@@ -138,6 +165,9 @@ var messageTypeByName = map[MessageName]MessageType{
 	MessageCommandReload: TypeCommand,
 	MessageQueryEvents:   TypeCommand,
 	MessageQueryResult:   TypeEvent,
+	MessageQueryStorage:  TypeCommand,
+	MessageStorageResult: TypeEvent,
+	MessageStorageDiff:   TypeEvent,
 }
 
 func MessageTypeForName(name MessageName) (MessageType, bool) {
@@ -171,6 +201,18 @@ func NewQueryEvents(src Source, data QueryEvents) Envelope {
 
 func NewQueryEventsResult(src Source, data QueryEventsResult) Envelope {
 	return newEnvelope(TypeEvent, MessageQueryResult, src, data)
+}
+
+func NewQueryStorage(src Source, data QueryStorage) Envelope {
+	return newEnvelope(TypeCommand, MessageQueryStorage, src, data)
+}
+
+func NewQueryStorageResult(src Source, data QueryStorageResult) Envelope {
+	return newEnvelope(TypeEvent, MessageStorageResult, src, data)
+}
+
+func NewStorageDiff(src Source, data StorageDiff) Envelope {
+	return newEnvelope(TypeEvent, MessageStorageDiff, src, data)
 }
 
 func newEnvelope(messageType MessageType, name MessageName, src Source, data any) Envelope {

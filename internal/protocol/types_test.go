@@ -20,6 +20,9 @@ func TestMessageTypeForName(t *testing.T) {
 		{name: MessageCommandReload, want: TypeCommand, wantOK: true, caseTag: "command.reload"},
 		{name: MessageQueryEvents, want: TypeCommand, wantOK: true, caseTag: "query.events"},
 		{name: MessageQueryResult, want: TypeEvent, wantOK: true, caseTag: "query.events.result"},
+		{name: MessageQueryStorage, want: TypeCommand, wantOK: true, caseTag: "query.storage"},
+		{name: MessageStorageResult, want: TypeEvent, wantOK: true, caseTag: "query.storage.result"},
+		{name: MessageStorageDiff, want: TypeEvent, wantOK: true, caseTag: "storage.diff"},
 		{name: MessageName("unknown"), want: "", wantOK: false, caseTag: "unknown"},
 	}
 
@@ -244,6 +247,36 @@ func TestConstructors(t *testing.T) {
 			wantType:     TypeEvent,
 			wantName:     MessageQueryResult,
 			wantDataType: QueryEventsResult{},
+		},
+		{
+			name:         "query.storage",
+			got:          NewQueryStorage(src, QueryStorage{Area: "local"}),
+			wantType:     TypeCommand,
+			wantName:     MessageQueryStorage,
+			wantDataType: QueryStorage{},
+		},
+		{
+			name: "query.storage.result",
+			got: NewQueryStorageResult(src, QueryStorageResult{
+				Snapshots: []StorageSnapshot{
+					{Area: "local", Items: map[string]any{"theme": "light"}},
+				},
+			}),
+			wantType:     TypeEvent,
+			wantName:     MessageStorageResult,
+			wantDataType: QueryStorageResult{},
+		},
+		{
+			name: "storage.diff",
+			got: NewStorageDiff(src, StorageDiff{
+				Area: "local",
+				Changes: []StorageChange{
+					{Key: "theme", OldValue: "dark", NewValue: "light"},
+				},
+			}),
+			wantType:     TypeEvent,
+			wantName:     MessageStorageDiff,
+			wantDataType: StorageDiff{},
 		},
 	}
 
