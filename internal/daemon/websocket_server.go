@@ -23,6 +23,7 @@ const maxMessageBytes = 1 << 20 // 1 MiB keeps accidental payload explosions bou
 var daemonCapabilities = []string{
 	"command.reload",
 	"query.events",
+	"query.storage",
 }
 
 type WebSocketConfig struct {
@@ -330,51 +331,87 @@ func (s *WebSocketServer) handleClientMessage(sessionID string, rawMessage []byt
 	if err := message.ValidateBase(); err != nil {
 		return fmt.Errorf("validate client message: %w", err)
 	}
-	if message.Name != protocol.MessageQueryEvents {
+	switch message.Name {
+	case protocol.MessageQueryEvents:
+		if message.T != protocol.TypeCommand {
+			return fmt.Errorf("unexpected query.events message type %q", message.T)
+		}
+
+		var query protocol.QueryEvents
+		if err := protocol.DecodePayload(message.Data, &query); err != nil {
+			return fmt.Errorf("decode query.events payload: %w", err)
+		}
+
+		records, err := s.eventStore.Recent(context.Background(), query.Limit)
+		if err != nil {
+			return fmt.Errorf("query recent events: %w", err)
+		}
+
+		events := make([]protocol.EventSnapshot, 0, len(records))
+		for _, record := range records {
+			events = append(events, protocol.EventSnapshot{
+				ID:           record.ID,
+				RecordedAtMS: record.RecordedAtMS,
+				Envelope:     record.Envelope,
+			})
+		}
+
+		response := protocol.NewQueryEventsResult(
+			protocol.Source{
+				Role: protocol.SourceDaemon,
+				ID:   s.cfg.DaemonID,
+			},
+			protocol.QueryEventsResult{
+				Events: events,
+			},
+		)
+
+		encoded, err := protocol.Encode(response)
+		if err != nil {
+			return fmt.Errorf("encode query.events.result response: %w", err)
+		}
+		if err := s.writeSessionMessage(sessionID, encoded); err != nil {
+			return fmt.Errorf("write query.events.result response: %w", err)
+		}
+
+		return nil
+	case protocol.MessageQueryStorage:
+		if message.T != protocol.TypeCommand {
+			return fmt.Errorf("unexpected query.storage message type %q", message.T)
+		}
+
+		var query protocol.QueryStorage
+		if err := protocol.DecodePayload(message.Data, &query); err != nil {
+			return fmt.Errorf("decode query.storage payload: %w", err)
+		}
+
+		snapshots, err := buildStorageSnapshots(query.Area)
+		if err != nil {
+			return fmt.Errorf("build query.storage snapshots: %w", err)
+		}
+
+		response := protocol.NewQueryStorageResult(
+			protocol.Source{
+				Role: protocol.SourceDaemon,
+				ID:   s.cfg.DaemonID,
+			},
+			protocol.QueryStorageResult{
+				Snapshots: snapshots,
+			},
+		)
+
+		encoded, err := protocol.Encode(response)
+		if err != nil {
+			return fmt.Errorf("encode query.storage.result response: %w", err)
+		}
+		if err := s.writeSessionMessage(sessionID, encoded); err != nil {
+			return fmt.Errorf("write query.storage.result response: %w", err)
+		}
+
+		return nil
+	default:
 		return nil
 	}
-	if message.T != protocol.TypeCommand {
-		return fmt.Errorf("unexpected query.events message type %q", message.T)
-	}
-
-	var query protocol.QueryEvents
-	if err := protocol.DecodePayload(message.Data, &query); err != nil {
-		return fmt.Errorf("decode query.events payload: %w", err)
-	}
-
-	records, err := s.eventStore.Recent(context.Background(), query.Limit)
-	if err != nil {
-		return fmt.Errorf("query recent events: %w", err)
-	}
-
-	events := make([]protocol.EventSnapshot, 0, len(records))
-	for _, record := range records {
-		events = append(events, protocol.EventSnapshot{
-			ID:           record.ID,
-			RecordedAtMS: record.RecordedAtMS,
-			Envelope:     record.Envelope,
-		})
-	}
-
-	response := protocol.NewQueryEventsResult(
-		protocol.Source{
-			Role: protocol.SourceDaemon,
-			ID:   s.cfg.DaemonID,
-		},
-		protocol.QueryEventsResult{
-			Events: events,
-		},
-	)
-
-	encoded, err := protocol.Encode(response)
-	if err != nil {
-		return fmt.Errorf("encode query.events.result response: %w", err)
-	}
-	if err := s.writeSessionMessage(sessionID, encoded); err != nil {
-		return fmt.Errorf("write query.events.result response: %w", err)
-	}
-
-	return nil
 }
 
 func (s *WebSocketServer) writeSessionMessage(sessionID string, encoded []byte) error {
@@ -421,6 +458,26 @@ func (s *WebSocketServer) closeAllConnections() {
 	for _, session := range connections {
 		_ = session.conn.Close()
 	}
+}
+
+func buildStorageSnapshots(area string) ([]protocol.StorageSnapshot, error) {
+	trimmed := strings.TrimSpace(area)
+	if trimmed == "" {
+		return []protocol.StorageSnapshot{
+			{Area: "local", Items: map[string]any{}},
+			{Area: "sync", Items: map[string]any{}},
+			{Area: "session", Items: map[string]any{}},
+		}, nil
+	}
+
+	normalized := strings.ToLower(trimmed)
+	if normalized != "local" && normalized != "sync" && normalized != "session" {
+		return nil, fmt.Errorf("unsupported storage area %q", area)
+	}
+
+	return []protocol.StorageSnapshot{
+		{Area: normalized, Items: map[string]any{}},
+	}, nil
 }
 
 func negotiateCapabilities(requested, supported []string) []string {

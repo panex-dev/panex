@@ -295,6 +295,95 @@ func TestWebSocketQueryEventsReturnsRecentStoredMessages(t *testing.T) {
 	}
 }
 
+func TestWebSocketQueryStorageReturnsAllAreasByDefault(t *testing.T) {
+	server := newTestServer(t)
+	defer server.httpServer.Close()
+
+	conn := dialAuthorizedConnection(t, server.wsURL, server.token)
+	t.Cleanup(func() {
+		_ = conn.Close()
+	})
+
+	_ = mustHandshake(t, conn)
+	waitForConnectionCount(t, server.ws, 1)
+
+	query := protocol.NewQueryStorage(
+		protocol.Source{Role: protocol.SourceInspector, ID: "inspector-1"},
+		protocol.QueryStorage{},
+	)
+	rawQuery, err := protocol.Encode(query)
+	if err != nil {
+		t.Fatalf("Encode(query.storage) returned error: %v", err)
+	}
+	if err := conn.WriteMessage(websocket.BinaryMessage, rawQuery); err != nil {
+		t.Fatalf("WriteMessage(query.storage) returned error: %v", err)
+	}
+
+	response := mustReadEnvelope(t, conn)
+	if response.Name != protocol.MessageStorageResult {
+		t.Fatalf("unexpected response name: got %q, want %q", response.Name, protocol.MessageStorageResult)
+	}
+	if response.T != protocol.TypeEvent {
+		t.Fatalf("unexpected response type: got %q, want %q", response.T, protocol.TypeEvent)
+	}
+
+	var payload protocol.QueryStorageResult
+	if err := protocol.DecodePayload(response.Data, &payload); err != nil {
+		t.Fatalf("DecodePayload(query.storage.result) returned error: %v", err)
+	}
+	if len(payload.Snapshots) != 3 {
+		t.Fatalf("unexpected snapshot count: got %d, want %d", len(payload.Snapshots), 3)
+	}
+
+	wantAreas := []string{"local", "sync", "session"}
+	for index, wantArea := range wantAreas {
+		if payload.Snapshots[index].Area != wantArea {
+			t.Fatalf("unexpected area at index %d: got %q, want %q", index, payload.Snapshots[index].Area, wantArea)
+		}
+		if len(payload.Snapshots[index].Items) != 0 {
+			t.Fatalf("expected empty items for area %q, got %v", payload.Snapshots[index].Area, payload.Snapshots[index].Items)
+		}
+	}
+}
+
+func TestWebSocketQueryStorageRejectsUnsupportedArea(t *testing.T) {
+	server := newTestServer(t)
+	defer server.httpServer.Close()
+
+	conn := dialAuthorizedConnection(t, server.wsURL, server.token)
+	t.Cleanup(func() {
+		_ = conn.Close()
+	})
+
+	_ = mustHandshake(t, conn)
+	waitForConnectionCount(t, server.ws, 1)
+
+	query := protocol.NewQueryStorage(
+		protocol.Source{Role: protocol.SourceInspector, ID: "inspector-1"},
+		protocol.QueryStorage{Area: "cookies"},
+	)
+	rawQuery, err := protocol.Encode(query)
+	if err != nil {
+		t.Fatalf("Encode(query.storage invalid area) returned error: %v", err)
+	}
+	if err := conn.WriteMessage(websocket.BinaryMessage, rawQuery); err != nil {
+		t.Fatalf("WriteMessage(query.storage invalid area) returned error: %v", err)
+	}
+
+	_, _, err = conn.ReadMessage()
+	if err == nil {
+		t.Fatal("expected connection close for invalid query.storage area")
+	}
+
+	closeErr, ok := err.(*websocket.CloseError)
+	if !ok {
+		t.Fatalf("expected websocket.CloseError, got %T (%v)", err, err)
+	}
+	if closeErr.Code != websocket.ClosePolicyViolation {
+		t.Fatalf("unexpected close code: got %d, want %d", closeErr.Code, websocket.ClosePolicyViolation)
+	}
+}
+
 type testServer struct {
 	ws         *WebSocketServer
 	httpServer *httptest.Server
