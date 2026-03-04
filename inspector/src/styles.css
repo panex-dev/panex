@@ -234,6 +234,10 @@ body {
   vertical-align: top;
 }
 
+.storage-row-highlight td {
+  background: #fff6d8;
+}
+
 .storage-table th {
   color: #2f4a64;
   font-size: 0.8rem;

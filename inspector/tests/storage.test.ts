@@ -2,12 +2,14 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
 import {
+  applyStorageDiff,
   flattenStorageSnapshots,
   formatStorageValue,
   isStorageAreaFilter,
-  normalizeStorageSnapshots
+  normalizeStorageSnapshots,
+  storageRowID
 } from "../src/storage";
-import type { QueryStorageResult, StorageSnapshot } from "../../shared/protocol/src/index";
+import type { QueryStorageResult, StorageDiff, StorageSnapshot } from "../../shared/protocol/src/index";
 
 describe("storage snapshot normalization", () => {
   it("normalizes valid snapshots and drops invalid entries", () => {
@@ -42,6 +44,7 @@ describe("storage row flattening", () => {
       rows.map((row) => `${row.area}:${row.key}`),
       ["local:gamma", "sync:alpha", "sync:beta"]
     );
+    assert.equal(rows[0].rowID, storageRowID("local", "gamma"));
   });
 
   it("applies area filtering", () => {
@@ -49,6 +52,39 @@ describe("storage row flattening", () => {
     assert.equal(rows.length, 2);
     assert.equal(rows[0].area, "sync");
     assert.equal(rows[1].area, "sync");
+  });
+});
+
+describe("storage diff application", () => {
+  it("applies set/remove operations and reports changed row IDs", () => {
+    const snapshots: StorageSnapshot[] = [{ area: "local", items: { a: 1, b: 2 } }];
+    const diff: StorageDiff = {
+      area: "local",
+      changes: [{ key: "a", new_value: 10 }, { key: "b" }, { key: "c", new_value: true }]
+    };
+
+    const next = applyStorageDiff(snapshots, diff);
+    assert.deepEqual(next.snapshots, [{ area: "local", items: { a: 10, c: true } }]);
+    assert.deepEqual(next.changedRowIDs, ["local:a", "local:b", "local:c"]);
+  });
+
+  it("creates missing area snapshot when receiving first diff", () => {
+    const next = applyStorageDiff([], {
+      area: "sync",
+      changes: [{ key: "feature", new_value: "on" }]
+    });
+
+    assert.deepEqual(next.snapshots, [{ area: "sync", items: { feature: "on" } }]);
+    assert.deepEqual(next.changedRowIDs, ["sync:feature"]);
+  });
+
+  it("ignores malformed payloads", () => {
+    const snapshots: StorageSnapshot[] = [{ area: "local", items: { a: 1 } }];
+
+    const malformed = { area: "", changes: [{ key: "a", new_value: 2 }] } as StorageDiff;
+    const next = applyStorageDiff(snapshots, malformed);
+    assert.deepEqual(next.snapshots, snapshots);
+    assert.deepEqual(next.changedRowIDs, []);
   });
 });
 

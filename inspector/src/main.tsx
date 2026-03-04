@@ -36,6 +36,7 @@ function InspectorApp() {
         return StorageTab({
           status: connection.status,
           storage: connection.storage,
+          storageHighlights: connection.storageHighlights,
           refreshStorage: connection.refreshStorage
         });
       case "workbench":
