@@ -2,7 +2,9 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    branches:
+      - main
+      - feat/pr*
   pull_request:
     branches: [main]
 
@@ -54,6 +56,8 @@ jobs:
             dir: agent
           - name: inspector
             dir: inspector
+          - name: chrome-sim
+            dir: shared/chrome-sim
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -72,6 +76,7 @@ jobs:
             shared/protocol/package.json
             agent/pnpm-lock.yaml
             inspector/pnpm-lock.yaml
+            shared/chrome-sim/pnpm-lock.yaml
 
       - name: Install dependencies
         shell: bash
