@@ -16,7 +16,10 @@ export const envelopeNames = [
   "query.events.result",
   "query.storage",
   "query.storage.result",
-  "storage.diff"
+  "storage.diff",
+  "storage.set",
+  "storage.remove",
+  "storage.clear"
 ] as const;
 export type EnvelopeName = (typeof envelopeNames)[number];
 
@@ -30,7 +33,10 @@ export const messageTypeByName: Readonly<Record<EnvelopeName, EnvelopeType>> = {
   "query.events.result": "event",
   "query.storage": "command",
   "query.storage.result": "event",
-  "storage.diff": "event"
+  "storage.diff": "event",
+  "storage.set": "command",
+  "storage.remove": "command",
+  "storage.clear": "command"
 };
 
 export interface Source {
@@ -118,6 +124,21 @@ export interface StorageChange {
 export interface StorageDiff {
   area: string;
   changes: StorageChange[];
+}
+
+export interface StorageSet {
+  area: string;
+  key: string;
+  value: unknown;
+}
+
+export interface StorageRemove {
+  area: string;
+  key: string;
+}
+
+export interface StorageClear {
+  area: string;
 }
 
 export function isEnvelopeType(value: unknown): value is EnvelopeType {

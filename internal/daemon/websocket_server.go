@@ -28,6 +28,9 @@ var daemonCapabilities = []string{
 	"query.events",
 	"query.storage",
 	"storage.diff",
+	"storage.set",
+	"storage.remove",
+	"storage.clear",
 }
 
 var storageAreaOrder = []string{"local", "sync", "session"}
@@ -421,6 +424,51 @@ func (s *WebSocketServer) handleClientMessage(ctx context.Context, sessionID str
 		}
 		if err := s.writeSessionMessage(sessionID, encoded); err != nil {
 			return fmt.Errorf("write query.storage.result response: %w", err)
+		}
+
+		return nil
+	case protocol.MessageStorageSet:
+		if message.T != protocol.TypeCommand {
+			return fmt.Errorf("unexpected storage.set message type %q", message.T)
+		}
+
+		var command protocol.StorageSet
+		if err := protocol.DecodePayload(message.Data, &command); err != nil {
+			return fmt.Errorf("decode storage.set payload: %w", err)
+		}
+
+		if err := s.SetStorageItem(ctx, command.Area, command.Key, command.Value); err != nil {
+			return fmt.Errorf("apply storage.set command: %w", err)
+		}
+
+		return nil
+	case protocol.MessageStorageRemove:
+		if message.T != protocol.TypeCommand {
+			return fmt.Errorf("unexpected storage.remove message type %q", message.T)
+		}
+
+		var command protocol.StorageRemove
+		if err := protocol.DecodePayload(message.Data, &command); err != nil {
+			return fmt.Errorf("decode storage.remove payload: %w", err)
+		}
+
+		if err := s.RemoveStorageItem(ctx, command.Area, command.Key); err != nil {
+			return fmt.Errorf("apply storage.remove command: %w", err)
+		}
+
+		return nil
+	case protocol.MessageStorageClear:
+		if message.T != protocol.TypeCommand {
+			return fmt.Errorf("unexpected storage.clear message type %q", message.T)
+		}
+
+		var command protocol.StorageClear
+		if err := protocol.DecodePayload(message.Data, &command); err != nil {
+			return fmt.Errorf("decode storage.clear payload: %w", err)
+		}
+
+		if err := s.ClearStorageArea(ctx, command.Area); err != nil {
+			return fmt.Errorf("apply storage.clear command: %w", err)
 		}
 
 		return nil

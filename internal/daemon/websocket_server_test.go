@@ -443,6 +443,240 @@ func TestWebSocketStorageMutationBroadcastsDiff(t *testing.T) {
 	}
 }
 
+func TestWebSocketStorageSetCommandAppliesMutationAndBroadcastsDiff(t *testing.T) {
+	server := newTestServer(t)
+	defer server.httpServer.Close()
+
+	conn := dialAuthorizedConnection(t, server.wsURL, server.token)
+	t.Cleanup(func() {
+		_ = conn.Close()
+	})
+
+	_ = mustHandshake(t, conn)
+	waitForConnectionCount(t, server.ws, 1)
+
+	setCommand := protocol.NewStorageSet(
+		protocol.Source{Role: protocol.SourceInspector, ID: "inspector-1"},
+		protocol.StorageSet{
+			Area:  "local",
+			Key:   "theme",
+			Value: "dark",
+		},
+	)
+	rawSet, err := protocol.Encode(setCommand)
+	if err != nil {
+		t.Fatalf("Encode(storage.set) returned error: %v", err)
+	}
+	if err := conn.WriteMessage(websocket.BinaryMessage, rawSet); err != nil {
+		t.Fatalf("WriteMessage(storage.set) returned error: %v", err)
+	}
+
+	diffEnvelope := mustReadEnvelope(t, conn)
+	if diffEnvelope.Name != protocol.MessageStorageDiff {
+		t.Fatalf("unexpected response name: got %q, want %q", diffEnvelope.Name, protocol.MessageStorageDiff)
+	}
+
+	var diff protocol.StorageDiff
+	if err := protocol.DecodePayload(diffEnvelope.Data, &diff); err != nil {
+		t.Fatalf("DecodePayload(storage.diff) returned error: %v", err)
+	}
+	if diff.Area != "local" {
+		t.Fatalf("unexpected diff area: got %q, want %q", diff.Area, "local")
+	}
+	if len(diff.Changes) != 1 {
+		t.Fatalf("unexpected diff change count: got %d, want %d", len(diff.Changes), 1)
+	}
+	if diff.Changes[0].Key != "theme" {
+		t.Fatalf("unexpected diff key: got %q, want %q", diff.Changes[0].Key, "theme")
+	}
+	if diff.Changes[0].NewValue != "dark" {
+		t.Fatalf("unexpected diff new value: got %#v, want %#v", diff.Changes[0].NewValue, "dark")
+	}
+
+	query := protocol.NewQueryStorage(
+		protocol.Source{Role: protocol.SourceInspector, ID: "inspector-1"},
+		protocol.QueryStorage{Area: "local"},
+	)
+	rawQuery, err := protocol.Encode(query)
+	if err != nil {
+		t.Fatalf("Encode(query.storage) returned error: %v", err)
+	}
+	if err := conn.WriteMessage(websocket.BinaryMessage, rawQuery); err != nil {
+		t.Fatalf("WriteMessage(query.storage) returned error: %v", err)
+	}
+
+	result := mustReadEnvelope(t, conn)
+	if result.Name != protocol.MessageStorageResult {
+		t.Fatalf("unexpected response name: got %q, want %q", result.Name, protocol.MessageStorageResult)
+	}
+
+	var payload protocol.QueryStorageResult
+	if err := protocol.DecodePayload(result.Data, &payload); err != nil {
+		t.Fatalf("DecodePayload(query.storage.result) returned error: %v", err)
+	}
+	if len(payload.Snapshots) != 1 {
+		t.Fatalf("unexpected snapshot count: got %d, want %d", len(payload.Snapshots), 1)
+	}
+	if got := payload.Snapshots[0].Items["theme"]; got != "dark" {
+		t.Fatalf("unexpected local theme value: got %#v, want %#v", got, "dark")
+	}
+}
+
+func TestWebSocketStorageRemoveCommandAppliesMutationAndBroadcastsDiff(t *testing.T) {
+	server := newTestServer(t)
+	defer server.httpServer.Close()
+
+	if err := server.ws.SetStorageItem(context.Background(), "local", "theme", "dark"); err != nil {
+		t.Fatalf("SetStorageItem(local theme) returned error: %v", err)
+	}
+
+	conn := dialAuthorizedConnection(t, server.wsURL, server.token)
+	t.Cleanup(func() {
+		_ = conn.Close()
+	})
+
+	_ = mustHandshake(t, conn)
+	waitForConnectionCount(t, server.ws, 1)
+
+	removeCommand := protocol.NewStorageRemove(
+		protocol.Source{Role: protocol.SourceInspector, ID: "inspector-1"},
+		protocol.StorageRemove{
+			Area: "local",
+			Key:  "theme",
+		},
+	)
+	rawRemove, err := protocol.Encode(removeCommand)
+	if err != nil {
+		t.Fatalf("Encode(storage.remove) returned error: %v", err)
+	}
+	if err := conn.WriteMessage(websocket.BinaryMessage, rawRemove); err != nil {
+		t.Fatalf("WriteMessage(storage.remove) returned error: %v", err)
+	}
+
+	diffEnvelope := mustReadEnvelope(t, conn)
+	if diffEnvelope.Name != protocol.MessageStorageDiff {
+		t.Fatalf("unexpected response name: got %q, want %q", diffEnvelope.Name, protocol.MessageStorageDiff)
+	}
+
+	var diff protocol.StorageDiff
+	if err := protocol.DecodePayload(diffEnvelope.Data, &diff); err != nil {
+		t.Fatalf("DecodePayload(storage.diff) returned error: %v", err)
+	}
+	if len(diff.Changes) != 1 {
+		t.Fatalf("unexpected diff change count: got %d, want %d", len(diff.Changes), 1)
+	}
+	if diff.Changes[0].Key != "theme" {
+		t.Fatalf("unexpected diff key: got %q, want %q", diff.Changes[0].Key, "theme")
+	}
+	if diff.Changes[0].OldValue != "dark" {
+		t.Fatalf("unexpected diff old value: got %#v, want %#v", diff.Changes[0].OldValue, "dark")
+	}
+
+	query := protocol.NewQueryStorage(
+		protocol.Source{Role: protocol.SourceInspector, ID: "inspector-1"},
+		protocol.QueryStorage{Area: "local"},
+	)
+	rawQuery, err := protocol.Encode(query)
+	if err != nil {
+		t.Fatalf("Encode(query.storage) returned error: %v", err)
+	}
+	if err := conn.WriteMessage(websocket.BinaryMessage, rawQuery); err != nil {
+		t.Fatalf("WriteMessage(query.storage) returned error: %v", err)
+	}
+
+	result := mustReadEnvelope(t, conn)
+	if result.Name != protocol.MessageStorageResult {
+		t.Fatalf("unexpected response name: got %q, want %q", result.Name, protocol.MessageStorageResult)
+	}
+
+	var payload protocol.QueryStorageResult
+	if err := protocol.DecodePayload(result.Data, &payload); err != nil {
+		t.Fatalf("DecodePayload(query.storage.result) returned error: %v", err)
+	}
+	if len(payload.Snapshots) != 1 {
+		t.Fatalf("unexpected snapshot count: got %d, want %d", len(payload.Snapshots), 1)
+	}
+	if _, exists := payload.Snapshots[0].Items["theme"]; exists {
+		t.Fatalf("expected theme key to be removed, got %v", payload.Snapshots[0].Items)
+	}
+}
+
+func TestWebSocketStorageClearCommandAppliesMutationAndBroadcastsDiff(t *testing.T) {
+	server := newTestServer(t)
+	defer server.httpServer.Close()
+
+	if err := server.ws.SetStorageItem(context.Background(), "local", "one", 1); err != nil {
+		t.Fatalf("SetStorageItem(local one) returned error: %v", err)
+	}
+	if err := server.ws.SetStorageItem(context.Background(), "local", "two", 2); err != nil {
+		t.Fatalf("SetStorageItem(local two) returned error: %v", err)
+	}
+
+	conn := dialAuthorizedConnection(t, server.wsURL, server.token)
+	t.Cleanup(func() {
+		_ = conn.Close()
+	})
+
+	_ = mustHandshake(t, conn)
+	waitForConnectionCount(t, server.ws, 1)
+
+	clearCommand := protocol.NewStorageClear(
+		protocol.Source{Role: protocol.SourceInspector, ID: "inspector-1"},
+		protocol.StorageClear{Area: "local"},
+	)
+	rawClear, err := protocol.Encode(clearCommand)
+	if err != nil {
+		t.Fatalf("Encode(storage.clear) returned error: %v", err)
+	}
+	if err := conn.WriteMessage(websocket.BinaryMessage, rawClear); err != nil {
+		t.Fatalf("WriteMessage(storage.clear) returned error: %v", err)
+	}
+
+	diffEnvelope := mustReadEnvelope(t, conn)
+	if diffEnvelope.Name != protocol.MessageStorageDiff {
+		t.Fatalf("unexpected response name: got %q, want %q", diffEnvelope.Name, protocol.MessageStorageDiff)
+	}
+
+	var diff protocol.StorageDiff
+	if err := protocol.DecodePayload(diffEnvelope.Data, &diff); err != nil {
+		t.Fatalf("DecodePayload(storage.diff) returned error: %v", err)
+	}
+	if len(diff.Changes) != 2 {
+		t.Fatalf("unexpected diff change count: got %d, want %d", len(diff.Changes), 2)
+	}
+	if diff.Changes[0].Key != "one" || diff.Changes[1].Key != "two" {
+		t.Fatalf("unexpected cleared keys: %v", diff.Changes)
+	}
+
+	query := protocol.NewQueryStorage(
+		protocol.Source{Role: protocol.SourceInspector, ID: "inspector-1"},
+		protocol.QueryStorage{Area: "local"},
+	)
+	rawQuery, err := protocol.Encode(query)
+	if err != nil {
+		t.Fatalf("Encode(query.storage) returned error: %v", err)
+	}
+	if err := conn.WriteMessage(websocket.BinaryMessage, rawQuery); err != nil {
+		t.Fatalf("WriteMessage(query.storage) returned error: %v", err)
+	}
+
+	result := mustReadEnvelope(t, conn)
+	if result.Name != protocol.MessageStorageResult {
+		t.Fatalf("unexpected response name: got %q, want %q", result.Name, protocol.MessageStorageResult)
+	}
+
+	var payload protocol.QueryStorageResult
+	if err := protocol.DecodePayload(result.Data, &payload); err != nil {
+		t.Fatalf("DecodePayload(query.storage.result) returned error: %v", err)
+	}
+	if len(payload.Snapshots) != 1 {
+		t.Fatalf("unexpected snapshot count: got %d, want %d", len(payload.Snapshots), 1)
+	}
+	if len(payload.Snapshots[0].Items) != 0 {
+		t.Fatalf("expected empty local area after clear, got %v", payload.Snapshots[0].Items)
+	}
+}
+
 func TestWebSocketStorageMutationValidation(t *testing.T) {
 	server := newTestServer(t)
 	defer server.httpServer.Close()
@@ -461,6 +695,48 @@ func TestWebSocketStorageMutationValidation(t *testing.T) {
 	}
 	if err := server.ws.ClearStorageArea(context.Background(), "cookies"); err == nil {
 		t.Fatal("expected ClearStorageArea invalid area error, got nil")
+	}
+}
+
+func TestWebSocketStorageCommandRejectsInvalidPayload(t *testing.T) {
+	server := newTestServer(t)
+	defer server.httpServer.Close()
+
+	conn := dialAuthorizedConnection(t, server.wsURL, server.token)
+	t.Cleanup(func() {
+		_ = conn.Close()
+	})
+
+	_ = mustHandshake(t, conn)
+	waitForConnectionCount(t, server.ws, 1)
+
+	invalidCommand := protocol.NewStorageSet(
+		protocol.Source{Role: protocol.SourceInspector, ID: "inspector-1"},
+		protocol.StorageSet{
+			Area:  "cookies",
+			Key:   "theme",
+			Value: "dark",
+		},
+	)
+	rawInvalid, err := protocol.Encode(invalidCommand)
+	if err != nil {
+		t.Fatalf("Encode(storage.set invalid area) returned error: %v", err)
+	}
+	if err := conn.WriteMessage(websocket.BinaryMessage, rawInvalid); err != nil {
+		t.Fatalf("WriteMessage(storage.set invalid area) returned error: %v", err)
+	}
+
+	_, _, err = conn.ReadMessage()
+	if err == nil {
+		t.Fatal("expected connection close for invalid storage.set area")
+	}
+
+	closeErr, ok := err.(*websocket.CloseError)
+	if !ok {
+		t.Fatalf("expected websocket.CloseError, got %T (%v)", err, err)
+	}
+	if closeErr.Code != websocket.ClosePolicyViolation {
+		t.Fatalf("unexpected close code: got %d, want %d", closeErr.Code, websocket.ClosePolicyViolation)
 	}
 }
 

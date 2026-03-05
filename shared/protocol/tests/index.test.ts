@@ -84,4 +84,10 @@ describe("message guards", () => {
     assert.equal(isQueryStorageResult(makeEnvelope("query.storage.result")), true);
     assert.equal(isQueryStorageResult(makeEnvelope("query.events.result")), false);
   });
+
+  it("maps storage mutation messages as commands", () => {
+    assert.equal(messageTypeForName("storage.set"), "command");
+    assert.equal(messageTypeForName("storage.remove"), "command");
+    assert.equal(messageTypeForName("storage.clear"), "command");
+  });
 });

@@ -37,7 +37,10 @@ function InspectorApp() {
           status: connection.status,
           storage: connection.storage,
           storageHighlights: connection.storageHighlights,
-          refreshStorage: connection.refreshStorage
+          refreshStorage: connection.refreshStorage,
+          setStorageItem: connection.setStorageItem,
+          removeStorageItem: connection.removeStorageItem,
+          clearStorageArea: connection.clearStorageArea
         });
       case "workbench":
       case "replay":

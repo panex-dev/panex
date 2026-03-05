@@ -1,6 +1,6 @@
 # Build Status Tracker
 
-As of 2026-03-04.
+As of 2026-03-05.
 
 ## Completed
 | PR | Scope | Evidence |
@@ -35,12 +35,13 @@ As of 2026-03-04.
 | 32 | WebSocket origin validation (localhost-only) | `docs/build-log/2026-03-05-pr-032-websocket-origin-validation.md` |
 | 33 | Constant-time token comparison | `docs/build-log/2026-03-05-pr-033-token-constant-time.md` |
 | 34 | Integration test suite (daemon lifecycle) | `docs/build-log/2026-03-05-pr-034-integration-tests.md` |
+| 35 | Storage mutation transport wiring (inspector -> websocket -> daemon) | `docs/build-log/2026-03-05-pr-035-storage-mutation-transport-wiring.md` |
 
 ## In progress
 - None.
 
 ## Next
-- Implement transport wiring from inspector storage simulation into daemon mutation APIs via WebSocket.
+- Introduce simulator transport envelope family: `chrome.api.call`, `chrome.api.result`, `chrome.api.event`.
 
 ## Notes
 - PR20 is intentionally reserved as documentation reconciliation so sequence alignment is explicit and auditable.

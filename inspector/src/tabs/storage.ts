@@ -6,6 +6,7 @@ import type { ConnectionStatus } from "../connection";
 import {
   flattenStorageSnapshots,
   isStorageAreaFilter,
+  type StorageArea,
   type StorageAreaFilter
 } from "../storage";
 
@@ -14,13 +15,21 @@ interface StorageTabProps {
   storage: Accessor<StorageSnapshot[]>;
   storageHighlights: Accessor<Set<string>>;
   refreshStorage: (area?: QueryStorage["area"]) => boolean;
+  setStorageItem: (area: string, key: string, value: unknown) => boolean;
+  removeStorageItem: (area: string, key: string) => boolean;
+  clearStorageArea: (area: string) => boolean;
 }
 
 const storageAreas: readonly StorageAreaFilter[] = ["all", "local", "sync", "session"];
+const mutableStorageAreas: readonly StorageArea[] = ["local", "sync", "session"];
 
 export function StorageTab(props: StorageTabProps) {
   const [area, setArea] = createSignal<StorageAreaFilter>("all");
   const [requestError, setRequestError] = createSignal<string | null>(null);
+  const [mutationError, setMutationError] = createSignal<string | null>(null);
+  const [mutationArea, setMutationArea] = createSignal<StorageArea>("local");
+  const [mutationKey, setMutationKey] = createSignal("");
+  const [mutationValue, setMutationValue] = createSignal("");
 
   const rows = createMemo(() => flattenStorageSnapshots(props.storage(), area()));
   const selectedAreaLabel = createMemo(() => (area() === "all" ? "all areas" : area()));
@@ -53,7 +62,10 @@ export function StorageTab(props: StorageTabProps) {
 
   const statusHint = () => {
     if (props.status() === "open") {
-      return requestError() ? html`<p class="error">${requestError()}</p>` : null;
+      return html`<div>
+        ${requestError() ? html`<p class="error">${requestError()}</p>` : null}
+        ${mutationError() ? html`<p class="error">${mutationError()}</p>` : null}
+      </div>`;
     }
 
     return html`<p class="subtle">Storage queries run after the daemon websocket is open.</p>`;
@@ -94,8 +106,112 @@ export function StorageTab(props: StorageTabProps) {
       </button>
     </div>
 
+    <div class="storage-mutation-grid">
+      <label class="filter-control">
+        <span>Mutation area</span>
+        <select
+          value=${mutationArea}
+          onChange=${(event: Event) => {
+            const next = (event.currentTarget as HTMLSelectElement).value as StorageArea;
+            if (next === "local" || next === "sync" || next === "session") {
+              setMutationArea(next);
+            }
+          }}
+        >
+          ${mutableStorageAreas.map((entry) => html`<option value=${entry}>${entry}</option>`)}
+        </select>
+      </label>
+
+      <label class="filter-control">
+        <span>Key</span>
+        <input
+          type="text"
+          value=${mutationKey}
+          placeholder="feature.flag"
+          onInput=${(event: Event) => {
+            setMutationKey((event.currentTarget as HTMLInputElement).value);
+          }}
+        />
+      </label>
+
+      <label class="filter-control">
+        <span>Value (JSON or plain text)</span>
+        <input
+          type="text"
+          value=${mutationValue}
+          placeholder='{"enabled":true}'
+          onInput=${(event: Event) => {
+            setMutationValue((event.currentTarget as HTMLInputElement).value);
+          }}
+        />
+      </label>
+
+      <div class="storage-mutation-actions">
+        <button
+          class="filter-reset"
+          type="button"
+          onClick=${() => {
+            const key = mutationKey().trim();
+            if (key.length === 0) {
+              setMutationError("storage.set requires a non-empty key");
+              return;
+            }
+
+            const sent = props.setStorageItem(
+              mutationArea(),
+              key,
+              parseStorageMutationValue(mutationValue())
+            );
+            setMutationError(
+              sent ? null : "unable to send storage.set while websocket is closed or payload is invalid"
+            );
+          }}
+        >
+          set
+        </button>
+
+        <button
+          class="filter-reset"
+          type="button"
+          onClick=${() => {
+            const key = mutationKey().trim();
+            if (key.length === 0) {
+              setMutationError("storage.remove requires a non-empty key");
+              return;
+            }
+
+            const sent = props.removeStorageItem(mutationArea(), key);
+            setMutationError(
+              sent
+                ? null
+                : "unable to send storage.remove while websocket is closed or payload is invalid"
+            );
+          }}
+        >
+          remove
+        </button>
+
+        <button
+          class="filter-reset"
+          type="button"
+          onClick=${() => {
+            const sent = props.clearStorageArea(mutationArea());
+            setMutationError(
+              sent
+                ? null
+                : "unable to send storage.clear while websocket is closed or payload is invalid"
+            );
+          }}
+        >
+          clear area
+        </button>
+      </div>
+    </div>
+
     <div class="placeholder-body">
-      <p class="filter-hint">Snapshot source: <code>query.storage.result</code></p>
+      <p class="filter-hint">
+        Snapshot source: <code>query.storage.result</code> + live diffs from <code>storage.diff</code>
+      </p>
       ${statusHint}
 
       <div class="storage-table-wrap">
@@ -114,6 +230,19 @@ export function StorageTab(props: StorageTabProps) {
       </div>
     </div>
   </section>`;
+}
+
+function parseStorageMutationValue(rawValue: string): unknown {
+  const trimmed = rawValue.trim();
+  if (trimmed.length === 0) {
+    return "";
+  }
+
+  try {
+    return JSON.parse(trimmed);
+  } catch {
+    return rawValue;
+  }
 }
 
 function truncateStorageValue(value: string, maxLength = 240): string {
