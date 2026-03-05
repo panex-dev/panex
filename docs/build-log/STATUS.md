@@ -39,6 +39,7 @@ As of 2026-03-05.
 | 36 | Simulator transport protocol messages (`chrome.api.call/result/event`) | `docs/build-log/2026-03-05-pr-036-simulator-transport-protocol.md` |
 | 37 | Daemon simulator storage router (`chrome.api.call` -> `chrome.api.result`) | `docs/build-log/2026-03-05-pr-037-daemon-chrome-api-storage-router.md` |
 | 38 | `shared/chrome-sim` transport + storage shim scaffold | `docs/build-log/2026-03-05-pr-038-chrome-sim-transport-scaffold.md` |
+| 39 | CI trigger coverage for `feat/pr*` + `shared/chrome-sim` TypeScript matrix | `docs/build-log/2026-03-05-pr-039-ci-checks-feature-push-chrome-sim.md` |
 
 ## In progress
 - None.
