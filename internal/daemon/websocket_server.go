@@ -543,13 +543,9 @@ func (s *WebSocketServer) handleChromeAPICall(
 
 	switch method {
 	case "get":
-		items, err := s.chromeStorageGet(area, command.Args)
-		if err != nil {
-			return protocol.ChromeAPIResult{
-				CallID:  callID,
-				Success: false,
-				Error:   err.Error(),
-			}, nil
+		items, getErr := s.chromeStorageGet(area, command.Args)
+		if failure, failed := chromeAPIFailureResult(callID, getErr); failed {
+			return failure, nil
 		}
 		return protocol.ChromeAPIResult{
 			CallID:  callID,
@@ -557,24 +553,16 @@ func (s *WebSocketServer) handleChromeAPICall(
 			Data:    items,
 		}, nil
 	case "set":
-		if err := s.chromeStorageSet(ctx, area, command.Args); err != nil {
-			return protocol.ChromeAPIResult{
-				CallID:  callID,
-				Success: false,
-				Error:   err.Error(),
-			}, nil
+		if failure, failed := chromeAPIFailureResult(callID, s.chromeStorageSet(ctx, area, command.Args)); failed {
+			return failure, nil
 		}
 		return protocol.ChromeAPIResult{
 			CallID:  callID,
 			Success: true,
 		}, nil
 	case "remove":
-		if err := s.chromeStorageRemove(ctx, area, command.Args); err != nil {
-			return protocol.ChromeAPIResult{
-				CallID:  callID,
-				Success: false,
-				Error:   err.Error(),
-			}, nil
+		if failure, failed := chromeAPIFailureResult(callID, s.chromeStorageRemove(ctx, area, command.Args)); failed {
+			return failure, nil
 		}
 		return protocol.ChromeAPIResult{
 			CallID:  callID,
@@ -588,25 +576,17 @@ func (s *WebSocketServer) handleChromeAPICall(
 				Error:   "clear expects no arguments",
 			}, nil
 		}
-		if err := s.ClearStorageArea(ctx, area); err != nil {
-			return protocol.ChromeAPIResult{
-				CallID:  callID,
-				Success: false,
-				Error:   err.Error(),
-			}, nil
+		if failure, failed := chromeAPIFailureResult(callID, s.ClearStorageArea(ctx, area)); failed {
+			return failure, nil
 		}
 		return protocol.ChromeAPIResult{
 			CallID:  callID,
 			Success: true,
 		}, nil
 	case "getBytesInUse":
-		bytesInUse, err := s.chromeStorageBytesInUse(area, command.Args)
-		if err != nil {
-			return protocol.ChromeAPIResult{
-				CallID:  callID,
-				Success: false,
-				Error:   err.Error(),
-			}, nil
+		bytesInUse, bytesErr := s.chromeStorageBytesInUse(area, command.Args)
+		if failure, failed := chromeAPIFailureResult(callID, bytesErr); failed {
+			return failure, nil
 		}
 		return protocol.ChromeAPIResult{
 			CallID:  callID,
@@ -620,6 +600,18 @@ func (s *WebSocketServer) handleChromeAPICall(
 			Error:   fmt.Sprintf("unsupported %s.%s call", namespace, method),
 		}, nil
 	}
+}
+
+func chromeAPIFailureResult(callID string, operationErr error) (protocol.ChromeAPIResult, bool) {
+	if operationErr == nil {
+		return protocol.ChromeAPIResult{}, false
+	}
+
+	return protocol.ChromeAPIResult{
+		CallID:  callID,
+		Success: false,
+		Error:   operationErr.Error(),
+	}, true
 }
 
 func storageAreaFromNamespace(namespace string) (string, bool) {
