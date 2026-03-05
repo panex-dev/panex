@@ -19,7 +19,10 @@ export const envelopeNames = [
   "storage.diff",
   "storage.set",
   "storage.remove",
-  "storage.clear"
+  "storage.clear",
+  "chrome.api.call",
+  "chrome.api.result",
+  "chrome.api.event"
 ] as const;
 export type EnvelopeName = (typeof envelopeNames)[number];
 
@@ -36,7 +39,10 @@ export const messageTypeByName: Readonly<Record<EnvelopeName, EnvelopeType>> = {
   "storage.diff": "event",
   "storage.set": "command",
   "storage.remove": "command",
-  "storage.clear": "command"
+  "storage.clear": "command",
+  "chrome.api.call": "command",
+  "chrome.api.result": "event",
+  "chrome.api.event": "event"
 };
 
 export interface Source {
@@ -139,6 +145,26 @@ export interface StorageRemove {
 
 export interface StorageClear {
   area: string;
+}
+
+export interface ChromeAPICall {
+  call_id: string;
+  namespace: string;
+  method: string;
+  args?: unknown[];
+}
+
+export interface ChromeAPIResult {
+  call_id: string;
+  success: boolean;
+  data?: unknown;
+  error?: string;
+}
+
+export interface ChromeAPIEvent {
+  namespace: string;
+  event: string;
+  args?: unknown[];
 }
 
 export function isEnvelopeType(value: unknown): value is EnvelopeType {

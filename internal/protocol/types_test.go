@@ -26,6 +26,9 @@ func TestMessageTypeForName(t *testing.T) {
 		{name: MessageStorageSet, want: TypeCommand, wantOK: true, caseTag: "storage.set"},
 		{name: MessageStorageRemove, want: TypeCommand, wantOK: true, caseTag: "storage.remove"},
 		{name: MessageStorageClear, want: TypeCommand, wantOK: true, caseTag: "storage.clear"},
+		{name: MessageChromeAPICall, want: TypeCommand, wantOK: true, caseTag: "chrome.api.call"},
+		{name: MessageChromeAPIResult, want: TypeEvent, wantOK: true, caseTag: "chrome.api.result"},
+		{name: MessageChromeAPIEvent, want: TypeEvent, wantOK: true, caseTag: "chrome.api.event"},
 		{name: MessageName("unknown"), want: "", wantOK: false, caseTag: "unknown"},
 	}
 
@@ -310,6 +313,40 @@ func TestConstructors(t *testing.T) {
 			wantType:     TypeCommand,
 			wantName:     MessageStorageClear,
 			wantDataType: StorageClear{},
+		},
+		{
+			name: "chrome.api.call",
+			got: NewChromeAPICall(src, ChromeAPICall{
+				CallID:    "call-1",
+				Namespace: "storage.local",
+				Method:    "get",
+				Args:      []any{"theme"},
+			}),
+			wantType:     TypeCommand,
+			wantName:     MessageChromeAPICall,
+			wantDataType: ChromeAPICall{},
+		},
+		{
+			name: "chrome.api.result",
+			got: NewChromeAPIResult(src, ChromeAPIResult{
+				CallID:  "call-1",
+				Success: true,
+				Data:    map[string]any{"theme": "dark"},
+			}),
+			wantType:     TypeEvent,
+			wantName:     MessageChromeAPIResult,
+			wantDataType: ChromeAPIResult{},
+		},
+		{
+			name: "chrome.api.event",
+			got: NewChromeAPIEvent(src, ChromeAPIEvent{
+				Namespace: "storage.onChanged",
+				Event:     "changed",
+				Args:      []any{map[string]any{"theme": map[string]any{"newValue": "dark"}}},
+			}),
+			wantType:     TypeEvent,
+			wantName:     MessageChromeAPIEvent,
+			wantDataType: ChromeAPIEvent{},
 		},
 	}
 

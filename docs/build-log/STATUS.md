@@ -36,12 +36,13 @@ As of 2026-03-05.
 | 33 | Constant-time token comparison | `docs/build-log/2026-03-05-pr-033-token-constant-time.md` |
 | 34 | Integration test suite (daemon lifecycle) | `docs/build-log/2026-03-05-pr-034-integration-tests.md` |
 | 35 | Storage mutation transport wiring (inspector -> websocket -> daemon) | `docs/build-log/2026-03-05-pr-035-storage-mutation-transport-wiring.md` |
+| 36 | Simulator transport protocol messages (`chrome.api.call/result/event`) | `docs/build-log/2026-03-05-pr-036-simulator-transport-protocol.md` |
 
 ## In progress
 - None.
 
 ## Next
-- Introduce simulator transport envelope family: `chrome.api.call`, `chrome.api.result`, `chrome.api.event`.
+- Implement daemon-side simulator router for `chrome.api.call` storage operations (`get/set/remove/clear/getBytesInUse`) with correlated `chrome.api.result`.
 
 ## Notes
 - PR20 is intentionally reserved as documentation reconciliation so sequence alignment is explicit and auditable.
