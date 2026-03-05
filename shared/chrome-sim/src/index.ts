@@ -1,6 +1,7 @@
 import { resolveChromeSimBootstrapValues } from "./bootstrap";
 import { createRuntimeNamespace } from "./runtime";
 import { createStorageArea } from "./storage";
+import { createTabsNamespace } from "./tabs";
 import { createChromeSimTransport, type ChromeSimTransport, type ChromeSimTransportOptions } from "./transport";
 
 export interface SimulatedChrome {
@@ -10,6 +11,7 @@ export interface SimulatedChrome {
     sync: ReturnType<typeof createStorageArea>;
     session: ReturnType<typeof createStorageArea>;
   };
+  tabs: ReturnType<typeof createTabsNamespace>;
 }
 
 export interface InstallChromeSimOptions extends ChromeSimTransportOptions {
@@ -41,6 +43,7 @@ export function installChromeSim(options: InstallChromeSimOptions = {}): ChromeS
   const existing = ((window as any).chrome ?? {}) as Record<string, unknown>;
   const currentStorage = isRecord(existing.storage) ? existing.storage : {};
   const currentRuntime = isRecord(existing.runtime) ? existing.runtime : {};
+  const currentTabs = isRecord(existing.tabs) ? existing.tabs : {};
 
   const simulatedStorage = {
     ...currentStorage,
@@ -52,11 +55,16 @@ export function installChromeSim(options: InstallChromeSimOptions = {}): ChromeS
     ...currentRuntime,
     ...createRuntimeNamespace(transport, resolved.extensionID)
   };
+  const simulatedTabs = {
+    ...currentTabs,
+    ...createTabsNamespace(transport)
+  };
 
   (window as any).chrome = {
     ...existing,
     runtime: simulatedRuntime,
-    storage: simulatedStorage
+    storage: simulatedStorage,
+    tabs: simulatedTabs
   } as SimulatedChrome;
 
   return transport;

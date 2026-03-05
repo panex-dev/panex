@@ -36,6 +36,7 @@ describe("installChromeSim", () => {
       assert.equal(typeof chrome.storage.sync.get, "function");
       assert.equal(typeof chrome.storage.session.get, "function");
       assert.equal(typeof chrome.runtime.sendMessage, "function");
+      assert.equal(typeof chrome.tabs.query, "function");
       assert.equal(chrome.runtime.id, "ext-query");
     } finally {
       (globalThis as any).window = originalWindow;
@@ -64,6 +65,7 @@ describe("installChromeSim", () => {
       installChromeSim({ transport, extensionID: "ext-explicit" });
       const chrome = (fakeWindow as any).chrome;
       assert.equal(chrome.runtime.id, "ext-explicit");
+      assert.equal(typeof chrome.tabs.query, "function");
     } finally {
       (globalThis as any).window = originalWindow;
     }
