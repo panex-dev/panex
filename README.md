@@ -55,6 +55,7 @@ After a PR is merged, delete branch/worktree and return to `main`:
 - `agent/`: Chrome Dev Agent extension (`pnpm run check|test|build`)
 - `inspector/`: SolidJS timeline inspector (`pnpm run check|test|build`)
 - `shared/protocol/`: shared TypeScript protocol contract consumed by both clients
+- `shared/chrome-sim/`: browser shim that routes `chrome.*` simulator calls over daemon WebSocket
 
 ## Architecture Decisions
 
