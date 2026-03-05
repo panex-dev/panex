@@ -532,6 +532,10 @@ func (s *WebSocketServer) handleChromeAPICall(
 		}, nil
 	}
 
+	if namespace == "runtime" {
+		return s.handleChromeRuntimeCall(ctx, callID, method, command.Args), nil
+	}
+
 	area, ok := storageAreaFromNamespace(namespace)
 	if !ok {
 		return protocol.ChromeAPIResult{
@@ -541,64 +545,118 @@ func (s *WebSocketServer) handleChromeAPICall(
 		}, nil
 	}
 
+	return s.handleChromeStorageCall(ctx, callID, namespace, method, area, command.Args), nil
+}
+
+func (s *WebSocketServer) handleChromeStorageCall(
+	ctx context.Context,
+	callID string,
+	namespace string,
+	method string,
+	area string,
+	args []any,
+) protocol.ChromeAPIResult {
 	switch method {
 	case "get":
-		items, getErr := s.chromeStorageGet(area, command.Args)
+		items, getErr := s.chromeStorageGet(area, args)
 		if failure, failed := chromeAPIFailureResult(callID, getErr); failed {
-			return failure, nil
+			return failure
 		}
 		return protocol.ChromeAPIResult{
 			CallID:  callID,
 			Success: true,
 			Data:    items,
-		}, nil
+		}
 	case "set":
-		if failure, failed := chromeAPIFailureResult(callID, s.chromeStorageSet(ctx, area, command.Args)); failed {
-			return failure, nil
+		if failure, failed := chromeAPIFailureResult(callID, s.chromeStorageSet(ctx, area, args)); failed {
+			return failure
 		}
 		return protocol.ChromeAPIResult{
 			CallID:  callID,
 			Success: true,
-		}, nil
+		}
 	case "remove":
-		if failure, failed := chromeAPIFailureResult(callID, s.chromeStorageRemove(ctx, area, command.Args)); failed {
-			return failure, nil
+		if failure, failed := chromeAPIFailureResult(callID, s.chromeStorageRemove(ctx, area, args)); failed {
+			return failure
 		}
 		return protocol.ChromeAPIResult{
 			CallID:  callID,
 			Success: true,
-		}, nil
+		}
 	case "clear":
-		if len(command.Args) > 0 {
+		if len(args) > 0 {
 			return protocol.ChromeAPIResult{
 				CallID:  callID,
 				Success: false,
 				Error:   "clear expects no arguments",
-			}, nil
+			}
 		}
 		if failure, failed := chromeAPIFailureResult(callID, s.ClearStorageArea(ctx, area)); failed {
-			return failure, nil
+			return failure
 		}
 		return protocol.ChromeAPIResult{
 			CallID:  callID,
 			Success: true,
-		}, nil
+		}
 	case "getBytesInUse":
-		bytesInUse, bytesErr := s.chromeStorageBytesInUse(area, command.Args)
+		bytesInUse, bytesErr := s.chromeStorageBytesInUse(area, args)
 		if failure, failed := chromeAPIFailureResult(callID, bytesErr); failed {
-			return failure, nil
+			return failure
 		}
 		return protocol.ChromeAPIResult{
 			CallID:  callID,
 			Success: true,
 			Data:    bytesInUse,
-		}, nil
+		}
 	default:
 		return protocol.ChromeAPIResult{
 			CallID:  callID,
 			Success: false,
 			Error:   fmt.Sprintf("unsupported %s.%s call", namespace, method),
-		}, nil
+		}
+	}
+}
+
+func (s *WebSocketServer) handleChromeRuntimeCall(
+	ctx context.Context,
+	callID string,
+	method string,
+	args []any,
+) protocol.ChromeAPIResult {
+	switch method {
+	case "sendMessage":
+		if len(args) == 0 {
+			return protocol.ChromeAPIResult{
+				CallID:  callID,
+				Success: false,
+				Error:   "runtime.sendMessage expects a message argument",
+			}
+		}
+
+		message := args[0]
+		event := protocol.NewChromeAPIEvent(
+			protocol.Source{Role: protocol.SourceDaemon, ID: s.cfg.DaemonID},
+			protocol.ChromeAPIEvent{
+				Namespace: "runtime",
+				Event:     "onMessage",
+				Args:      []any{message},
+			},
+		)
+		if failure, failed := chromeAPIFailureResult(callID, s.Broadcast(ctx, event)); failed {
+			return failure
+		}
+
+		return protocol.ChromeAPIResult{
+			CallID:  callID,
+			Success: true,
+			Data:    message,
+		}
+	default:
+		return protocol.ChromeAPIResult{
+			CallID:  callID,
+			Success: false,
+			Error:   fmt.Sprintf("unsupported runtime.%s call", method),
+		}
 	}
 }
 

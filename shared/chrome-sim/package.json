@@ -8,7 +8,8 @@
     ".": "./src/index.ts",
     "./transport": "./src/transport.ts",
     "./storage": "./src/storage.ts",
-    "./registry": "./src/registry.ts"
+    "./registry": "./src/registry.ts",
+    "./runtime": "./src/runtime.ts"
   },
   "types": "./src/index.ts",
   "scripts": {

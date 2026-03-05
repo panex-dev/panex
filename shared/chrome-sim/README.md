@@ -12,6 +12,9 @@ Browser-side shim for routing `chrome.*` calls to the Panex daemon over WebSocke
   - `remove`
   - `clear`
   - `getBytesInUse`
+- `chrome.runtime.sendMessage(...)` wiring via `chrome.api.call`
+- `chrome.runtime.onMessage` listener fanout from `chrome.api.event`
+- Bootstrap parameter resolution from URL search (`ws`, `token`, `extension_id`)
 
 ## Local checks
 
