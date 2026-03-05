@@ -3,6 +3,7 @@ package daemon
 import (
 	"context"
 	"crypto/subtle"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -31,6 +32,9 @@ var daemonCapabilities = []string{
 	"storage.set",
 	"storage.remove",
 	"storage.clear",
+	"chrome.api.call",
+	"chrome.api.result",
+	"chrome.api.event",
 }
 
 var storageAreaOrder = []string{"local", "sync", "session"}
@@ -472,9 +476,413 @@ func (s *WebSocketServer) handleClientMessage(ctx context.Context, sessionID str
 		}
 
 		return nil
+	case protocol.MessageChromeAPICall:
+		if message.T != protocol.TypeCommand {
+			return fmt.Errorf("unexpected chrome.api.call message type %q", message.T)
+		}
+
+		var command protocol.ChromeAPICall
+		if err := protocol.DecodePayload(message.Data, &command); err != nil {
+			return fmt.Errorf("decode chrome.api.call payload: %w", err)
+		}
+
+		result, err := s.handleChromeAPICall(ctx, command)
+		if err != nil {
+			return fmt.Errorf("handle chrome.api.call command: %w", err)
+		}
+
+		response := protocol.NewChromeAPIResult(
+			protocol.Source{
+				Role: protocol.SourceDaemon,
+				ID:   s.cfg.DaemonID,
+			},
+			result,
+		)
+
+		encoded, err := protocol.Encode(response)
+		if err != nil {
+			return fmt.Errorf("encode chrome.api.result response: %w", err)
+		}
+		if err := s.writeSessionMessage(sessionID, encoded); err != nil {
+			return fmt.Errorf("write chrome.api.result response: %w", err)
+		}
+
+		return nil
 	default:
 		return nil
 	}
+}
+
+func (s *WebSocketServer) handleChromeAPICall(
+	ctx context.Context,
+	command protocol.ChromeAPICall,
+) (protocol.ChromeAPIResult, error) {
+	callID := strings.TrimSpace(command.CallID)
+	if callID == "" {
+		return protocol.ChromeAPIResult{}, errors.New("chrome.api.call call_id is required")
+	}
+
+	namespace := strings.ToLower(strings.TrimSpace(command.Namespace))
+	method := strings.TrimSpace(command.Method)
+	if method == "" {
+		return protocol.ChromeAPIResult{
+			CallID:  callID,
+			Success: false,
+			Error:   "method is required",
+		}, nil
+	}
+
+	area, ok := storageAreaFromNamespace(namespace)
+	if !ok {
+		return protocol.ChromeAPIResult{
+			CallID:  callID,
+			Success: false,
+			Error:   fmt.Sprintf("unsupported chrome namespace %q", command.Namespace),
+		}, nil
+	}
+
+	switch method {
+	case "get":
+		items, err := s.chromeStorageGet(area, command.Args)
+		if err != nil {
+			return protocol.ChromeAPIResult{
+				CallID:  callID,
+				Success: false,
+				Error:   err.Error(),
+			}, nil
+		}
+		return protocol.ChromeAPIResult{
+			CallID:  callID,
+			Success: true,
+			Data:    items,
+		}, nil
+	case "set":
+		if err := s.chromeStorageSet(ctx, area, command.Args); err != nil {
+			return protocol.ChromeAPIResult{
+				CallID:  callID,
+				Success: false,
+				Error:   err.Error(),
+			}, nil
+		}
+		return protocol.ChromeAPIResult{
+			CallID:  callID,
+			Success: true,
+		}, nil
+	case "remove":
+		if err := s.chromeStorageRemove(ctx, area, command.Args); err != nil {
+			return protocol.ChromeAPIResult{
+				CallID:  callID,
+				Success: false,
+				Error:   err.Error(),
+			}, nil
+		}
+		return protocol.ChromeAPIResult{
+			CallID:  callID,
+			Success: true,
+		}, nil
+	case "clear":
+		if len(command.Args) > 0 {
+			return protocol.ChromeAPIResult{
+				CallID:  callID,
+				Success: false,
+				Error:   "clear expects no arguments",
+			}, nil
+		}
+		if err := s.ClearStorageArea(ctx, area); err != nil {
+			return protocol.ChromeAPIResult{
+				CallID:  callID,
+				Success: false,
+				Error:   err.Error(),
+			}, nil
+		}
+		return protocol.ChromeAPIResult{
+			CallID:  callID,
+			Success: true,
+		}, nil
+	case "getBytesInUse":
+		bytesInUse, err := s.chromeStorageBytesInUse(area, command.Args)
+		if err != nil {
+			return protocol.ChromeAPIResult{
+				CallID:  callID,
+				Success: false,
+				Error:   err.Error(),
+			}, nil
+		}
+		return protocol.ChromeAPIResult{
+			CallID:  callID,
+			Success: true,
+			Data:    bytesInUse,
+		}, nil
+	default:
+		return protocol.ChromeAPIResult{
+			CallID:  callID,
+			Success: false,
+			Error:   fmt.Sprintf("unsupported %s.%s call", namespace, method),
+		}, nil
+	}
+}
+
+func storageAreaFromNamespace(namespace string) (string, bool) {
+	switch namespace {
+	case "storage.local":
+		return "local", true
+	case "storage.sync":
+		return "sync", true
+	case "storage.session":
+		return "session", true
+	default:
+		return "", false
+	}
+}
+
+func (s *WebSocketServer) chromeStorageGet(area string, args []any) (map[string]any, error) {
+	var keys []string
+	defaults := map[string]any(nil)
+
+	if len(args) > 0 {
+		parsedKeys, parsedDefaults, err := parseStorageSelection(args[0])
+		if err != nil {
+			return nil, err
+		}
+		keys = parsedKeys
+		defaults = parsedDefaults
+	}
+
+	s.storageMu.RLock()
+	items := cloneStorageItems(s.storage[area])
+	s.storageMu.RUnlock()
+
+	if defaults != nil {
+		result := make(map[string]any, len(defaults))
+		for key, value := range defaults {
+			result[key] = value
+		}
+		for key, value := range items {
+			if _, hasKey := defaults[key]; hasKey {
+				result[key] = value
+			}
+		}
+		return result, nil
+	}
+
+	if keys == nil {
+		return items, nil
+	}
+
+	result := make(map[string]any, len(keys))
+	for _, key := range keys {
+		value, hasKey := items[key]
+		if hasKey {
+			result[key] = value
+		}
+	}
+	return result, nil
+}
+
+func (s *WebSocketServer) chromeStorageSet(ctx context.Context, area string, args []any) error {
+	if len(args) == 0 {
+		return errors.New("set expects one object argument")
+	}
+
+	values, err := coerceStringAnyMap(args[0])
+	if err != nil {
+		return err
+	}
+	if len(values) == 0 {
+		return nil
+	}
+
+	keys := make([]string, 0, len(values))
+	for key := range values {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+
+	for _, key := range keys {
+		if err := s.SetStorageItem(ctx, area, key, values[key]); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func (s *WebSocketServer) chromeStorageRemove(ctx context.Context, area string, args []any) error {
+	if len(args) == 0 {
+		return errors.New("remove expects key or key list argument")
+	}
+
+	keys, err := coerceStorageKeys(args[0])
+	if err != nil {
+		return err
+	}
+
+	for _, key := range keys {
+		if err := s.RemoveStorageItem(ctx, area, key); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func (s *WebSocketServer) chromeStorageBytesInUse(area string, args []any) (int, error) {
+	var keys []string
+	if len(args) > 0 {
+		parsedKeys, _, err := parseStorageSelection(args[0])
+		if err != nil {
+			return 0, err
+		}
+		keys = parsedKeys
+	}
+
+	s.storageMu.RLock()
+	items := cloneStorageItems(s.storage[area])
+	s.storageMu.RUnlock()
+
+	selected := items
+	if keys != nil {
+		selected = make(map[string]any, len(keys))
+		for _, key := range keys {
+			value, hasKey := items[key]
+			if hasKey {
+				selected[key] = value
+			}
+		}
+	}
+
+	encoded, err := json.Marshal(selected)
+	if err != nil {
+		return 0, fmt.Errorf("encode selected storage payload: %w", err)
+	}
+	return len(encoded), nil
+}
+
+func parseStorageSelection(value any) ([]string, map[string]any, error) {
+	if value == nil {
+		return nil, nil, nil
+	}
+
+	switch typed := value.(type) {
+	case string:
+		key := strings.TrimSpace(typed)
+		if key == "" {
+			return []string{}, nil, nil
+		}
+		return []string{key}, nil, nil
+	case []string:
+		return normalizeStorageKeys(typed), nil, nil
+	case []any:
+		keys := make([]string, 0, len(typed))
+		for _, entry := range typed {
+			key, ok := entry.(string)
+			if !ok {
+				return nil, nil, errors.New("key list must contain only strings")
+			}
+			trimmed := strings.TrimSpace(key)
+			if trimmed == "" {
+				continue
+			}
+			keys = append(keys, trimmed)
+		}
+		return deduplicateSorted(keys), nil, nil
+	default:
+		defaults, err := coerceStringAnyMap(typed)
+		if err != nil {
+			return nil, nil, errors.New("selection must be null, string, string array, or object defaults")
+		}
+
+		keys := make([]string, 0, len(defaults))
+		for key := range defaults {
+			keys = append(keys, key)
+		}
+		sort.Strings(keys)
+		return keys, defaults, nil
+	}
+}
+
+func coerceStorageKeys(value any) ([]string, error) {
+	switch typed := value.(type) {
+	case string:
+		key := strings.TrimSpace(typed)
+		if key == "" {
+			return nil, errors.New("storage key is required")
+		}
+		return []string{key}, nil
+	case []string:
+		keys := normalizeStorageKeys(typed)
+		if len(keys) == 0 {
+			return nil, errors.New("at least one storage key is required")
+		}
+		return keys, nil
+	case []any:
+		keys := make([]string, 0, len(typed))
+		for _, entry := range typed {
+			key, ok := entry.(string)
+			if !ok {
+				return nil, errors.New("key list must contain only strings")
+			}
+			trimmed := strings.TrimSpace(key)
+			if trimmed == "" {
+				continue
+			}
+			keys = append(keys, trimmed)
+		}
+		keys = deduplicateSorted(keys)
+		if len(keys) == 0 {
+			return nil, errors.New("at least one storage key is required")
+		}
+		return keys, nil
+	default:
+		return nil, errors.New("key argument must be a string or string array")
+	}
+}
+
+func coerceStringAnyMap(value any) (map[string]any, error) {
+	record, ok := value.(map[string]any)
+	if !ok {
+		return nil, errors.New("argument must be an object")
+	}
+
+	normalized := make(map[string]any, len(record))
+	for key, entry := range record {
+		trimmed := strings.TrimSpace(key)
+		if trimmed == "" {
+			return nil, errors.New("storage object contains an empty key")
+		}
+		normalized[trimmed] = entry
+	}
+
+	return normalized, nil
+}
+
+func normalizeStorageKeys(keys []string) []string {
+	normalized := make([]string, 0, len(keys))
+	for _, key := range keys {
+		trimmed := strings.TrimSpace(key)
+		if trimmed == "" {
+			continue
+		}
+		normalized = append(normalized, trimmed)
+	}
+	return deduplicateSorted(normalized)
+}
+
+func deduplicateSorted(values []string) []string {
+	if len(values) == 0 {
+		return values
+	}
+
+	sort.Strings(values)
+	unique := make([]string, 0, len(values))
+	var last string
+	for index, value := range values {
+		if index == 0 || value != last {
+			unique = append(unique, value)
+			last = value
+		}
+	}
+	return unique
 }
 
 func (s *WebSocketServer) SetStorageItem(ctx context.Context, area, key string, value any) error {

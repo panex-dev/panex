@@ -677,6 +677,327 @@ func TestWebSocketStorageClearCommandAppliesMutationAndBroadcastsDiff(t *testing
 	}
 }
 
+func TestWebSocketChromeAPICallStorageSetGetRemoveClear(t *testing.T) {
+	server := newTestServer(t)
+	defer server.httpServer.Close()
+
+	conn := dialAuthorizedConnection(t, server.wsURL, server.token)
+	t.Cleanup(func() {
+		_ = conn.Close()
+	})
+
+	_ = mustHandshake(t, conn)
+	waitForConnectionCount(t, server.ws, 1)
+
+	setCommand := protocol.NewChromeAPICall(
+		protocol.Source{Role: protocol.SourceInspector, ID: "inspector-1"},
+		protocol.ChromeAPICall{
+			CallID:    "call-set-1",
+			Namespace: "storage.local",
+			Method:    "set",
+			Args:      []any{map[string]any{"theme": "dark", "enabled": true}},
+		},
+	)
+	rawSet, err := protocol.Encode(setCommand)
+	if err != nil {
+		t.Fatalf("Encode(chrome.api.call set) returned error: %v", err)
+	}
+	if err := conn.WriteMessage(websocket.BinaryMessage, rawSet); err != nil {
+		t.Fatalf("WriteMessage(chrome.api.call set) returned error: %v", err)
+	}
+
+	// set() mutates storage (emits diff) and then responds with chrome.api.result.
+	_ = mustReadEnvelope(t, conn)
+	_ = mustReadEnvelope(t, conn)
+	setResultEnvelope := mustReadEnvelopeByName(t, conn, protocol.MessageChromeAPIResult, 4)
+	var setResult protocol.ChromeAPIResult
+	if err := protocol.DecodePayload(setResultEnvelope.Data, &setResult); err != nil {
+		t.Fatalf("DecodePayload(chrome.api.result set) returned error: %v", err)
+	}
+	if !setResult.Success {
+		t.Fatalf("expected set success=true, got false with error %q", setResult.Error)
+	}
+	if setResult.CallID != "call-set-1" {
+		t.Fatalf("unexpected set call_id: got %q, want %q", setResult.CallID, "call-set-1")
+	}
+
+	getCommand := protocol.NewChromeAPICall(
+		protocol.Source{Role: protocol.SourceInspector, ID: "inspector-1"},
+		protocol.ChromeAPICall{
+			CallID:    "call-get-1",
+			Namespace: "storage.local",
+			Method:    "get",
+			Args:      []any{"theme"},
+		},
+	)
+	rawGet, err := protocol.Encode(getCommand)
+	if err != nil {
+		t.Fatalf("Encode(chrome.api.call get) returned error: %v", err)
+	}
+	if err := conn.WriteMessage(websocket.BinaryMessage, rawGet); err != nil {
+		t.Fatalf("WriteMessage(chrome.api.call get) returned error: %v", err)
+	}
+
+	getResultEnvelope := mustReadEnvelopeByName(t, conn, protocol.MessageChromeAPIResult, 2)
+	var getResult protocol.ChromeAPIResult
+	if err := protocol.DecodePayload(getResultEnvelope.Data, &getResult); err != nil {
+		t.Fatalf("DecodePayload(chrome.api.result get) returned error: %v", err)
+	}
+	if !getResult.Success {
+		t.Fatalf("expected get success=true, got false with error %q", getResult.Error)
+	}
+	getData := mustMapStringAny(t, getResult.Data)
+	if got := getData["theme"]; got != "dark" {
+		t.Fatalf("unexpected get result theme: got %#v, want %#v", got, "dark")
+	}
+
+	removeCommand := protocol.NewChromeAPICall(
+		protocol.Source{Role: protocol.SourceInspector, ID: "inspector-1"},
+		protocol.ChromeAPICall{
+			CallID:    "call-remove-1",
+			Namespace: "storage.local",
+			Method:    "remove",
+			Args:      []any{"enabled"},
+		},
+	)
+	rawRemove, err := protocol.Encode(removeCommand)
+	if err != nil {
+		t.Fatalf("Encode(chrome.api.call remove) returned error: %v", err)
+	}
+	if err := conn.WriteMessage(websocket.BinaryMessage, rawRemove); err != nil {
+		t.Fatalf("WriteMessage(chrome.api.call remove) returned error: %v", err)
+	}
+
+	removeDiff := mustReadEnvelopeByName(t, conn, protocol.MessageStorageDiff, 2)
+	var removeDiffPayload protocol.StorageDiff
+	if err := protocol.DecodePayload(removeDiff.Data, &removeDiffPayload); err != nil {
+		t.Fatalf("DecodePayload(storage.diff remove) returned error: %v", err)
+	}
+	if len(removeDiffPayload.Changes) != 1 || removeDiffPayload.Changes[0].Key != "enabled" {
+		t.Fatalf("unexpected remove diff payload: %+v", removeDiffPayload)
+	}
+	removeResult := mustReadEnvelopeByName(t, conn, protocol.MessageChromeAPIResult, 2)
+	var removeResultPayload protocol.ChromeAPIResult
+	if err := protocol.DecodePayload(removeResult.Data, &removeResultPayload); err != nil {
+		t.Fatalf("DecodePayload(chrome.api.result remove) returned error: %v", err)
+	}
+	if !removeResultPayload.Success {
+		t.Fatalf("expected remove success=true, got false with error %q", removeResultPayload.Error)
+	}
+
+	clearCommand := protocol.NewChromeAPICall(
+		protocol.Source{Role: protocol.SourceInspector, ID: "inspector-1"},
+		protocol.ChromeAPICall{
+			CallID:    "call-clear-1",
+			Namespace: "storage.local",
+			Method:    "clear",
+		},
+	)
+	rawClear, err := protocol.Encode(clearCommand)
+	if err != nil {
+		t.Fatalf("Encode(chrome.api.call clear) returned error: %v", err)
+	}
+	if err := conn.WriteMessage(websocket.BinaryMessage, rawClear); err != nil {
+		t.Fatalf("WriteMessage(chrome.api.call clear) returned error: %v", err)
+	}
+
+	clearDiff := mustReadEnvelopeByName(t, conn, protocol.MessageStorageDiff, 2)
+	var clearDiffPayload protocol.StorageDiff
+	if err := protocol.DecodePayload(clearDiff.Data, &clearDiffPayload); err != nil {
+		t.Fatalf("DecodePayload(storage.diff clear) returned error: %v", err)
+	}
+	if len(clearDiffPayload.Changes) != 1 || clearDiffPayload.Changes[0].Key != "theme" {
+		t.Fatalf("unexpected clear diff payload: %+v", clearDiffPayload)
+	}
+	clearResult := mustReadEnvelopeByName(t, conn, protocol.MessageChromeAPIResult, 2)
+	var clearResultPayload protocol.ChromeAPIResult
+	if err := protocol.DecodePayload(clearResult.Data, &clearResultPayload); err != nil {
+		t.Fatalf("DecodePayload(chrome.api.result clear) returned error: %v", err)
+	}
+	if !clearResultPayload.Success {
+		t.Fatalf("expected clear success=true, got false with error %q", clearResultPayload.Error)
+	}
+}
+
+func TestWebSocketChromeAPICallGetBytesInUseAndDefaults(t *testing.T) {
+	server := newTestServer(t)
+	defer server.httpServer.Close()
+
+	conn := dialAuthorizedConnection(t, server.wsURL, server.token)
+	t.Cleanup(func() {
+		_ = conn.Close()
+	})
+
+	_ = mustHandshake(t, conn)
+	waitForConnectionCount(t, server.ws, 1)
+
+	if err := server.ws.SetStorageItem(context.Background(), "sync", "theme", "dark"); err != nil {
+		t.Fatalf("SetStorageItem(sync theme) returned error: %v", err)
+	}
+
+	bytesCommand := protocol.NewChromeAPICall(
+		protocol.Source{Role: protocol.SourceInspector, ID: "inspector-1"},
+		protocol.ChromeAPICall{
+			CallID:    "call-bytes-1",
+			Namespace: "storage.sync",
+			Method:    "getBytesInUse",
+			Args:      []any{[]any{"theme"}},
+		},
+	)
+	rawBytes, err := protocol.Encode(bytesCommand)
+	if err != nil {
+		t.Fatalf("Encode(chrome.api.call getBytesInUse) returned error: %v", err)
+	}
+	if err := conn.WriteMessage(websocket.BinaryMessage, rawBytes); err != nil {
+		t.Fatalf("WriteMessage(chrome.api.call getBytesInUse) returned error: %v", err)
+	}
+
+	bytesResultEnvelope := mustReadEnvelopeByName(t, conn, protocol.MessageChromeAPIResult, 2)
+	var bytesResult protocol.ChromeAPIResult
+	if err := protocol.DecodePayload(bytesResultEnvelope.Data, &bytesResult); err != nil {
+		t.Fatalf("DecodePayload(chrome.api.result getBytesInUse) returned error: %v", err)
+	}
+	if !bytesResult.Success {
+		t.Fatalf("expected getBytesInUse success=true, got false with error %q", bytesResult.Error)
+	}
+	if mustInt64(t, bytesResult.Data) <= 0 {
+		t.Fatalf("expected getBytesInUse > 0, got %#v", bytesResult.Data)
+	}
+
+	defaultsGet := protocol.NewChromeAPICall(
+		protocol.Source{Role: protocol.SourceInspector, ID: "inspector-1"},
+		protocol.ChromeAPICall{
+			CallID:    "call-defaults-1",
+			Namespace: "storage.sync",
+			Method:    "get",
+			Args:      []any{map[string]any{"theme": "light", "missing": "fallback"}},
+		},
+	)
+	rawDefaultsGet, err := protocol.Encode(defaultsGet)
+	if err != nil {
+		t.Fatalf("Encode(chrome.api.call get defaults) returned error: %v", err)
+	}
+	if err := conn.WriteMessage(websocket.BinaryMessage, rawDefaultsGet); err != nil {
+		t.Fatalf("WriteMessage(chrome.api.call get defaults) returned error: %v", err)
+	}
+
+	defaultsResultEnvelope := mustReadEnvelopeByName(t, conn, protocol.MessageChromeAPIResult, 2)
+	var defaultsResult protocol.ChromeAPIResult
+	if err := protocol.DecodePayload(defaultsResultEnvelope.Data, &defaultsResult); err != nil {
+		t.Fatalf("DecodePayload(chrome.api.result get defaults) returned error: %v", err)
+	}
+	if !defaultsResult.Success {
+		t.Fatalf("expected defaults get success=true, got false with error %q", defaultsResult.Error)
+	}
+	defaultsData := mustMapStringAny(t, defaultsResult.Data)
+	if got := defaultsData["theme"]; got != "dark" {
+		t.Fatalf("unexpected defaults get theme: got %#v, want %#v", got, "dark")
+	}
+	if got := defaultsData["missing"]; got != "fallback" {
+		t.Fatalf("unexpected defaults get missing: got %#v, want %#v", got, "fallback")
+	}
+}
+
+func TestWebSocketChromeAPICallUnsupportedNamespaceReturnsFailureResult(t *testing.T) {
+	server := newTestServer(t)
+	defer server.httpServer.Close()
+
+	conn := dialAuthorizedConnection(t, server.wsURL, server.token)
+	t.Cleanup(func() {
+		_ = conn.Close()
+	})
+
+	_ = mustHandshake(t, conn)
+	waitForConnectionCount(t, server.ws, 1)
+
+	command := protocol.NewChromeAPICall(
+		protocol.Source{Role: protocol.SourceInspector, ID: "inspector-1"},
+		protocol.ChromeAPICall{
+			CallID:    "call-bad-namespace",
+			Namespace: "tabs",
+			Method:    "query",
+		},
+	)
+	rawCommand, err := protocol.Encode(command)
+	if err != nil {
+		t.Fatalf("Encode(chrome.api.call unsupported namespace) returned error: %v", err)
+	}
+	if err := conn.WriteMessage(websocket.BinaryMessage, rawCommand); err != nil {
+		t.Fatalf("WriteMessage(chrome.api.call unsupported namespace) returned error: %v", err)
+	}
+
+	resultEnvelope := mustReadEnvelopeByName(t, conn, protocol.MessageChromeAPIResult, 2)
+	var result protocol.ChromeAPIResult
+	if err := protocol.DecodePayload(resultEnvelope.Data, &result); err != nil {
+		t.Fatalf("DecodePayload(chrome.api.result unsupported namespace) returned error: %v", err)
+	}
+	if result.Success {
+		t.Fatalf("expected unsupported namespace success=false, got true with data %#v", result.Data)
+	}
+	if !strings.Contains(result.Error, "unsupported chrome namespace") {
+		t.Fatalf("unexpected unsupported namespace error: %q", result.Error)
+	}
+
+	// Connection remains open after unsupported simulator call; verify with a follow-up query.
+	query := protocol.NewQueryStorage(
+		protocol.Source{Role: protocol.SourceInspector, ID: "inspector-1"},
+		protocol.QueryStorage{Area: "local"},
+	)
+	rawQuery, err := protocol.Encode(query)
+	if err != nil {
+		t.Fatalf("Encode(query.storage follow-up) returned error: %v", err)
+	}
+	if err := conn.WriteMessage(websocket.BinaryMessage, rawQuery); err != nil {
+		t.Fatalf("WriteMessage(query.storage follow-up) returned error: %v", err)
+	}
+	followUp := mustReadEnvelopeByName(t, conn, protocol.MessageStorageResult, 2)
+	if followUp.Name != protocol.MessageStorageResult {
+		t.Fatalf("unexpected follow-up message name: got %q, want %q", followUp.Name, protocol.MessageStorageResult)
+	}
+}
+
+func TestWebSocketChromeAPICallMissingCallIDClosesConnection(t *testing.T) {
+	server := newTestServer(t)
+	defer server.httpServer.Close()
+
+	conn := dialAuthorizedConnection(t, server.wsURL, server.token)
+	t.Cleanup(func() {
+		_ = conn.Close()
+	})
+
+	_ = mustHandshake(t, conn)
+	waitForConnectionCount(t, server.ws, 1)
+
+	command := protocol.NewChromeAPICall(
+		protocol.Source{Role: protocol.SourceInspector, ID: "inspector-1"},
+		protocol.ChromeAPICall{
+			CallID:    " ",
+			Namespace: "storage.local",
+			Method:    "get",
+		},
+	)
+	rawCommand, err := protocol.Encode(command)
+	if err != nil {
+		t.Fatalf("Encode(chrome.api.call missing call_id) returned error: %v", err)
+	}
+	if err := conn.WriteMessage(websocket.BinaryMessage, rawCommand); err != nil {
+		t.Fatalf("WriteMessage(chrome.api.call missing call_id) returned error: %v", err)
+	}
+
+	_, _, err = conn.ReadMessage()
+	if err == nil {
+		t.Fatal("expected connection close for missing chrome.api.call call_id")
+	}
+
+	closeErr, ok := err.(*websocket.CloseError)
+	if !ok {
+		t.Fatalf("expected websocket.CloseError, got %T (%v)", err, err)
+	}
+	if closeErr.Code != websocket.ClosePolicyViolation {
+		t.Fatalf("unexpected close code: got %d, want %d", closeErr.Code, websocket.ClosePolicyViolation)
+	}
+}
+
 func TestWebSocketStorageMutationValidation(t *testing.T) {
 	server := newTestServer(t)
 	defer server.httpServer.Close()
@@ -966,4 +1287,67 @@ func mustReadEnvelope(t *testing.T, conn *websocket.Conn) protocol.Envelope {
 	}
 
 	return envelope
+}
+
+func mustReadEnvelopeByName(
+	t *testing.T,
+	conn *websocket.Conn,
+	name protocol.MessageName,
+	maxReads int,
+) protocol.Envelope {
+	t.Helper()
+
+	if maxReads < 1 {
+		maxReads = 1
+	}
+
+	for index := 0; index < maxReads; index++ {
+		envelope := mustReadEnvelope(t, conn)
+		if envelope.Name == name {
+			return envelope
+		}
+	}
+
+	t.Fatalf("did not receive envelope %q within %d reads", name, maxReads)
+	return protocol.Envelope{}
+}
+
+func mustMapStringAny(t *testing.T, value any) map[string]any {
+	t.Helper()
+
+	record, ok := value.(map[string]any)
+	if !ok {
+		t.Fatalf("expected map[string]any result payload, got %T (%#v)", value, value)
+	}
+	return record
+}
+
+func mustInt64(t *testing.T, value any) int64 {
+	t.Helper()
+
+	switch typed := value.(type) {
+	case int:
+		return int64(typed)
+	case int8:
+		return int64(typed)
+	case int16:
+		return int64(typed)
+	case int32:
+		return int64(typed)
+	case int64:
+		return typed
+	case uint:
+		return int64(typed)
+	case uint8:
+		return int64(typed)
+	case uint16:
+		return int64(typed)
+	case uint32:
+		return int64(typed)
+	case uint64:
+		return int64(typed)
+	default:
+		t.Fatalf("expected integer numeric payload, got %T (%#v)", value, value)
+		return 0
+	}
 }
