@@ -5,7 +5,7 @@
   "description": "Panex Inspector timeline UI",
   "type": "module",
   "scripts": {
-    "build": "node ./scripts/build.mjs",
+    "build": "node --import tsx ./scripts/build.ts",
     "check": "tsc --noEmit",
     "test": "node --import tsx --test tests/*.test.ts"
   },

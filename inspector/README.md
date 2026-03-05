@@ -13,6 +13,11 @@ pnpm run build
 ```
 
 Open `inspector/index.html` after building.
+`pnpm run build` also emits `inspector/dist/index.html` with an injected chrome-sim entrypoint (`./chrome-sim.js`) using `data-panex-*` bootstrap attributes.
+Injection defaults can be overridden via:
+- `PANEX_DAEMON_URL`
+- `PANEX_DAEMON_TOKEN`
+- `PANEX_EXTENSION_ID`
 Protocol definitions are imported from `../shared/protocol/src/index.ts`.
 The timeline supports search + filter controls for message type and source role.
 Search operators:
