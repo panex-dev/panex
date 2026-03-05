@@ -42,5 +42,5 @@ In every PR description:
 6. Keep branches short-lived and non-stacked; every PR branch starts from latest `origin/main` in its own worktree.
 
 ## Current build check (2026-03-05)
-- Completed log entries: PR1-PR36 (PR20 reserved for numbering reconciliation, PR27 process-only).
-- Next target increment: daemon-side `chrome.api.call` storage router with correlated `chrome.api.result`.
+- Completed log entries: PR1-PR37 (PR20 reserved for numbering reconciliation, PR27 process-only).
+- Next target increment: `shared/chrome-sim` transport scaffold and storage call wiring over `chrome.api.call`.
