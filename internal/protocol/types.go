@@ -19,19 +19,22 @@ const (
 type MessageName string
 
 const (
-	MessageHello         MessageName = "hello"
-	MessageHelloAck      MessageName = "hello.ack"
-	MessageBuildComplete MessageName = "build.complete"
-	MessageContextLog    MessageName = "context.log"
-	MessageCommandReload MessageName = "command.reload"
-	MessageQueryEvents   MessageName = "query.events"
-	MessageQueryResult   MessageName = "query.events.result"
-	MessageQueryStorage  MessageName = "query.storage"
-	MessageStorageResult MessageName = "query.storage.result"
-	MessageStorageDiff   MessageName = "storage.diff"
-	MessageStorageSet    MessageName = "storage.set"
-	MessageStorageRemove MessageName = "storage.remove"
-	MessageStorageClear  MessageName = "storage.clear"
+	MessageHello           MessageName = "hello"
+	MessageHelloAck        MessageName = "hello.ack"
+	MessageBuildComplete   MessageName = "build.complete"
+	MessageContextLog      MessageName = "context.log"
+	MessageCommandReload   MessageName = "command.reload"
+	MessageQueryEvents     MessageName = "query.events"
+	MessageQueryResult     MessageName = "query.events.result"
+	MessageQueryStorage    MessageName = "query.storage"
+	MessageStorageResult   MessageName = "query.storage.result"
+	MessageStorageDiff     MessageName = "storage.diff"
+	MessageStorageSet      MessageName = "storage.set"
+	MessageStorageRemove   MessageName = "storage.remove"
+	MessageStorageClear    MessageName = "storage.clear"
+	MessageChromeAPICall   MessageName = "chrome.api.call"
+	MessageChromeAPIResult MessageName = "chrome.api.result"
+	MessageChromeAPIEvent  MessageName = "chrome.api.event"
 )
 
 type SourceRole string
@@ -175,20 +178,43 @@ type StorageClear struct {
 	Area string `msgpack:"area"`
 }
 
+type ChromeAPICall struct {
+	CallID    string `msgpack:"call_id"`
+	Namespace string `msgpack:"namespace"`
+	Method    string `msgpack:"method"`
+	Args      []any  `msgpack:"args,omitempty"`
+}
+
+type ChromeAPIResult struct {
+	CallID  string `msgpack:"call_id"`
+	Success bool   `msgpack:"success"`
+	Data    any    `msgpack:"data,omitempty"`
+	Error   string `msgpack:"error,omitempty"`
+}
+
+type ChromeAPIEvent struct {
+	Namespace string `msgpack:"namespace"`
+	Event     string `msgpack:"event"`
+	Args      []any  `msgpack:"args,omitempty"`
+}
+
 var messageTypeByName = map[MessageName]MessageType{
-	MessageHello:         TypeLifecycle,
-	MessageHelloAck:      TypeLifecycle,
-	MessageBuildComplete: TypeEvent,
-	MessageContextLog:    TypeEvent,
-	MessageCommandReload: TypeCommand,
-	MessageQueryEvents:   TypeCommand,
-	MessageQueryResult:   TypeEvent,
-	MessageQueryStorage:  TypeCommand,
-	MessageStorageResult: TypeEvent,
-	MessageStorageDiff:   TypeEvent,
-	MessageStorageSet:    TypeCommand,
-	MessageStorageRemove: TypeCommand,
-	MessageStorageClear:  TypeCommand,
+	MessageHello:           TypeLifecycle,
+	MessageHelloAck:        TypeLifecycle,
+	MessageBuildComplete:   TypeEvent,
+	MessageContextLog:      TypeEvent,
+	MessageCommandReload:   TypeCommand,
+	MessageQueryEvents:     TypeCommand,
+	MessageQueryResult:     TypeEvent,
+	MessageQueryStorage:    TypeCommand,
+	MessageStorageResult:   TypeEvent,
+	MessageStorageDiff:     TypeEvent,
+	MessageStorageSet:      TypeCommand,
+	MessageStorageRemove:   TypeCommand,
+	MessageStorageClear:    TypeCommand,
+	MessageChromeAPICall:   TypeCommand,
+	MessageChromeAPIResult: TypeEvent,
+	MessageChromeAPIEvent:  TypeEvent,
 }
 
 func MessageTypeForName(name MessageName) (MessageType, bool) {
@@ -246,6 +272,18 @@ func NewStorageRemove(src Source, data StorageRemove) Envelope {
 
 func NewStorageClear(src Source, data StorageClear) Envelope {
 	return newEnvelope(TypeCommand, MessageStorageClear, src, data)
+}
+
+func NewChromeAPICall(src Source, data ChromeAPICall) Envelope {
+	return newEnvelope(TypeCommand, MessageChromeAPICall, src, data)
+}
+
+func NewChromeAPIResult(src Source, data ChromeAPIResult) Envelope {
+	return newEnvelope(TypeEvent, MessageChromeAPIResult, src, data)
+}
+
+func NewChromeAPIEvent(src Source, data ChromeAPIEvent) Envelope {
+	return newEnvelope(TypeEvent, MessageChromeAPIEvent, src, data)
 }
 
 func newEnvelope(messageType MessageType, name MessageName, src Source, data any) Envelope {

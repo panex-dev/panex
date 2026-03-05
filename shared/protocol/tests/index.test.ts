@@ -90,4 +90,10 @@ describe("message guards", () => {
     assert.equal(messageTypeForName("storage.remove"), "command");
     assert.equal(messageTypeForName("storage.clear"), "command");
   });
+
+  it("maps chrome api simulator transport messages", () => {
+    assert.equal(messageTypeForName("chrome.api.call"), "command");
+    assert.equal(messageTypeForName("chrome.api.result"), "event");
+    assert.equal(messageTypeForName("chrome.api.event"), "event");
+  });
 });

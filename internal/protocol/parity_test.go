@@ -52,6 +52,9 @@ func TestTypeScriptProtocolParity(t *testing.T) {
 		string(MessageStorageSet),
 		string(MessageStorageRemove),
 		string(MessageStorageClear),
+		string(MessageChromeAPICall),
+		string(MessageChromeAPIResult),
+		string(MessageChromeAPIEvent),
 	}; !slices.Equal(got, want) {
 		t.Fatalf("message name drift:\n  ts=%v\n  go=%v", got, want)
 	}

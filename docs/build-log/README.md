@@ -42,5 +42,5 @@ In every PR description:
 6. Keep branches short-lived and non-stacked; every PR branch starts from latest `origin/main` in its own worktree.
 
 ## Current build check (2026-03-05)
-- Completed log entries: PR1-PR35 (PR20 reserved for numbering reconciliation, PR27 process-only).
-- Next target increment: simulator transport envelope family (`chrome.api.call`, `chrome.api.result`, `chrome.api.event`).
+- Completed log entries: PR1-PR36 (PR20 reserved for numbering reconciliation, PR27 process-only).
+- Next target increment: daemon-side `chrome.api.call` storage router with correlated `chrome.api.result`.
