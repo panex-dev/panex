@@ -9,7 +9,8 @@
     "./transport": "./src/transport.ts",
     "./storage": "./src/storage.ts",
     "./registry": "./src/registry.ts",
-    "./runtime": "./src/runtime.ts"
+    "./runtime": "./src/runtime.ts",
+    "./bootstrap": "./src/bootstrap.ts"
   },
   "types": "./src/index.ts",
   "scripts": {

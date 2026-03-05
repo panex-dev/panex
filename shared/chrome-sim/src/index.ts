@@ -1,3 +1,4 @@
+import { resolveChromeSimBootstrapValues } from "./bootstrap";
 import { createRuntimeNamespace } from "./runtime";
 import { createStorageArea } from "./storage";
 import { createChromeSimTransport, type ChromeSimTransport, type ChromeSimTransportOptions } from "./transport";
@@ -70,41 +71,14 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 function resolveInstallOptions(options: InstallChromeSimOptions): InstallChromeSimOptions {
-  const query = resolveWindowQueryOptions();
+  const bootstrap = resolveChromeSimBootstrapValues((window as any) ?? undefined);
 
   return {
     ...options,
-    daemonURL: nonEmpty(options.daemonURL, query.daemonURL),
-    authToken: nonEmpty(options.authToken, query.authToken),
-    extensionID: nonEmpty(options.extensionID, query.extensionID)
+    daemonURL: nonEmpty(options.daemonURL, bootstrap.daemonURL),
+    authToken: nonEmpty(options.authToken, bootstrap.authToken),
+    extensionID: nonEmpty(options.extensionID, bootstrap.extensionID)
   };
-}
-
-function resolveWindowQueryOptions(): { daemonURL?: string; authToken?: string; extensionID?: string } {
-  if (typeof window === "undefined") {
-    return {};
-  }
-
-  const location = (window as any).location;
-  const search = typeof location?.search === "string" ? location.search : "";
-  const params = new URLSearchParams(search);
-
-  return {
-    daemonURL: nonEmpty(readParam(params, "ws"), readWindowString("__PANEX_DAEMON_URL__")),
-    authToken: nonEmpty(readParam(params, "token"), readWindowString("__PANEX_DAEMON_TOKEN__")),
-    extensionID: nonEmpty(readParam(params, "extension_id"), readWindowString("__PANEX_EXTENSION_ID__"))
-  };
-}
-
-function readParam(params: URLSearchParams, name: string): string | undefined {
-  return nonEmpty(params.get(name), undefined);
-}
-
-function readWindowString(key: string): string | undefined {
-  if (typeof window === "undefined") {
-    return undefined;
-  }
-  return nonEmpty((window as any)[key], undefined);
 }
 
 function nonEmpty(value: unknown, fallback: string | undefined): string | undefined {
