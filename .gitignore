@@ -33,3 +33,14 @@ Thumbs.db
 package-lock.json
 agent/dist/
 inspector/dist/
+
+# Local agent config
+.claude/
+
+# Local/internal planning docs
+skills.md
+docs/skills.md
+panex-roadmap.md
+panex-inspector.md
+panex-engineering-plan.md
+panex-engineering-plan-final.md
