@@ -38,12 +38,13 @@ As of 2026-03-05.
 | 35 | Storage mutation transport wiring (inspector -> websocket -> daemon) | `docs/build-log/2026-03-05-pr-035-storage-mutation-transport-wiring.md` |
 | 36 | Simulator transport protocol messages (`chrome.api.call/result/event`) | `docs/build-log/2026-03-05-pr-036-simulator-transport-protocol.md` |
 | 37 | Daemon simulator storage router (`chrome.api.call` -> `chrome.api.result`) | `docs/build-log/2026-03-05-pr-037-daemon-chrome-api-storage-router.md` |
+| 38 | `shared/chrome-sim` transport + storage shim scaffold | `docs/build-log/2026-03-05-pr-038-chrome-sim-transport-scaffold.md` |
 
 ## In progress
 - None.
 
 ## Next
-- Implement `shared/chrome-sim` client transport scaffold (`call_id` correlation, timeout/reconnect) and route `chrome.storage.*` through `chrome.api.call`.
+- Integrate `@panex/chrome-sim` into preview injection/bootstrap flow and extend simulator namespace coverage beyond `storage.*`.
 
 ## Notes
 - PR20 is intentionally reserved as documentation reconciliation so sequence alignment is explicit and auditable.

@@ -1,0 +1,26 @@
+{
+  "name": "@panex/chrome-sim",
+  "private": true,
+  "version": "0.0.1",
+  "description": "Panex chrome API simulator shim and transport",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./transport": "./src/transport.ts",
+    "./storage": "./src/storage.ts",
+    "./registry": "./src/registry.ts"
+  },
+  "types": "./src/index.ts",
+  "scripts": {
+    "check": "tsc --noEmit",
+    "test": "node --import tsx --test tests/*.test.ts"
+  },
+  "dependencies": {
+    "@msgpack/msgpack": "^3.1.2"
+  },
+  "devDependencies": {
+    "@types/node": "22.13.8",
+    "tsx": "4.20.5",
+    "typescript": "5.9.2"
+  }
+}
