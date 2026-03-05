@@ -44,12 +44,13 @@ As of 2026-03-05.
 | 41 | Chrome-sim entrypoint injection helper + script bootstrap value resolution | `docs/build-log/2026-03-05-pr-041-chrome-sim-entrypoint-bootstrap-helpers.md` |
 | 42 | Tabs namespace extension (`tabs.query`) across daemon router + chrome-sim shim | `docs/build-log/2026-03-05-pr-042-tabs-query-daemon-chrome-sim.md` |
 | 45 | Inspector preview build hook calls `injectChromeSimEntrypoint(...)` and emits injected `dist/index.html` | `docs/build-log/2026-03-05-pr-045-inspector-preview-injection-hook.md` |
+| 46 | Core Go build pipeline copies HTML surfaces and injects `chrome-sim` bootstrap | `docs/build-log/2026-03-06-pr-046-core-build-html-chrome-sim-injection.md` |
 
 ## In progress
 - None.
 
 ## Next
-- Extend chrome-sim entrypoint injection into extension output HTML paths in the core build pipeline so non-inspector preview surfaces auto-bootstrap too.
+- Extend the core build pipeline to copy remaining extension-facing static assets that HTML pages depend on, especially manifest-linked icons and other non-bundled files.
 
 ## Notes
 - PR20 is intentionally reserved as documentation reconciliation so sequence alignment is explicit and auditable.

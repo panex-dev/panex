@@ -140,7 +140,17 @@ func startDevServer(cfg panexconfig.Config, stdout io.Writer) error {
 		return err
 	}
 
-	builder, err := build.NewEsbuildBuilder(cfg.Extension.SourceDir, cfg.Extension.OutDir)
+	builderOptions := []build.Option{}
+	if injection, ok := build.AutoDetectChromeSimInjection(
+		cfg.Extension.SourceDir,
+		fmt.Sprintf("ws://127.0.0.1:%d/ws", cfg.Server.Port),
+		cfg.Server.AuthToken,
+		"",
+	); ok {
+		builderOptions = append(builderOptions, build.WithChromeSimInjection(injection))
+	}
+
+	builder, err := build.NewEsbuildBuilder(cfg.Extension.SourceDir, cfg.Extension.OutDir, builderOptions...)
 	if err != nil {
 		return fmt.Errorf("configure esbuild: %w", err)
 	}

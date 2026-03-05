@@ -17,6 +17,7 @@ import (
 type EsbuildBuilder struct {
 	sourceDir string
 	outDir    string
+	options   builderOptions
 	seq       uint64
 }
 
@@ -28,7 +29,35 @@ type Result struct {
 	Errors       []string
 }
 
-func NewEsbuildBuilder(sourceDir, outDir string) (*EsbuildBuilder, error) {
+type ChromeSimInjectionOptions struct {
+	AuthToken        string
+	DaemonURL        string
+	ExtensionID      string
+	ModuleOutputName string
+	ModuleSourcePath string
+	NodePaths        []string
+}
+
+type Option func(*builderOptions)
+
+type builderOptions struct {
+	chromeSim *ChromeSimInjectionOptions
+}
+
+func WithChromeSimInjection(options ChromeSimInjectionOptions) Option {
+	return func(config *builderOptions) {
+		copied := options
+		if copied.ModuleOutputName == "" {
+			copied.ModuleOutputName = "chrome-sim.js"
+		}
+		if len(copied.NodePaths) > 0 {
+			copied.NodePaths = append([]string(nil), copied.NodePaths...)
+		}
+		config.chromeSim = &copied
+	}
+}
+
+func NewEsbuildBuilder(sourceDir, outDir string, opts ...Option) (*EsbuildBuilder, error) {
 	if strings.TrimSpace(sourceDir) == "" {
 		return nil, errors.New("source directory is required")
 	}
@@ -56,9 +85,17 @@ func NewEsbuildBuilder(sourceDir, outDir string) (*EsbuildBuilder, error) {
 		return nil, errors.New("source and output directories must differ")
 	}
 
+	config := builderOptions{}
+	for _, option := range opts {
+		if option != nil {
+			option(&config)
+		}
+	}
+
 	return &EsbuildBuilder{
 		sourceDir: absSourceDir,
 		outDir:    absOutDir,
+		options:   config,
 	}, nil
 }
 
@@ -80,22 +117,29 @@ func (b *EsbuildBuilder) Build(ctx context.Context, changedPaths []string) (Resu
 	if err != nil {
 		return Result{}, err
 	}
-	if len(entryPoints) == 0 {
+	htmlAssets, err := discoverHTMLAssets(b.sourceDir)
+	if err != nil {
+		return Result{}, err
+	}
+	if len(entryPoints) == 0 && len(htmlAssets) == 0 {
 		return Result{}, fmt.Errorf("no entry points found in %s", b.sourceDir)
 	}
 
-	result := api.Build(api.BuildOptions{
-		AbsWorkingDir: b.sourceDir,
-		EntryPoints:   entryPoints,
-		Outdir:        b.outDir,
-		Bundle:        true,
-		Format:        api.FormatESModule,
-		Platform:      api.PlatformBrowser,
-		Write:         true,
-		Sourcemap:     api.SourceMapLinked,
-		LogLevel:      api.LogLevelSilent,
-		EntryNames:    "[dir]/[name]",
-	})
+	var result api.BuildResult
+	if len(entryPoints) > 0 {
+		result = api.Build(api.BuildOptions{
+			AbsWorkingDir: b.sourceDir,
+			EntryPoints:   entryPoints,
+			Outdir:        b.outDir,
+			Bundle:        true,
+			Format:        api.FormatESModule,
+			Platform:      api.PlatformBrowser,
+			Write:         true,
+			Sourcemap:     api.SourceMapLinked,
+			LogLevel:      api.LogLevelSilent,
+			EntryNames:    "[dir]/[name]",
+		})
+	}
 
 	durationMS := time.Since(startedAt).Milliseconds()
 	normalizedChanges := normalizeChangedPaths(changedPaths)
@@ -108,6 +152,10 @@ func (b *EsbuildBuilder) Build(ctx context.Context, changedPaths []string) (Resu
 			ChangedFiles: normalizedChanges,
 			Errors:       collectMessages(result.Errors),
 		}, nil
+	}
+
+	if err := b.processHTMLAssets(htmlAssets); err != nil {
+		return Result{}, err
 	}
 
 	return Result{
