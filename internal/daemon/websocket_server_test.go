@@ -898,6 +898,109 @@ func TestWebSocketChromeAPICallGetBytesInUseAndDefaults(t *testing.T) {
 	}
 }
 
+func TestWebSocketChromeAPICallRuntimeSendMessageBroadcastsEvent(t *testing.T) {
+	server := newTestServer(t)
+	defer server.httpServer.Close()
+
+	conn := dialAuthorizedConnection(t, server.wsURL, server.token)
+	t.Cleanup(func() {
+		_ = conn.Close()
+	})
+
+	_ = mustHandshake(t, conn)
+	waitForConnectionCount(t, server.ws, 1)
+
+	command := protocol.NewChromeAPICall(
+		protocol.Source{Role: protocol.SourceInspector, ID: "inspector-1"},
+		protocol.ChromeAPICall{
+			CallID:    "call-runtime-send-1",
+			Namespace: "runtime",
+			Method:    "sendMessage",
+			Args:      []any{map[string]any{"topic": "ping", "id": 7}},
+		},
+	)
+	rawCommand, err := protocol.Encode(command)
+	if err != nil {
+		t.Fatalf("Encode(chrome.api.call runtime.sendMessage) returned error: %v", err)
+	}
+	if err := conn.WriteMessage(websocket.BinaryMessage, rawCommand); err != nil {
+		t.Fatalf("WriteMessage(chrome.api.call runtime.sendMessage) returned error: %v", err)
+	}
+
+	eventEnvelope := mustReadEnvelopeByName(t, conn, protocol.MessageChromeAPIEvent, 3)
+	var event protocol.ChromeAPIEvent
+	if err := protocol.DecodePayload(eventEnvelope.Data, &event); err != nil {
+		t.Fatalf("DecodePayload(chrome.api.event runtime.onMessage) returned error: %v", err)
+	}
+	if event.Namespace != "runtime" || event.Event != "onMessage" {
+		t.Fatalf("unexpected runtime event payload: %+v", event)
+	}
+	if len(event.Args) != 1 {
+		t.Fatalf("unexpected runtime event args: got %d, want %d", len(event.Args), 1)
+	}
+	eventPayload := mustMapStringAny(t, event.Args[0])
+	if got := eventPayload["topic"]; got != "ping" {
+		t.Fatalf("unexpected runtime event topic: got %#v, want %#v", got, "ping")
+	}
+
+	resultEnvelope := mustReadEnvelopeByName(t, conn, protocol.MessageChromeAPIResult, 3)
+	var result protocol.ChromeAPIResult
+	if err := protocol.DecodePayload(resultEnvelope.Data, &result); err != nil {
+		t.Fatalf("DecodePayload(chrome.api.result runtime.sendMessage) returned error: %v", err)
+	}
+	if !result.Success {
+		t.Fatalf("expected runtime.sendMessage success=true, got false with error %q", result.Error)
+	}
+	if result.CallID != "call-runtime-send-1" {
+		t.Fatalf("unexpected runtime.sendMessage call_id: got %q", result.CallID)
+	}
+	dataPayload := mustMapStringAny(t, result.Data)
+	if got := dataPayload["id"]; mustInt64(t, got) != 7 {
+		t.Fatalf("unexpected runtime.sendMessage data id: got %#v, want %#v", got, int64(7))
+	}
+}
+
+func TestWebSocketChromeAPICallRuntimeSendMessageRequiresMessageArg(t *testing.T) {
+	server := newTestServer(t)
+	defer server.httpServer.Close()
+
+	conn := dialAuthorizedConnection(t, server.wsURL, server.token)
+	t.Cleanup(func() {
+		_ = conn.Close()
+	})
+
+	_ = mustHandshake(t, conn)
+	waitForConnectionCount(t, server.ws, 1)
+
+	command := protocol.NewChromeAPICall(
+		protocol.Source{Role: protocol.SourceInspector, ID: "inspector-1"},
+		protocol.ChromeAPICall{
+			CallID:    "call-runtime-send-empty",
+			Namespace: "runtime",
+			Method:    "sendMessage",
+		},
+	)
+	rawCommand, err := protocol.Encode(command)
+	if err != nil {
+		t.Fatalf("Encode(chrome.api.call runtime.sendMessage empty) returned error: %v", err)
+	}
+	if err := conn.WriteMessage(websocket.BinaryMessage, rawCommand); err != nil {
+		t.Fatalf("WriteMessage(chrome.api.call runtime.sendMessage empty) returned error: %v", err)
+	}
+
+	resultEnvelope := mustReadEnvelopeByName(t, conn, protocol.MessageChromeAPIResult, 2)
+	var result protocol.ChromeAPIResult
+	if err := protocol.DecodePayload(resultEnvelope.Data, &result); err != nil {
+		t.Fatalf("DecodePayload(chrome.api.result runtime.sendMessage empty) returned error: %v", err)
+	}
+	if result.Success {
+		t.Fatalf("expected runtime.sendMessage without args success=false, got true")
+	}
+	if !strings.Contains(result.Error, "expects a message argument") {
+		t.Fatalf("unexpected runtime.sendMessage empty error: %q", result.Error)
+	}
+}
+
 func TestWebSocketChromeAPICallUnsupportedNamespaceReturnsFailureResult(t *testing.T) {
 	server := newTestServer(t)
 	defer server.httpServer.Close()

@@ -40,12 +40,13 @@ As of 2026-03-05.
 | 37 | Daemon simulator storage router (`chrome.api.call` -> `chrome.api.result`) | `docs/build-log/2026-03-05-pr-037-daemon-chrome-api-storage-router.md` |
 | 38 | `shared/chrome-sim` transport + storage shim scaffold | `docs/build-log/2026-03-05-pr-038-chrome-sim-transport-scaffold.md` |
 | 39 | CI trigger coverage for `feat/pr*` + `shared/chrome-sim` TypeScript matrix | `docs/build-log/2026-03-05-pr-039-ci-checks-feature-push-chrome-sim.md` |
+| 40 | Runtime namespace extension (`runtime.sendMessage`) + chrome-sim bootstrap query wiring | `docs/build-log/2026-03-05-pr-040-runtime-sendmessage-bootstrap-wiring.md` |
 
 ## In progress
 - None.
 
 ## Next
-- Integrate `@panex/chrome-sim` into preview injection/bootstrap flow and extend simulator namespace coverage beyond `storage.*`.
+- Integrate `@panex/chrome-sim` into preview entrypoint injection flow and add another simulator namespace slice (`tabs.*` or additional `runtime.*` methods).
 
 ## Notes
 - PR20 is intentionally reserved as documentation reconciliation so sequence alignment is explicit and auditable.

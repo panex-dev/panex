@@ -11,7 +11,9 @@ describe("installChromeSim", () => {
 
   it("installs storage namespaces on window.chrome", () => {
     const originalWindow = (globalThis as any).window;
-    const fakeWindow: Record<string, unknown> = {};
+    const fakeWindow: Record<string, unknown> = {
+      location: { search: "?extension_id=ext-query" }
+    };
     (globalThis as any).window = fakeWindow;
 
     const transport: ChromeSimTransport = {
@@ -33,6 +35,35 @@ describe("installChromeSim", () => {
       assert.equal(typeof chrome.storage.local.get, "function");
       assert.equal(typeof chrome.storage.sync.get, "function");
       assert.equal(typeof chrome.storage.session.get, "function");
+      assert.equal(typeof chrome.runtime.sendMessage, "function");
+      assert.equal(chrome.runtime.id, "ext-query");
+    } finally {
+      (globalThis as any).window = originalWindow;
+    }
+  });
+
+  it("prefers explicit extensionID over query bootstrap value", () => {
+    const originalWindow = (globalThis as any).window;
+    const fakeWindow: Record<string, unknown> = {
+      location: { search: "?extension_id=ext-query" }
+    };
+    (globalThis as any).window = fakeWindow;
+
+    const transport: ChromeSimTransport = {
+      call() {
+        return Promise.resolve({});
+      },
+      close() {},
+      status: () => "open",
+      subscribeEvents() {
+        return () => {};
+      }
+    };
+
+    try {
+      installChromeSim({ transport, extensionID: "ext-explicit" });
+      const chrome = (fakeWindow as any).chrome;
+      assert.equal(chrome.runtime.id, "ext-explicit");
     } finally {
       (globalThis as any).window = originalWindow;
     }
