@@ -41,12 +41,13 @@ As of 2026-03-05.
 | 38 | `shared/chrome-sim` transport + storage shim scaffold | `docs/build-log/2026-03-05-pr-038-chrome-sim-transport-scaffold.md` |
 | 39 | CI trigger coverage for `feat/pr*` + `shared/chrome-sim` TypeScript matrix | `docs/build-log/2026-03-05-pr-039-ci-checks-feature-push-chrome-sim.md` |
 | 40 | Runtime namespace extension (`runtime.sendMessage`) + chrome-sim bootstrap query wiring | `docs/build-log/2026-03-05-pr-040-runtime-sendmessage-bootstrap-wiring.md` |
+| 41 | Chrome-sim entrypoint injection helper + script bootstrap value resolution | `docs/build-log/2026-03-05-pr-041-chrome-sim-entrypoint-bootstrap-helpers.md` |
 
 ## In progress
 - None.
 
 ## Next
-- Integrate `@panex/chrome-sim` into preview entrypoint injection flow and add another simulator namespace slice (`tabs.*` or additional `runtime.*` methods).
+- Hook preview renderer/plugin path to call `injectChromeSimEntrypoint(...)`, then add next simulator namespace slice (`tabs.*`).
 
 ## Notes
 - PR20 is intentionally reserved as documentation reconciliation so sequence alignment is explicit and auditable.

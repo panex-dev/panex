@@ -68,4 +68,48 @@ describe("installChromeSim", () => {
       (globalThis as any).window = originalWindow;
     }
   });
+
+  it("uses script bootstrap extension_id when query is absent", () => {
+    const originalWindow = (globalThis as any).window;
+    const fakeWindow: Record<string, unknown> = {
+      location: { search: "" },
+      document: {
+        createElement() {
+          return {
+            type: "",
+            src: "",
+            dataset: {}
+          };
+        },
+        currentScript: {
+          type: "module",
+          src: "/chrome-sim.js",
+          dataset: {
+            panexChromeSim: "1",
+            panexExtensionId: "ext-from-script"
+          }
+        }
+      }
+    };
+    (globalThis as any).window = fakeWindow;
+
+    const transport: ChromeSimTransport = {
+      call() {
+        return Promise.resolve({});
+      },
+      close() {},
+      status: () => "open",
+      subscribeEvents() {
+        return () => {};
+      }
+    };
+
+    try {
+      installChromeSim({ transport });
+      const chrome = (fakeWindow as any).chrome;
+      assert.equal(chrome.runtime.id, "ext-from-script");
+    } finally {
+      (globalThis as any).window = originalWindow;
+    }
+  });
 });
