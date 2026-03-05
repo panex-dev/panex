@@ -41,6 +41,6 @@ In every PR description:
 5. Record architectural decisions in ADRs at decision time, not later.
 6. Keep branches short-lived and non-stacked; every PR branch starts from latest `origin/main` in its own worktree.
 
-## Current build check (2026-03-05)
-- Completed log entries: PR1-PR42 and PR45 (PR20 reserved for numbering reconciliation, PR27 process-only).
-- Next target increment: extend chrome-sim entrypoint injection into extension output HTML paths in the core build pipeline.
+## Current build check (2026-03-06)
+- Completed log entries: PR1-PR42 and PR45-PR46 (PR20 reserved for numbering reconciliation, PR27 process-only).
+- Next target increment: copy remaining extension-facing static assets through the core build pipeline so manifest-linked HTML pages are fully self-contained.

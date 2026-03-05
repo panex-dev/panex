@@ -100,6 +100,112 @@ func TestBuildSuccess(t *testing.T) {
 	}
 }
 
+func TestBuildCopiesHTMLAndInjectsChromeSim(t *testing.T) {
+	rootDir := t.TempDir()
+	sourceDir := filepath.Join(rootDir, "src")
+	outDir := filepath.Join(rootDir, "dist")
+	simDir := filepath.Join(rootDir, "chrome-sim")
+	if err := os.MkdirAll(filepath.Join(sourceDir, "pages"), 0o755); err != nil {
+		t.Fatalf("create source directory: %v", err)
+	}
+	if err := os.MkdirAll(simDir, 0o755); err != nil {
+		t.Fatalf("create chrome-sim fixture directory: %v", err)
+	}
+
+	writeFixture(t, filepath.Join(sourceDir, "popup.ts"), `console.log("popup")`)
+	writeFixture(t, filepath.Join(sourceDir, "pages", "options.ts"), `console.log("options")`)
+	writeFixture(t, filepath.Join(sourceDir, "popup.html"), `<!doctype html><html><head><title>Popup</title></head><body><script type="module" src="./popup.ts"></script></body></html>`)
+	writeFixture(t, filepath.Join(sourceDir, "pages", "options.html"), `<!doctype html><html><head><title>Options</title></head><body><script type="module" src="./options.ts"></script></body></html>`)
+	writeFixture(t, filepath.Join(simDir, "entry.ts"), `console.log("chrome-sim")`)
+
+	builder, err := NewEsbuildBuilder(
+		sourceDir,
+		outDir,
+		WithChromeSimInjection(ChromeSimInjectionOptions{
+			AuthToken:        "dev-token",
+			DaemonURL:        "ws://127.0.0.1:4317/ws",
+			ModuleOutputName: "chrome-sim.js",
+			ModuleSourcePath: filepath.Join(simDir, "entry.ts"),
+		}),
+	)
+	if err != nil {
+		t.Fatalf("NewEsbuildBuilder() returned error: %v", err)
+	}
+
+	result, err := builder.Build(context.Background(), []string{"popup.html", "pages/options.html"})
+	if err != nil {
+		t.Fatalf("Build() returned error: %v", err)
+	}
+	if !result.Success {
+		t.Fatalf("expected successful build, got errors: %v", result.Errors)
+	}
+
+	popupHTML := readFixture(t, filepath.Join(outDir, "popup.html"))
+	if !strings.Contains(popupHTML, `src="./popup.js"`) {
+		t.Fatalf("expected popup html to reference bundled popup.js, got %q", popupHTML)
+	}
+	if !strings.Contains(popupHTML, `src="./chrome-sim.js"`) {
+		t.Fatalf("expected popup html to inject chrome-sim.js, got %q", popupHTML)
+	}
+	if !strings.Contains(popupHTML, `data-panex-token="dev-token"`) {
+		t.Fatalf("expected popup html to include panex token bootstrap, got %q", popupHTML)
+	}
+
+	optionsHTML := readFixture(t, filepath.Join(outDir, "pages", "options.html"))
+	if !strings.Contains(optionsHTML, `src="./options.js"`) {
+		t.Fatalf("expected options html to reference bundled options.js, got %q", optionsHTML)
+	}
+	if !strings.Contains(optionsHTML, `src="../chrome-sim.js"`) {
+		t.Fatalf("expected nested html to use relative chrome-sim path, got %q", optionsHTML)
+	}
+
+	if _, err := os.Stat(filepath.Join(outDir, "chrome-sim.js")); err != nil {
+		t.Fatalf("expected chrome-sim.js output file: %v", err)
+	}
+}
+
+func TestBuildDoesNotDuplicateExistingChromeSimInjection(t *testing.T) {
+	sourceDir := filepath.Join(t.TempDir(), "src")
+	outDir := filepath.Join(t.TempDir(), "dist")
+	simDir := filepath.Join(t.TempDir(), "chrome-sim")
+	if err := os.MkdirAll(sourceDir, 0o755); err != nil {
+		t.Fatalf("create source directory: %v", err)
+	}
+	if err := os.MkdirAll(simDir, 0o755); err != nil {
+		t.Fatalf("create chrome-sim fixture directory: %v", err)
+	}
+
+	writeFixture(t, filepath.Join(sourceDir, "popup.ts"), `console.log("popup")`)
+	writeFixture(t, filepath.Join(sourceDir, "popup.html"), `<!doctype html><html><head><script data-panex-chrome-sim="1" src="./chrome-sim.js"></script></head><body><script type="module" src="./popup.ts"></script></body></html>`)
+	writeFixture(t, filepath.Join(simDir, "entry.ts"), `console.log("chrome-sim")`)
+
+	builder, err := NewEsbuildBuilder(
+		sourceDir,
+		outDir,
+		WithChromeSimInjection(ChromeSimInjectionOptions{
+			DaemonURL:        "ws://127.0.0.1:4317/ws",
+			ModuleOutputName: "chrome-sim.js",
+			ModuleSourcePath: filepath.Join(simDir, "entry.ts"),
+		}),
+	)
+	if err != nil {
+		t.Fatalf("NewEsbuildBuilder() returned error: %v", err)
+	}
+
+	result, err := builder.Build(context.Background(), []string{"popup.html"})
+	if err != nil {
+		t.Fatalf("Build() returned error: %v", err)
+	}
+	if !result.Success {
+		t.Fatalf("expected successful build, got errors: %v", result.Errors)
+	}
+
+	popupHTML := readFixture(t, filepath.Join(outDir, "popup.html"))
+	if strings.Count(popupHTML, "data-panex-chrome-sim") != 1 {
+		t.Fatalf("expected single chrome-sim injection marker, got %q", popupHTML)
+	}
+}
+
 func TestBuildSyntaxErrorReturnsFailureResult(t *testing.T) {
 	sourceDir := filepath.Join(t.TempDir(), "src")
 	outDir := filepath.Join(t.TempDir(), "dist")
@@ -179,9 +285,21 @@ func TestBuildRespectsCanceledContext(t *testing.T) {
 
 func writeFixture(t *testing.T, path, value string) {
 	t.Helper()
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		t.Fatalf("create parent directory for %s: %v", path, err)
+	}
 	if err := os.WriteFile(path, []byte(value), 0o600); err != nil {
 		t.Fatalf("write fixture %s: %v", path, err)
 	}
+}
+
+func readFixture(t *testing.T, path string) string {
+	t.Helper()
+	value, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read fixture %s: %v", path, err)
+	}
+	return string(value)
 }
 
 func TestNextBuildIDMonotonic(t *testing.T) {
@@ -198,5 +316,38 @@ func TestNextBuildIDMonotonic(t *testing.T) {
 	second := builder.nextBuildID()
 	if first == second {
 		t.Fatalf("expected unique build ids, got %q and %q", first, second)
+	}
+}
+
+func TestAutoDetectChromeSimInjection(t *testing.T) {
+	rootDir := t.TempDir()
+	sourceDir := filepath.Join(rootDir, "agent", "src")
+	chromeSimSource := filepath.Join(rootDir, "shared", "chrome-sim", "src")
+	if err := os.MkdirAll(sourceDir, 0o755); err != nil {
+		t.Fatalf("create source dir: %v", err)
+	}
+	if err := os.MkdirAll(chromeSimSource, 0o755); err != nil {
+		t.Fatalf("create chrome-sim source dir: %v", err)
+	}
+	if err := os.MkdirAll(filepath.Join(rootDir, "agent", "node_modules"), 0o755); err != nil {
+		t.Fatalf("create agent node_modules: %v", err)
+	}
+	if err := os.MkdirAll(filepath.Join(rootDir, "shared", "chrome-sim", "node_modules"), 0o755); err != nil {
+		t.Fatalf("create chrome-sim node_modules: %v", err)
+	}
+	writeFixture(t, filepath.Join(chromeSimSource, "index.ts"), `console.log("chrome-sim")`)
+
+	options, ok := AutoDetectChromeSimInjection(sourceDir, "ws://127.0.0.1:4317/ws", "dev-token", "ext-1")
+	if !ok {
+		t.Fatal("expected chrome-sim injection auto-detection to succeed")
+	}
+	if options.ModuleSourcePath != filepath.Join(chromeSimSource, "index.ts") {
+		t.Fatalf("unexpected module source path: got %q", options.ModuleSourcePath)
+	}
+	if options.ModuleOutputName != "chrome-sim.js" {
+		t.Fatalf("unexpected module output name: got %q", options.ModuleOutputName)
+	}
+	if len(options.NodePaths) != 2 {
+		t.Fatalf("unexpected node path count: got %d, want 2 (%v)", len(options.NodePaths), options.NodePaths)
 	}
 }
