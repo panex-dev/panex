@@ -63,6 +63,9 @@ type WebSocketServer struct {
 	storageMu sync.RWMutex
 	storage   map[string]map[string]any
 
+	tabsMu sync.RWMutex
+	tabs   []simulatedTab
+
 	seq        uint64
 	eventStore eventStore
 
@@ -73,6 +76,25 @@ type WebSocketServer struct {
 type sessionConn struct {
 	conn *websocket.Conn
 	mu   sync.Mutex
+}
+
+type simulatedTab struct {
+	ID            int    `msgpack:"id" json:"id"`
+	WindowID      int    `msgpack:"windowId" json:"windowId"`
+	Active        bool   `msgpack:"active" json:"active"`
+	CurrentWindow bool   `msgpack:"currentWindow" json:"currentWindow"`
+	URL           string `msgpack:"url,omitempty" json:"url,omitempty"`
+	Title         string `msgpack:"title,omitempty" json:"title,omitempty"`
+}
+
+type tabsQueryFilter struct {
+	hasActive        bool
+	active           bool
+	hasCurrentWindow bool
+	currentWindow    bool
+	hasWindowID      bool
+	windowID         int
+	urls             []string
 }
 
 func NewWebSocketServer(cfg WebSocketConfig) (*WebSocketServer, error) {
@@ -104,6 +126,7 @@ func NewWebSocketServer(cfg WebSocketConfig) (*WebSocketServer, error) {
 		},
 		sessions:   make(map[string]*sessionConn),
 		storage:    defaultStorageState(),
+		tabs:       defaultTabsState(),
 		eventStore: eventStore,
 	}, nil
 }
@@ -535,6 +558,9 @@ func (s *WebSocketServer) handleChromeAPICall(
 	if namespace == "runtime" {
 		return s.handleChromeRuntimeCall(ctx, callID, method, command.Args), nil
 	}
+	if namespace == "tabs" {
+		return s.handleChromeTabsCall(callID, method, command.Args), nil
+	}
 
 	area, ok := storageAreaFromNamespace(namespace)
 	if !ok {
@@ -656,6 +682,31 @@ func (s *WebSocketServer) handleChromeRuntimeCall(
 			CallID:  callID,
 			Success: false,
 			Error:   fmt.Sprintf("unsupported runtime.%s call", method),
+		}
+	}
+}
+
+func (s *WebSocketServer) handleChromeTabsCall(
+	callID string,
+	method string,
+	args []any,
+) protocol.ChromeAPIResult {
+	switch method {
+	case "query":
+		tabs, queryErr := s.chromeTabsQuery(args)
+		if failure, failed := chromeAPIFailureResult(callID, queryErr); failed {
+			return failure
+		}
+		return protocol.ChromeAPIResult{
+			CallID:  callID,
+			Success: true,
+			Data:    tabs,
+		}
+	default:
+		return protocol.ChromeAPIResult{
+			CallID:  callID,
+			Success: false,
+			Error:   fmt.Sprintf("unsupported tabs.%s call", method),
 		}
 	}
 }
@@ -806,6 +857,172 @@ func (s *WebSocketServer) chromeStorageBytesInUse(area string, args []any) (int,
 		return 0, fmt.Errorf("encode selected storage payload: %w", err)
 	}
 	return len(encoded), nil
+}
+
+func (s *WebSocketServer) chromeTabsQuery(args []any) ([]simulatedTab, error) {
+	filter, err := parseTabsQueryArgs(args)
+	if err != nil {
+		return nil, err
+	}
+
+	s.tabsMu.RLock()
+	tabs := cloneTabs(s.tabs)
+	s.tabsMu.RUnlock()
+
+	if len(tabs) == 0 {
+		return []simulatedTab{}, nil
+	}
+
+	filtered := make([]simulatedTab, 0, len(tabs))
+	for _, tab := range tabs {
+		if !matchTabsQuery(tab, filter) {
+			continue
+		}
+		filtered = append(filtered, tab)
+	}
+	return filtered, nil
+}
+
+func parseTabsQueryArgs(args []any) (tabsQueryFilter, error) {
+	if len(args) == 0 || args[0] == nil {
+		return tabsQueryFilter{}, nil
+	}
+	if len(args) > 1 {
+		return tabsQueryFilter{}, errors.New("tabs.query expects zero or one argument")
+	}
+
+	queryInfo, ok := args[0].(map[string]any)
+	if !ok {
+		return tabsQueryFilter{}, errors.New("tabs.query queryInfo must be an object")
+	}
+
+	var filter tabsQueryFilter
+
+	if value, hasValue := queryInfo["active"]; hasValue {
+		active, ok := value.(bool)
+		if !ok {
+			return tabsQueryFilter{}, errors.New("tabs.query active filter must be boolean")
+		}
+		filter.hasActive = true
+		filter.active = active
+	}
+
+	if value, hasValue := queryInfo["currentWindow"]; hasValue {
+		currentWindow, ok := value.(bool)
+		if !ok {
+			return tabsQueryFilter{}, errors.New("tabs.query currentWindow filter must be boolean")
+		}
+		filter.hasCurrentWindow = true
+		filter.currentWindow = currentWindow
+	}
+
+	if value, hasValue := queryInfo["windowId"]; hasValue {
+		windowID, ok := coerceInt(value)
+		if !ok {
+			return tabsQueryFilter{}, errors.New("tabs.query windowId filter must be numeric")
+		}
+		filter.hasWindowID = true
+		filter.windowID = windowID
+	}
+
+	if value, hasValue := queryInfo["url"]; hasValue {
+		parsedURLs, err := coerceURLFilters(value)
+		if err != nil {
+			return tabsQueryFilter{}, err
+		}
+		filter.urls = parsedURLs
+	}
+
+	return filter, nil
+}
+
+func coerceURLFilters(value any) ([]string, error) {
+	switch typed := value.(type) {
+	case string:
+		trimmed := strings.TrimSpace(typed)
+		if trimmed == "" {
+			return []string{}, nil
+		}
+		return []string{trimmed}, nil
+	case []string:
+		urls := make([]string, 0, len(typed))
+		for _, entry := range typed {
+			trimmed := strings.TrimSpace(entry)
+			if trimmed == "" {
+				continue
+			}
+			urls = append(urls, trimmed)
+		}
+		return urls, nil
+	case []any:
+		urls := make([]string, 0, len(typed))
+		for _, entry := range typed {
+			urlValue, ok := entry.(string)
+			if !ok {
+				return nil, errors.New("tabs.query url filter must be a string or string array")
+			}
+			trimmed := strings.TrimSpace(urlValue)
+			if trimmed == "" {
+				continue
+			}
+			urls = append(urls, trimmed)
+		}
+		return urls, nil
+	default:
+		return nil, errors.New("tabs.query url filter must be a string or string array")
+	}
+}
+
+func coerceInt(value any) (int, bool) {
+	switch typed := value.(type) {
+	case int:
+		return typed, true
+	case int8:
+		return int(typed), true
+	case int16:
+		return int(typed), true
+	case int32:
+		return int(typed), true
+	case int64:
+		return int(typed), true
+	case uint:
+		return int(typed), true
+	case uint8:
+		return int(typed), true
+	case uint16:
+		return int(typed), true
+	case uint32:
+		return int(typed), true
+	case uint64:
+		return int(typed), true
+	default:
+		return 0, false
+	}
+}
+
+func matchTabsQuery(tab simulatedTab, filter tabsQueryFilter) bool {
+	if filter.hasActive && tab.Active != filter.active {
+		return false
+	}
+	if filter.hasCurrentWindow && tab.CurrentWindow != filter.currentWindow {
+		return false
+	}
+	if filter.hasWindowID && tab.WindowID != filter.windowID {
+		return false
+	}
+	if len(filter.urls) > 0 {
+		matched := false
+		for _, urlValue := range filter.urls {
+			if tab.URL == urlValue {
+				matched = true
+				break
+			}
+		}
+		if !matched {
+			return false
+		}
+	}
+	return true
 }
 
 func parseStorageSelection(value any) ([]string, map[string]any, error) {
@@ -1135,6 +1352,35 @@ func defaultStorageState() map[string]map[string]any {
 	}
 }
 
+func defaultTabsState() []simulatedTab {
+	return []simulatedTab{
+		{
+			ID:            1,
+			WindowID:      1,
+			Active:        true,
+			CurrentWindow: true,
+			URL:           "https://example.com/",
+			Title:         "Example",
+		},
+		{
+			ID:            2,
+			WindowID:      1,
+			Active:        false,
+			CurrentWindow: true,
+			URL:           "https://panex.dev/docs",
+			Title:         "Panex Docs",
+		},
+		{
+			ID:            3,
+			WindowID:      2,
+			Active:        true,
+			CurrentWindow: false,
+			URL:           "https://panex.dev/inspector",
+			Title:         "Panex Inspector",
+		},
+	}
+}
+
 func cloneStorageItems(items map[string]any) map[string]any {
 	if len(items) == 0 {
 		return map[string]any{}
@@ -1144,6 +1390,16 @@ func cloneStorageItems(items map[string]any) map[string]any {
 	for key, value := range items {
 		cloned[key] = value
 	}
+	return cloned
+}
+
+func cloneTabs(tabs []simulatedTab) []simulatedTab {
+	if len(tabs) == 0 {
+		return []simulatedTab{}
+	}
+
+	cloned := make([]simulatedTab, len(tabs))
+	copy(cloned, tabs)
 	return cloned
 }
 

@@ -42,5 +42,5 @@ In every PR description:
 6. Keep branches short-lived and non-stacked; every PR branch starts from latest `origin/main` in its own worktree.
 
 ## Current build check (2026-03-05)
-- Completed log entries: PR1-PR41 (PR20 reserved for numbering reconciliation, PR27 process-only).
-- Next target increment: wire preview renderer/plugin code to call `injectChromeSimEntrypoint(...)` for surface HTML injection, then expand simulator namespace coverage.
+- Completed log entries: PR1-PR42 (PR20 reserved for numbering reconciliation, PR27 process-only).
+- Next target increment: wire preview renderer/plugin code to call `injectChromeSimEntrypoint(...)` so simulator bootstrap runs automatically in preview surfaces.

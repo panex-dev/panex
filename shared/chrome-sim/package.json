@@ -10,7 +10,8 @@
     "./storage": "./src/storage.ts",
     "./registry": "./src/registry.ts",
     "./runtime": "./src/runtime.ts",
-    "./bootstrap": "./src/bootstrap.ts"
+    "./bootstrap": "./src/bootstrap.ts",
+    "./tabs": "./src/tabs.ts"
   },
   "types": "./src/index.ts",
   "scripts": {

@@ -1001,6 +1001,125 @@ func TestWebSocketChromeAPICallRuntimeSendMessageRequiresMessageArg(t *testing.T
 	}
 }
 
+func TestWebSocketChromeAPICallTabsQueryReturnsFilteredTabs(t *testing.T) {
+	server := newTestServer(t)
+	defer server.httpServer.Close()
+
+	conn := dialAuthorizedConnection(t, server.wsURL, server.token)
+	t.Cleanup(func() {
+		_ = conn.Close()
+	})
+
+	_ = mustHandshake(t, conn)
+	waitForConnectionCount(t, server.ws, 1)
+
+	command := protocol.NewChromeAPICall(
+		protocol.Source{Role: protocol.SourceInspector, ID: "inspector-1"},
+		protocol.ChromeAPICall{
+			CallID:    "call-tabs-query-1",
+			Namespace: "tabs",
+			Method:    "query",
+			Args:      []any{map[string]any{"active": true, "currentWindow": true}},
+		},
+	)
+	rawCommand, err := protocol.Encode(command)
+	if err != nil {
+		t.Fatalf("Encode(chrome.api.call tabs.query) returned error: %v", err)
+	}
+	if err := conn.WriteMessage(websocket.BinaryMessage, rawCommand); err != nil {
+		t.Fatalf("WriteMessage(chrome.api.call tabs.query) returned error: %v", err)
+	}
+
+	resultEnvelope := mustReadEnvelopeByName(t, conn, protocol.MessageChromeAPIResult, 2)
+	var result protocol.ChromeAPIResult
+	if err := protocol.DecodePayload(resultEnvelope.Data, &result); err != nil {
+		t.Fatalf("DecodePayload(chrome.api.result tabs.query) returned error: %v", err)
+	}
+	if !result.Success {
+		t.Fatalf("expected tabs.query success=true, got false with error %q", result.Error)
+	}
+	tabs, ok := result.Data.([]any)
+	if !ok {
+		t.Fatalf("expected tabs.query data []any, got %T (%#v)", result.Data, result.Data)
+	}
+	if len(tabs) != 1 {
+		t.Fatalf("unexpected tabs.query result count: got %d, want %d", len(tabs), 1)
+	}
+
+	tab, ok := tabs[0].(map[string]any)
+	if !ok {
+		t.Fatalf("expected tabs.query[0] map payload, got %T (%#v)", tabs[0], tabs[0])
+	}
+	if got := mustInt64(t, tab["id"]); got != 1 {
+		t.Fatalf("unexpected tabs.query[0].id: got %d, want %d", got, 1)
+	}
+	if got, ok := tab["active"].(bool); !ok || !got {
+		t.Fatalf("expected tabs.query[0].active=true, got %#v", tab["active"])
+	}
+	if got, ok := tab["currentWindow"].(bool); !ok || !got {
+		t.Fatalf("expected tabs.query[0].currentWindow=true, got %#v", tab["currentWindow"])
+	}
+}
+
+func TestWebSocketChromeAPICallTabsQueryInvalidFilterReturnsFailureResult(t *testing.T) {
+	server := newTestServer(t)
+	defer server.httpServer.Close()
+
+	conn := dialAuthorizedConnection(t, server.wsURL, server.token)
+	t.Cleanup(func() {
+		_ = conn.Close()
+	})
+
+	_ = mustHandshake(t, conn)
+	waitForConnectionCount(t, server.ws, 1)
+
+	command := protocol.NewChromeAPICall(
+		protocol.Source{Role: protocol.SourceInspector, ID: "inspector-1"},
+		protocol.ChromeAPICall{
+			CallID:    "call-tabs-query-invalid",
+			Namespace: "tabs",
+			Method:    "query",
+			Args:      []any{map[string]any{"active": "yes"}},
+		},
+	)
+	rawCommand, err := protocol.Encode(command)
+	if err != nil {
+		t.Fatalf("Encode(chrome.api.call tabs.query invalid) returned error: %v", err)
+	}
+	if err := conn.WriteMessage(websocket.BinaryMessage, rawCommand); err != nil {
+		t.Fatalf("WriteMessage(chrome.api.call tabs.query invalid) returned error: %v", err)
+	}
+
+	resultEnvelope := mustReadEnvelopeByName(t, conn, protocol.MessageChromeAPIResult, 2)
+	var result protocol.ChromeAPIResult
+	if err := protocol.DecodePayload(resultEnvelope.Data, &result); err != nil {
+		t.Fatalf("DecodePayload(chrome.api.result tabs.query invalid) returned error: %v", err)
+	}
+	if result.Success {
+		t.Fatalf("expected tabs.query invalid filter success=false, got true with data %#v", result.Data)
+	}
+	if !strings.Contains(result.Error, "active filter must be boolean") {
+		t.Fatalf("unexpected tabs.query invalid filter error: %q", result.Error)
+	}
+
+	// Connection remains open after simulator-level validation errors.
+	query := protocol.NewQueryStorage(
+		protocol.Source{Role: protocol.SourceInspector, ID: "inspector-1"},
+		protocol.QueryStorage{Area: "local"},
+	)
+	rawQuery, err := protocol.Encode(query)
+	if err != nil {
+		t.Fatalf("Encode(query.storage follow-up tabs invalid) returned error: %v", err)
+	}
+	if err := conn.WriteMessage(websocket.BinaryMessage, rawQuery); err != nil {
+		t.Fatalf("WriteMessage(query.storage follow-up tabs invalid) returned error: %v", err)
+	}
+	followUp := mustReadEnvelopeByName(t, conn, protocol.MessageStorageResult, 2)
+	if followUp.Name != protocol.MessageStorageResult {
+		t.Fatalf("unexpected follow-up message name: got %q, want %q", followUp.Name, protocol.MessageStorageResult)
+	}
+}
+
 func TestWebSocketChromeAPICallUnsupportedNamespaceReturnsFailureResult(t *testing.T) {
 	server := newTestServer(t)
 	defer server.httpServer.Close()
@@ -1017,8 +1136,8 @@ func TestWebSocketChromeAPICallUnsupportedNamespaceReturnsFailureResult(t *testi
 		protocol.Source{Role: protocol.SourceInspector, ID: "inspector-1"},
 		protocol.ChromeAPICall{
 			CallID:    "call-bad-namespace",
-			Namespace: "tabs",
-			Method:    "query",
+			Namespace: "bookmarks",
+			Method:    "search",
 		},
 	)
 	rawCommand, err := protocol.Encode(command)
