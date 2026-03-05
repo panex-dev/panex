@@ -11,7 +11,10 @@ import {
   type QueryEventsResult,
   type QueryStorage,
   type QueryStorageResult,
+  type StorageClear,
   type StorageDiff,
+  type StorageRemove,
+  type StorageSet,
   type StorageSnapshot
 } from "../../shared/protocol/src/index";
 import {
@@ -48,6 +51,9 @@ interface ConnectionContextValue {
   socketURL: Accessor<string>;
   send: (envelope: Envelope) => boolean;
   refreshStorage: (area?: QueryStorage["area"]) => boolean;
+  setStorageItem: (area: string, key: string, value: unknown) => boolean;
+  removeStorageItem: (area: string, key: string) => boolean;
+  clearStorageArea: (area: string) => boolean;
 }
 
 const ConnectionContext = createContext<ConnectionContextValue>();
@@ -85,6 +91,48 @@ export function ConnectionProvider(props: ParentProps) {
     return true;
   };
 
+  const setStorageItem = (area: string, key: string, value: unknown): boolean => {
+    if (!socket || socket.readyState !== WebSocket.OPEN) {
+      return false;
+    }
+
+    const command = buildStorageSet(area, key, value);
+    if (!command) {
+      return false;
+    }
+
+    socket.send(encode(command));
+    return true;
+  };
+
+  const removeStorageItem = (area: string, key: string): boolean => {
+    if (!socket || socket.readyState !== WebSocket.OPEN) {
+      return false;
+    }
+
+    const command = buildStorageRemove(area, key);
+    if (!command) {
+      return false;
+    }
+
+    socket.send(encode(command));
+    return true;
+  };
+
+  const clearStorageArea = (area: string): boolean => {
+    if (!socket || socket.readyState !== WebSocket.OPEN) {
+      return false;
+    }
+
+    const command = buildStorageClear(area);
+    if (!command) {
+      return false;
+    }
+
+    socket.send(encode(command));
+    return true;
+  };
+
   const connect = () => {
     if (stopped) {
       return;
@@ -111,7 +159,14 @@ export function ConnectionProvider(props: ParentProps) {
           protocol_version: PROTOCOL_VERSION,
           client_kind: "inspector",
           client_version: "dev",
-          capabilities_requested: ["query.events", "query.storage", "storage.diff"]
+          capabilities_requested: [
+            "query.events",
+            "query.storage",
+            "storage.diff",
+            "storage.set",
+            "storage.remove",
+            "storage.clear"
+          ]
         }
       };
 
@@ -226,7 +281,10 @@ export function ConnectionProvider(props: ParentProps) {
       lastError,
       socketURL: () => daemonURL,
       send,
-      refreshStorage
+      refreshStorage,
+      setStorageItem,
+      removeStorageItem,
+      clearStorageArea
     },
     get children() {
       return props.children;
@@ -302,7 +360,7 @@ function applyStorageDiffState(
 }
 
 function buildStorageQuery(area?: QueryStorage["area"]): Envelope<QueryStorage> {
-  const normalizedArea = normalizeArea(area);
+  const normalizedArea = normalizeStorageArea(area);
 
   return {
     v: PROTOCOL_VERSION,
@@ -310,6 +368,62 @@ function buildStorageQuery(area?: QueryStorage["area"]): Envelope<QueryStorage> 
     name: "query.storage",
     src: { role: "inspector", id: inspectorID },
     data: typeof normalizedArea === "string" ? { area: normalizedArea } : {}
+  };
+}
+
+function buildStorageSet(area: string, key: string, value: unknown): Envelope<StorageSet> | null {
+  const normalizedArea = normalizeStorageArea(area);
+  const normalizedKey = normalizeStorageKey(key);
+  if (!normalizedArea || !normalizedKey) {
+    return null;
+  }
+
+  return {
+    v: PROTOCOL_VERSION,
+    t: "command",
+    name: "storage.set",
+    src: { role: "inspector", id: inspectorID },
+    data: {
+      area: normalizedArea,
+      key: normalizedKey,
+      value
+    }
+  };
+}
+
+function buildStorageRemove(area: string, key: string): Envelope<StorageRemove> | null {
+  const normalizedArea = normalizeStorageArea(area);
+  const normalizedKey = normalizeStorageKey(key);
+  if (!normalizedArea || !normalizedKey) {
+    return null;
+  }
+
+  return {
+    v: PROTOCOL_VERSION,
+    t: "command",
+    name: "storage.remove",
+    src: { role: "inspector", id: inspectorID },
+    data: {
+      area: normalizedArea,
+      key: normalizedKey
+    }
+  };
+}
+
+function buildStorageClear(area: string): Envelope<StorageClear> | null {
+  const normalizedArea = normalizeStorageArea(area);
+  if (!normalizedArea) {
+    return null;
+  }
+
+  return {
+    v: PROTOCOL_VERSION,
+    t: "command",
+    name: "storage.clear",
+    src: { role: "inspector", id: inspectorID },
+    data: {
+      area: normalizedArea
+    }
   };
 }
 
@@ -344,12 +458,23 @@ function nonEmpty(value: string | null, fallback: string): string {
   return trimmed.length > 0 ? trimmed : fallback;
 }
 
-function normalizeArea(area: QueryStorage["area"]): string | undefined {
+function normalizeStorageArea(
+  area: QueryStorage["area"]
+): "local" | "sync" | "session" | undefined {
   if (typeof area !== "string") {
     return undefined;
   }
 
   const trimmed = area.trim().toLowerCase();
+  if (trimmed === "local" || trimmed === "sync" || trimmed === "session") {
+    return trimmed;
+  }
+
+  return undefined;
+}
+
+function normalizeStorageKey(key: string): string | undefined {
+  const trimmed = key.trim();
   return trimmed.length > 0 ? trimmed : undefined;
 }
 

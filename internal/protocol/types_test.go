@@ -23,6 +23,9 @@ func TestMessageTypeForName(t *testing.T) {
 		{name: MessageQueryStorage, want: TypeCommand, wantOK: true, caseTag: "query.storage"},
 		{name: MessageStorageResult, want: TypeEvent, wantOK: true, caseTag: "query.storage.result"},
 		{name: MessageStorageDiff, want: TypeEvent, wantOK: true, caseTag: "storage.diff"},
+		{name: MessageStorageSet, want: TypeCommand, wantOK: true, caseTag: "storage.set"},
+		{name: MessageStorageRemove, want: TypeCommand, wantOK: true, caseTag: "storage.remove"},
+		{name: MessageStorageClear, want: TypeCommand, wantOK: true, caseTag: "storage.clear"},
 		{name: MessageName("unknown"), want: "", wantOK: false, caseTag: "unknown"},
 	}
 
@@ -277,6 +280,36 @@ func TestConstructors(t *testing.T) {
 			wantType:     TypeEvent,
 			wantName:     MessageStorageDiff,
 			wantDataType: StorageDiff{},
+		},
+		{
+			name: "storage.set",
+			got: NewStorageSet(src, StorageSet{
+				Area:  "local",
+				Key:   "theme",
+				Value: "dark",
+			}),
+			wantType:     TypeCommand,
+			wantName:     MessageStorageSet,
+			wantDataType: StorageSet{},
+		},
+		{
+			name: "storage.remove",
+			got: NewStorageRemove(src, StorageRemove{
+				Area: "local",
+				Key:  "theme",
+			}),
+			wantType:     TypeCommand,
+			wantName:     MessageStorageRemove,
+			wantDataType: StorageRemove{},
+		},
+		{
+			name: "storage.clear",
+			got: NewStorageClear(src, StorageClear{
+				Area: "local",
+			}),
+			wantType:     TypeCommand,
+			wantName:     MessageStorageClear,
+			wantDataType: StorageClear{},
 		},
 	}
 

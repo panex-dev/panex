@@ -41,6 +41,6 @@ In every PR description:
 5. Record architectural decisions in ADRs at decision time, not later.
 6. Keep branches short-lived and non-stacked; every PR branch starts from latest `origin/main` in its own worktree.
 
-## Current build check (2026-03-04)
-- Completed log entries: PR1-PR34 (PR20 reserved for numbering reconciliation, PR27 process-only).
-- Next target increment: transport wiring for storage simulation mutation calls.
+## Current build check (2026-03-05)
+- Completed log entries: PR1-PR35 (PR20 reserved for numbering reconciliation, PR27 process-only).
+- Next target increment: simulator transport envelope family (`chrome.api.call`, `chrome.api.result`, `chrome.api.event`).

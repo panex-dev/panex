@@ -29,6 +29,9 @@ const (
 	MessageQueryStorage  MessageName = "query.storage"
 	MessageStorageResult MessageName = "query.storage.result"
 	MessageStorageDiff   MessageName = "storage.diff"
+	MessageStorageSet    MessageName = "storage.set"
+	MessageStorageRemove MessageName = "storage.remove"
+	MessageStorageClear  MessageName = "storage.clear"
 )
 
 type SourceRole string
@@ -157,6 +160,21 @@ type StorageChange struct {
 	NewValue any    `msgpack:"new_value,omitempty"`
 }
 
+type StorageSet struct {
+	Area  string `msgpack:"area"`
+	Key   string `msgpack:"key"`
+	Value any    `msgpack:"value"`
+}
+
+type StorageRemove struct {
+	Area string `msgpack:"area"`
+	Key  string `msgpack:"key"`
+}
+
+type StorageClear struct {
+	Area string `msgpack:"area"`
+}
+
 var messageTypeByName = map[MessageName]MessageType{
 	MessageHello:         TypeLifecycle,
 	MessageHelloAck:      TypeLifecycle,
@@ -168,6 +186,9 @@ var messageTypeByName = map[MessageName]MessageType{
 	MessageQueryStorage:  TypeCommand,
 	MessageStorageResult: TypeEvent,
 	MessageStorageDiff:   TypeEvent,
+	MessageStorageSet:    TypeCommand,
+	MessageStorageRemove: TypeCommand,
+	MessageStorageClear:  TypeCommand,
 }
 
 func MessageTypeForName(name MessageName) (MessageType, bool) {
@@ -213,6 +234,18 @@ func NewQueryStorageResult(src Source, data QueryStorageResult) Envelope {
 
 func NewStorageDiff(src Source, data StorageDiff) Envelope {
 	return newEnvelope(TypeEvent, MessageStorageDiff, src, data)
+}
+
+func NewStorageSet(src Source, data StorageSet) Envelope {
+	return newEnvelope(TypeCommand, MessageStorageSet, src, data)
+}
+
+func NewStorageRemove(src Source, data StorageRemove) Envelope {
+	return newEnvelope(TypeCommand, MessageStorageRemove, src, data)
+}
+
+func NewStorageClear(src Source, data StorageClear) Envelope {
+	return newEnvelope(TypeCommand, MessageStorageClear, src, data)
 }
 
 func newEnvelope(messageType MessageType, name MessageName, src Source, data any) Envelope {
