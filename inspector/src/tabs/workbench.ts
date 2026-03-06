@@ -1,5 +1,5 @@
 import html from "solid-js/html";
-import { createMemo, type Accessor } from "solid-js";
+import { createMemo, createSignal, type Accessor } from "solid-js";
 
 import type { StorageSnapshot } from "@panex/protocol";
 
@@ -13,15 +13,17 @@ interface WorkbenchTabProps {
   lastError: Accessor<string | null>;
   storage: Accessor<StorageSnapshot[]>;
   timeline: Accessor<TimelineEntry[]>;
+  setStorageItem: (area: string, key: string, value: unknown) => boolean;
+  removeStorageItem: (area: string, key: string) => boolean;
 }
 
 const plannedTools = [
-  "Preset storage mutations",
   "Runtime message probes",
   "Replay controls"
 ] as const;
 
 export function WorkbenchTab(props: WorkbenchTabProps) {
+  const [presetMessage, setPresetMessage] = createSignal<string | null>(null);
   const model = createMemo(() =>
     buildWorkbenchModel({
       status: props.status(),
@@ -45,16 +47,60 @@ export function WorkbenchTab(props: WorkbenchTabProps) {
     });
   };
 
+  const presetRows = () =>
+    model().storagePresets.map((preset) => {
+      return html`<li class="workbench-preset">
+        <div class="workbench-preset-copy">
+          <div class="workbench-preset-heading">
+            <strong>${preset.label}</strong>
+            <span class=${`workbench-pill workbench-pill-${preset.state}`}>${preset.state}</span>
+          </div>
+          <p class="subtle">${preset.description}</p>
+          <p class="subtle">
+            <code>${preset.area}</code> / <code>${preset.key}</code>
+          </p>
+          <p class="subtle">
+            ${preset.currentValueText
+              ? html`Current: <code>${preset.currentValueText}</code>`
+              : "Current: not set"}
+          </p>
+        </div>
+
+        <div class="workbench-preset-actions">
+          <button
+            class="filter-reset"
+            type="button"
+            disabled=${() => props.status() !== "open"}
+            onClick=${() => {
+              const sent =
+                preset.actionLabel === "remove"
+                  ? props.removeStorageItem(preset.area, preset.key)
+                  : props.setStorageItem(preset.area, preset.key, preset.value);
+
+              setPresetMessage(
+                sent
+                  ? `Sent storage.${preset.actionLabel === "remove" ? "remove" : "set"} for ${preset.key}.`
+                  : `Unable to send ${preset.actionLabel} for ${preset.key} while websocket is closed.`
+              );
+            }}
+          >
+            ${preset.actionLabel}
+          </button>
+        </div>
+      </li>`;
+    });
+
   return html`<section class="panel workbench-panel">
     <div class="panel-header">
       <h2>Workbench</h2>
-      <p>read-only overview</p>
+      <p>overview + presets</p>
     </div>
 
     <div class="workbench-intro">
       <p>
-        Workbench is enabled as an operator cockpit in this milestone. It surfaces live state from the
-        existing inspector connection without introducing new daemon or protocol actions yet.
+        Workbench now exposes the first operator action using the existing storage mutation path. Every
+        preset is reversible and restricted to <code>panex.workbench.*</code> keys so the surface stays
+        safe while the broader tool model evolves.
       </p>
     </div>
 
@@ -86,12 +132,29 @@ export function WorkbenchTab(props: WorkbenchTabProps) {
         <ul class="workbench-list">${storageAreaRows}</ul>
       </article>
 
+      <article class="workbench-card workbench-card-wide">
+        <p class="workbench-eyebrow">Storage presets</p>
+        <strong class="workbench-metric">3 reversible actions</strong>
+        <p class="subtle">
+          These presets only touch namespaced demo keys and automatically switch between apply, update,
+          and remove based on the current storage snapshot.
+        </p>
+        ${() =>
+          presetMessage() ? html`<p class="subtle">${presetMessage()}</p>` : null}
+        ${() =>
+          props.status() === "open"
+            ? null
+            : html`<p class="subtle">Presets become available after the daemon websocket opens.</p>`}
+        <ul class="workbench-preset-list">${presetRows}</ul>
+      </article>
+
       <article class="workbench-card">
-        <p class="workbench-eyebrow">Planned tools</p>
+        <p class="workbench-eyebrow">Roadmap</p>
+        <strong class="workbench-metric">1 live tool</strong>
         <ul class="workbench-list">
           ${plannedTools.map((label) => html`<li><span>${label}</span><strong>planned</strong></li>`)}
         </ul>
-        <p class="subtle">No mutating actions are exposed from Workbench in this milestone.</p>
+        <p class="subtle">Preset storage mutations are live. The remaining tools stay intentionally deferred.</p>
       </article>
     </div>
   </section>`;

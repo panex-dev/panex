@@ -49,7 +49,9 @@ function InspectorApp() {
           socketURL: connection.socketURL,
           lastError: connection.lastError,
           storage: connection.storage,
-          timeline: connection.timeline
+          timeline: connection.timeline,
+          setStorageItem: connection.setStorageItem,
+          removeStorageItem: connection.removeStorageItem
         });
       case "replay":
         return disabledTab(activeTab);
