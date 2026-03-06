@@ -206,63 +206,73 @@ func runBuildLoop(
 	server envelopeBroadcaster,
 	changeEvents <-chan daemon.FileChangeEvent,
 ) error {
-	for {
-		select {
-		case <-ctx.Done():
-			return nil
-		case event := <-changeEvents:
-			result, err := builder.Build(ctx, event.Paths)
-			if err != nil {
-				result = build.Result{
-					BuildID:      fmt.Sprintf("build-failed-%d", atomic.AddUint64(&buildFailureSeq, 1)),
-					Success:      false,
-					DurationMS:   0,
-					ChangedFiles: event.Paths,
-					Errors:       []string{err.Error()},
-				}
+	runBuild := func(changedPaths []string, reloadReason string) {
+		result, err := builder.Build(ctx, changedPaths)
+		if err != nil {
+			result = build.Result{
+				BuildID:      fmt.Sprintf("build-failed-%d", atomic.AddUint64(&buildFailureSeq, 1)),
+				Success:      false,
+				DurationMS:   0,
+				ChangedFiles: changedPaths,
+				Errors:       []string{err.Error()},
 			}
+		}
 
+		if broadcastErr := server.Broadcast(ctx,
+			protocol.NewBuildComplete(
+				protocol.Source{
+					Role: protocol.SourceDaemon,
+					ID:   "daemon-1",
+				},
+				protocol.BuildComplete{
+					BuildID:      result.BuildID,
+					Success:      result.Success,
+					DurationMS:   result.DurationMS,
+					ChangedFiles: result.ChangedFiles,
+				},
+			),
+		); broadcastErr != nil && !errors.Is(ctx.Err(), context.Canceled) {
+			// Broadcast failures are non-fatal to the daemon loop; disconnected clients should not stop builds.
+			_ = writef(os.Stderr, "broadcast build.complete failed: %v\n", broadcastErr)
+		}
+
+		if result.Success {
+			// Reload commands are emitted only after successful builds so clients can treat reload as a
+			// strong signal that new artifacts exist in the output directory.
 			if broadcastErr := server.Broadcast(ctx,
-				protocol.NewBuildComplete(
+				protocol.NewCommandReload(
 					protocol.Source{
 						Role: protocol.SourceDaemon,
 						ID:   "daemon-1",
 					},
-					protocol.BuildComplete{
-						BuildID:      result.BuildID,
-						Success:      result.Success,
-						DurationMS:   result.DurationMS,
-						ChangedFiles: result.ChangedFiles,
+					protocol.CommandReload{
+						Reason:  reloadReason,
+						BuildID: result.BuildID,
 					},
 				),
 			); broadcastErr != nil && !errors.Is(ctx.Err(), context.Canceled) {
-				// Broadcast failures are non-fatal to the daemon loop; disconnected clients should not stop builds.
-				_ = writef(os.Stderr, "broadcast build.complete failed: %v\n", broadcastErr)
+				_ = writef(os.Stderr, "broadcast command.reload failed: %v\n", broadcastErr)
+			}
+		}
+
+		// Keep diagnostics available in daemon logs until inspector/event-store steps are implemented.
+		for _, diagnostic := range result.Errors {
+			_ = writef(os.Stderr, "build %s error: %s\n", result.BuildID, diagnostic)
+		}
+	}
+
+	runBuild(nil, "startup")
+
+	for {
+		select {
+		case <-ctx.Done():
+			return nil
+		case event, ok := <-changeEvents:
+			if !ok {
+				return nil
 			}
 
-			if result.Success {
-				// Reload commands are emitted only after successful builds so clients can treat reload as a
-				// strong signal that new artifacts exist in the output directory.
-				if broadcastErr := server.Broadcast(ctx,
-					protocol.NewCommandReload(
-						protocol.Source{
-							Role: protocol.SourceDaemon,
-							ID:   "daemon-1",
-						},
-						protocol.CommandReload{
-							Reason:  "build.complete",
-							BuildID: result.BuildID,
-						},
-					),
-				); broadcastErr != nil && !errors.Is(ctx.Err(), context.Canceled) {
-					_ = writef(os.Stderr, "broadcast command.reload failed: %v\n", broadcastErr)
-				}
-			}
-
-			// Keep diagnostics available in daemon logs until inspector/event-store steps are implemented.
-			for _, diagnostic := range result.Errors {
-				_ = writef(os.Stderr, "build %s error: %s\n", result.BuildID, diagnostic)
-			}
+			runBuild(event.Paths, "build.complete")
 		}
 	}
 }

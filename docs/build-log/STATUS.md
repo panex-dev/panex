@@ -1,6 +1,6 @@
 # Build Status Tracker
 
-As of 2026-03-05.
+As of 2026-03-06.
 
 ## Completed
 | PR | Scope | Evidence |
@@ -45,12 +45,13 @@ As of 2026-03-05.
 | 42 | Tabs namespace extension (`tabs.query`) across daemon router + chrome-sim shim | `docs/build-log/2026-03-05-pr-042-tabs-query-daemon-chrome-sim.md` |
 | 45 | Inspector preview build hook calls `injectChromeSimEntrypoint(...)` and emits injected `dist/index.html` | `docs/build-log/2026-03-05-pr-045-inspector-preview-injection-hook.md` |
 | 46 | Core Go build pipeline copies HTML surfaces and injects `chrome-sim` bootstrap | `docs/build-log/2026-03-06-pr-046-core-build-html-chrome-sim-injection.md` |
+| 47 | Daemon startup build before steady-state watch loop | `docs/build-log/2026-03-06-pr-047-startup-build.md` |
 
 ## In progress
 - None.
 
 ## Next
-- Extend the core build pipeline to copy remaining extension-facing static assets that HTML pages depend on, especially manifest-linked icons and other non-bundled files.
+- Prevent overlapping `extension.source_dir` and `extension.out_dir` values so build outputs cannot feed back into the watcher.
 
 ## Notes
 - PR20 is intentionally reserved as documentation reconciliation so sequence alignment is explicit and auditable.
