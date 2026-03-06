@@ -12,10 +12,10 @@ Before this package, both clients defined envelope names/types independently, wh
 
 ## Usage
 
-Import directly from source inside this repo:
+Import from the workspace package entrypoint inside this repo:
 
 ```ts
-import { isEnvelope, type Envelope } from "../../shared/protocol/src/index";
+import { isEnvelope, type Envelope } from "@panex/protocol";
 ```
 
 ## Rule

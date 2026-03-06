@@ -9,7 +9,7 @@ import {
   normalizeStorageSnapshots,
   storageRowID
 } from "../src/storage";
-import type { QueryStorageResult, StorageDiff, StorageSnapshot } from "../../shared/protocol/src/index";
+import type { QueryStorageResult, StorageDiff, StorageSnapshot } from "@panex/protocol";
 
 describe("storage snapshot normalization", () => {
   it("normalizes valid snapshots and drops invalid entries", () => {

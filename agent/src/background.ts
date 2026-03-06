@@ -1,5 +1,5 @@
 import { decode, encode } from "@msgpack/msgpack";
-import { PROTOCOL_VERSION, isEnvelope, type Envelope, type Hello } from "../../shared/protocol/src/index";
+import { PROTOCOL_VERSION, isEnvelope, type Envelope, type Hello } from "@panex/protocol";
 
 import { buildDaemonURL, loadConfig } from "./config";
 import { handleReloadCommand } from "./reload";

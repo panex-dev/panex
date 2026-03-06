@@ -3,7 +3,7 @@ import type {
   EnvelopeType,
   EventSnapshot,
   Source
-} from "../../shared/protocol/src/index";
+} from "@panex/protocol";
 
 export interface TimelineEntry {
   key: string;

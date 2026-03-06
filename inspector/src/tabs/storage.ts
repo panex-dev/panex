@@ -1,7 +1,7 @@
 import html from "solid-js/html";
 import { createEffect, createMemo, createSignal, type Accessor } from "solid-js";
 
-import type { QueryStorage, StorageSnapshot } from "../../../shared/protocol/src/index";
+import type { QueryStorage, StorageSnapshot } from "@panex/protocol";
 import type { ConnectionStatus } from "../connection";
 import {
   flattenStorageSnapshots,
