@@ -50,12 +50,13 @@ As of 2026-03-06.
 | 49 | Align root commands and CI with the polyglot build surface | `docs/build-log/2026-03-06-pr-049-root-build-ci-coverage.md` |
 | 50 | Require frozen lockfiles for every TypeScript package install | `docs/build-log/2026-03-06-pr-050-js-determinism.md` |
 | 51 | Consolidate TypeScript dependency installs under one root `pnpm` workspace lockfile | `docs/build-log/2026-03-06-pr-051-pnpm-workspace.md` |
+| 52 | Extract shared TypeScript compiler presets while keeping package-local build behavior | `docs/build-log/2026-03-06-pr-052-tsconfig-presets.md` |
 
 ## In progress
 - None.
 
 ## Next
-- Decide whether shared TypeScript config/scripts should be centralized now that dependency installation is unified at the workspace root.
+- Move cross-package TypeScript imports onto workspace package entrypoints before considering deeper shared script/build abstractions.
 
 ## Notes
 - PR20 is intentionally reserved as documentation reconciliation so sequence alignment is explicit and auditable.

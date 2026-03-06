@@ -42,5 +42,5 @@ In every PR description:
 6. Keep branches short-lived and non-stacked; every PR branch starts from latest `origin/main` in its own worktree.
 
 ## Current build check (2026-03-06)
-- Completed log entries: PR1-PR42 and PR45-PR51 (PR20 reserved for numbering reconciliation, PR27 process-only).
-- Next target increment: decide whether shared TypeScript config/scripts should be centralized now that dependency installation is unified at the workspace root.
+- Completed log entries: PR1-PR42 and PR45-PR52 (PR20 reserved for numbering reconciliation, PR27 process-only).
+- Next target increment: move cross-package TypeScript imports onto workspace package entrypoints before considering deeper shared script/build abstractions.
