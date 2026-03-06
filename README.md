@@ -18,10 +18,11 @@ go mod verify
 
 ## Development
 ```bash
+make check  # type-check TypeScript packages
 make fmt    # format code
 make lint   # run linters
-make test   # run tests with race detector
-make build  # compile to ./bin/panex
+make test   # run Go tests with race detector + TypeScript package tests
+make build  # compile ./bin/panex + frontend build outputs
 ```
 
 ## Branch Workflow
@@ -56,6 +57,15 @@ After a PR is merged, delete branch/worktree and return to `main`:
 - `inspector/`: SolidJS timeline inspector (`pnpm run check|test|build`)
 - `shared/protocol/`: shared TypeScript protocol contract consumed by both clients
 - `shared/chrome-sim/`: browser shim that routes `chrome.*` simulator calls over daemon WebSocket
+
+Install package dependencies once per package before using the root TypeScript targets:
+
+```bash
+pnpm --dir shared/protocol install
+pnpm --dir agent install
+pnpm --dir inspector install
+pnpm --dir shared/chrome-sim install
+```
 
 ## Architecture Decisions
 

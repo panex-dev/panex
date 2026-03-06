@@ -47,12 +47,13 @@ As of 2026-03-06.
 | 46 | Core Go build pipeline copies HTML surfaces and injects `chrome-sim` bootstrap | `docs/build-log/2026-03-06-pr-046-core-build-html-chrome-sim-injection.md` |
 | 47 | Daemon startup build before steady-state watch loop | `docs/build-log/2026-03-06-pr-047-startup-build.md` |
 | 48 | Reject overlapping extension source/output directories | `docs/build-log/2026-03-06-pr-048-source-outdir-overlap-guard.md` |
+| 49 | Align root commands and CI with the polyglot build surface | `docs/build-log/2026-03-06-pr-049-root-build-ci-coverage.md` |
 
 ## In progress
 - None.
 
 ## Next
-- Add repo-level build coverage and CI checks for the full Go + TypeScript toolchain so the documented top-level workflow matches the actual project surface.
+- Eliminate the remaining no-lockfile TypeScript install path and decide whether the frontend packages should move under a shared workspace for deterministic installs.
 
 ## Notes
 - PR20 is intentionally reserved as documentation reconciliation so sequence alignment is explicit and auditable.

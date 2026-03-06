@@ -44,6 +44,9 @@ jobs:
       - name: Run tests
         run: go test -race -count=1 ./...
 
+      - name: Build daemon
+        run: go build ./cmd/panex/...
+
   typescript:
     runs-on: ubuntu-latest
     strategy:
@@ -52,12 +55,16 @@ jobs:
         package:
           - name: shared-protocol
             dir: shared/protocol
+            build: false
           - name: dev-agent
             dir: agent
+            build: true
           - name: inspector
             dir: inspector
+            build: true
           - name: chrome-sim
             dir: shared/chrome-sim
+            build: false
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -94,3 +101,7 @@ jobs:
 
       - name: Test
         run: pnpm --dir "${{ matrix.package.dir }}" run test
+
+      - name: Build
+        if: ${{ matrix.package.build }}
+        run: pnpm --dir "${{ matrix.package.dir }}" run build
