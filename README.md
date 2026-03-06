@@ -58,13 +58,10 @@ After a PR is merged, delete branch/worktree and return to `main`:
 - `shared/protocol/`: shared TypeScript protocol contract consumed by both clients
 - `shared/chrome-sim/`: browser shim that routes `chrome.*` simulator calls over daemon WebSocket
 
-Install package dependencies once per package before using the root TypeScript targets:
+Install TypeScript dependencies once from the repo root before using the root TypeScript targets:
 
 ```bash
-pnpm --dir shared/protocol install
-pnpm --dir agent install
-pnpm --dir inspector install
-pnpm --dir shared/chrome-sim install
+pnpm install --frozen-lockfile
 ```
 
 ## Architecture Decisions
