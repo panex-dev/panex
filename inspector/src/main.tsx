@@ -10,6 +10,7 @@ import { Sidebar } from "./sidebar";
 import { Shell, type ShellTabSpec } from "./shell";
 import { StorageTab } from "./tabs/storage";
 import { TimelineTab } from "./tabs/timeline";
+import { WorkbenchTab } from "./tabs/workbench";
 
 const appRoot = document.getElementById("app");
 if (!appRoot) {
@@ -19,7 +20,7 @@ if (!appRoot) {
 const tabs: readonly ShellTabSpec[] = [
   { id: "timeline", label: "Timeline" },
   { id: "storage", label: "Storage" },
-  { id: "workbench", label: "Workbench", disabled: true },
+  { id: "workbench", label: "Workbench" },
   { id: "replay", label: "Replay", disabled: true }
 ];
 
@@ -43,6 +44,13 @@ function InspectorApp() {
           clearStorageArea: connection.clearStorageArea
         });
       case "workbench":
+        return WorkbenchTab({
+          status: connection.status,
+          socketURL: connection.socketURL,
+          lastError: connection.lastError,
+          storage: connection.storage,
+          timeline: connection.timeline
+        });
       case "replay":
         return disabledTab(activeTab);
       default:
