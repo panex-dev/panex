@@ -81,8 +81,8 @@ func NewEsbuildBuilder(sourceDir, outDir string, opts ...Option) (*EsbuildBuilde
 	if err != nil {
 		return nil, fmt.Errorf("resolve output directory %q: %w", outDir, err)
 	}
-	if absSourceDir == absOutDir {
-		return nil, errors.New("source and output directories must differ")
+	if pathsOverlap(absSourceDir, absOutDir) {
+		return nil, errors.New("source and output directories must not overlap")
 	}
 
 	config := builderOptions{}
@@ -97,6 +97,22 @@ func NewEsbuildBuilder(sourceDir, outDir string, opts ...Option) (*EsbuildBuilde
 		outDir:    absOutDir,
 		options:   config,
 	}, nil
+}
+
+func pathsOverlap(first, second string) bool {
+	return isSameOrNestedPath(first, second) || isSameOrNestedPath(second, first)
+}
+
+func isSameOrNestedPath(parent, child string) bool {
+	relPath, err := filepath.Rel(parent, child)
+	if err != nil {
+		return false
+	}
+	if relPath == "." {
+		return true
+	}
+
+	return relPath != ".." && !strings.HasPrefix(relPath, ".."+string(filepath.Separator))
 }
 
 func (b *EsbuildBuilder) Build(ctx context.Context, changedPaths []string) (Result, error) {

@@ -167,7 +167,33 @@ out_dir = "./same-dir"
 port = 4317
 auth_token = "test-token"
 `,
-			wantError: "extension.source_dir and extension.out_dir must differ",
+			wantError: "extension.source_dir and extension.out_dir must not overlap",
+		},
+		{
+			name: "out_dir nested within source_dir",
+			tomlData: `
+[extension]
+source_dir = "./extension"
+out_dir = "./extension/dist"
+
+[server]
+port = 4317
+auth_token = "test-token"
+`,
+			wantError: "extension.source_dir and extension.out_dir must not overlap",
+		},
+		{
+			name: "source_dir nested within out_dir",
+			tomlData: `
+[extension]
+source_dir = "./workspace/src"
+out_dir = "./workspace"
+
+[server]
+port = 4317
+auth_token = "test-token"
+`,
+			wantError: "extension.source_dir and extension.out_dir must not overlap",
 		},
 	}
 
