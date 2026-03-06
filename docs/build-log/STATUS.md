@@ -55,12 +55,13 @@ As of 2026-03-06.
 | 54 | Enable the first real Workbench tab as a read-only operator overview | `docs/build-log/2026-03-06-pr-054-workbench-tab.md` |
 | 55 | Add reversible namespaced storage presets as the first actionable Workbench tool | `docs/build-log/2026-03-06-pr-055-workbench-storage-presets.md` |
 | 56 | Add the first namespaced Workbench runtime probe on top of `runtime.sendMessage` | `docs/build-log/2026-03-06-pr-056-workbench-runtime-probe.md` |
+| 57 | Add the first Workbench replay control by replaying the latest observed runtime probe payload | `docs/build-log/2026-03-06-pr-057-workbench-replay-control.md` |
 
 ## In progress
 - None.
 
 ## Next
-- Add the first Workbench replay control on top of existing timeline state without widening daemon scope prematurely.
+- Decide whether to graduate the disabled Replay tab into a focused history-driven surface using the Workbench-proven replay pattern without widening daemon scope.
 
 ## Notes
 - PR20 is intentionally reserved as documentation reconciliation so sequence alignment is explicit and auditable.

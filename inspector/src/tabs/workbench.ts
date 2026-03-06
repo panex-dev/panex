@@ -18,11 +18,12 @@ interface WorkbenchTabProps {
   sendRuntimeMessage: (message: unknown) => boolean;
 }
 
-const plannedTools = ["Replay controls"] as const;
+const plannedTools = [] as const;
 
 export function WorkbenchTab(props: WorkbenchTabProps) {
   const [presetMessage, setPresetMessage] = createSignal<string | null>(null);
   const [runtimeMessage, setRuntimeMessage] = createSignal<string | null>(null);
+  const [replayMessage, setReplayMessage] = createSignal<string | null>(null);
   const model = createMemo(() =>
     buildWorkbenchModel({
       status: props.status(),
@@ -166,6 +167,34 @@ export function WorkbenchTab(props: WorkbenchTabProps) {
               ? `Last onMessage payload: ${runtimeProbe().lastEventText}`
               : "Last onMessage payload: none yet"}
         </p>
+        <p class="subtle">
+          ${() =>
+            runtimeProbe().replaySourceText
+              ? `Replay source: ${runtimeProbe().replaySourceText}`
+              : "Replay source: unavailable until the timeline captures a runtime probe."}
+        </p>
+        <button
+          class="filter-reset"
+          type="button"
+          disabled=${() => props.status() !== "open" || runtimeProbe().replayPayload === null}
+          onClick=${() => {
+            const replayPayload = runtimeProbe().replayPayload;
+            if (!replayPayload) {
+              setReplayMessage("No replayable runtime payload has been observed yet.");
+              return;
+            }
+
+            const sent = props.sendRuntimeMessage(replayPayload);
+            setReplayMessage(
+              sent
+                ? `Replayed runtime.sendMessage from ${runtimeProbe().replaySourceText}.`
+                : "Unable to replay the last runtime payload while websocket is closed."
+            );
+          }}
+        >
+          replay last runtime payload
+        </button>
+        ${() => (replayMessage() ? html`<p class="subtle">${replayMessage()}</p>` : null)}
       </article>
 
       <article class="workbench-card workbench-card-wide">
@@ -186,11 +215,14 @@ export function WorkbenchTab(props: WorkbenchTabProps) {
 
       <article class="workbench-card">
         <p class="workbench-eyebrow">Roadmap</p>
-        <strong class="workbench-metric">2 live tools</strong>
-        <ul class="workbench-list">
-          ${plannedTools.map((label) => html`<li><span>${label}</span><strong>planned</strong></li>`)}
-        </ul>
-        <p class="subtle">Storage presets and the runtime ping probe are live. The remaining tools stay intentionally deferred.</p>
+        <strong class="workbench-metric">3 live controls</strong>
+        ${() =>
+          plannedTools.length === 0
+            ? html`<p class="subtle">Replay controls are now live through the runtime replay button. Broader tooling remains intentionally deferred.</p>`
+            : html`<ul class="workbench-list">
+                ${plannedTools.map((label) => html`<li><span>${label}</span><strong>planned</strong></li>`)}
+              </ul>`}
+        <p class="subtle">Storage presets, the runtime ping probe, and replay of the latest runtime payload are live.</p>
       </article>
     </div>
   </section>`;

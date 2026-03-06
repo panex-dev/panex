@@ -41,6 +41,9 @@ export interface WorkbenchRuntimeProbeSummary extends WorkbenchRuntimeProbeDefin
   lastResultText: string | null;
   lastEventText: string | null;
   lastActivityAtMS: number | null;
+  replayPayload: Record<string, unknown> | null;
+  replayPayloadText: string | null;
+  replaySourceText: string | null;
 }
 
 export interface WorkbenchTimelineSummary {
@@ -176,6 +179,7 @@ export function summarizeRuntimeProbe(
 ): WorkbenchRuntimeProbeSummary {
   const lastResult = findLatestRuntimeProbeResult(timeline);
   const lastEvent = findLatestRuntimeProbeEvent(timeline);
+  const replayPayload = selectReplayPayload(lastResult, lastEvent);
   const lastActivityAtMS =
     typeof lastResult?.recordedAtMS === "number" && typeof lastEvent?.recordedAtMS === "number"
       ? Math.max(lastResult.recordedAtMS, lastEvent.recordedAtMS)
@@ -186,7 +190,10 @@ export function summarizeRuntimeProbe(
     payloadText: formatStorageValue(runtimeProbeDefinition.payload),
     lastResultText: lastResult ? formatRuntimeResult(lastResult.result) : null,
     lastEventText: lastEvent ? formatStorageValue(lastEvent.message) : null,
-    lastActivityAtMS
+    lastActivityAtMS,
+    replayPayload,
+    replayPayloadText: replayPayload ? formatStorageValue(replayPayload) : null,
+    replaySourceText: describeReplaySource(lastResult, lastEvent, replayPayload)
   };
 }
 
@@ -302,7 +309,7 @@ function stableValueText(value: unknown, seen = new WeakSet<object>()): string {
 
 function findLatestRuntimeProbeResult(
   timeline: TimelineEntry[]
-): { recordedAtMS: number; result: ChromeAPIResult } | null {
+): { recordedAtMS: number; payload: Record<string, unknown>; result: ChromeAPIResult } | null {
   for (let index = timeline.length - 1; index >= 0; index -= 1) {
     const entry = timeline[index];
     if (!entry) {
@@ -311,7 +318,11 @@ function findLatestRuntimeProbeResult(
 
     const result = decodeRuntimeProbeResult(entry);
     if (result) {
-      return { recordedAtMS: entry.recordedAtMS, result };
+      return {
+        recordedAtMS: entry.recordedAtMS,
+        payload: result.data as Record<string, unknown>,
+        result
+      };
     }
   }
 
@@ -320,7 +331,7 @@ function findLatestRuntimeProbeResult(
 
 function findLatestRuntimeProbeEvent(
   timeline: TimelineEntry[]
-): { recordedAtMS: number; message: unknown } | null {
+): { recordedAtMS: number; message: Record<string, unknown> } | null {
   for (let index = timeline.length - 1; index >= 0; index -= 1) {
     const entry = timeline[index];
     if (!entry) {
@@ -359,7 +370,7 @@ function decodeRuntimeProbeResult(entry: TimelineEntry): ChromeAPIResult | null 
   };
 }
 
-function decodeRuntimeProbeEvent(entry: TimelineEntry): unknown {
+function decodeRuntimeProbeEvent(entry: TimelineEntry): Record<string, unknown> | undefined {
   const envelope = entry.envelope;
   if (envelope.name !== "chrome.api.event" || envelope.t !== "event" || !isRecord(envelope.data)) {
     return undefined;
@@ -375,6 +386,49 @@ function decodeRuntimeProbeEvent(entry: TimelineEntry): unknown {
 
   const message = envelope.data.args[0];
   return matchesRuntimeProbePayload(message) ? message : undefined;
+}
+
+function selectReplayPayload(
+  lastResult: { recordedAtMS: number; payload: Record<string, unknown>; result: ChromeAPIResult } | null,
+  lastEvent: { recordedAtMS: number; message: Record<string, unknown> } | null
+): Record<string, unknown> | null {
+  if (!lastResult && !lastEvent) {
+    return null;
+  }
+
+  if (!lastResult) {
+    return { ...lastEvent!.message };
+  }
+
+  if (!lastEvent) {
+    return { ...lastResult.payload };
+  }
+
+  return lastEvent.recordedAtMS >= lastResult.recordedAtMS
+    ? { ...lastEvent.message }
+    : { ...lastResult.payload };
+}
+
+function describeReplaySource(
+  lastResult: { recordedAtMS: number; payload: Record<string, unknown>; result: ChromeAPIResult } | null,
+  lastEvent: { recordedAtMS: number; message: Record<string, unknown> } | null,
+  replayPayload: Record<string, unknown> | null
+): string | null {
+  if (!replayPayload) {
+    return null;
+  }
+
+  if (!lastResult) {
+    return "latest runtime.onMessage payload";
+  }
+
+  if (!lastEvent) {
+    return "latest runtime result payload";
+  }
+
+  return lastEvent.recordedAtMS >= lastResult.recordedAtMS
+    ? "latest runtime.onMessage payload"
+    : "latest runtime result payload";
 }
 
 function matchesRuntimeProbePayload(value: unknown): value is Record<string, unknown> {
