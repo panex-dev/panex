@@ -15,7 +15,7 @@ await build({
   absWorkingDir: rootDir,
   entryPoints: {
     main: resolve(rootDir, "src/main.tsx"),
-    "chrome-sim": resolve(rootDir, "../shared/chrome-sim/src/index.ts")
+    "chrome-sim": resolve(rootDir, "src/chrome-sim.ts")
   },
   nodePaths: [resolve(rootDir, "node_modules")],
   outdir: outDir,

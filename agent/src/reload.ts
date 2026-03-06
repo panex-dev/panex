@@ -2,7 +2,7 @@ import {
   isReloadCommand,
   type CommandReload,
   type Envelope
-} from "../../shared/protocol/src/index";
+} from "@panex/protocol";
 
 export { isReloadCommand };
 

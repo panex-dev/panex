@@ -51,12 +51,13 @@ As of 2026-03-06.
 | 50 | Require frozen lockfiles for every TypeScript package install | `docs/build-log/2026-03-06-pr-050-js-determinism.md` |
 | 51 | Consolidate TypeScript dependency installs under one root `pnpm` workspace lockfile | `docs/build-log/2026-03-06-pr-051-pnpm-workspace.md` |
 | 52 | Extract shared TypeScript compiler presets while keeping package-local build behavior | `docs/build-log/2026-03-06-pr-052-tsconfig-presets.md` |
+| 53 | Move cross-package TypeScript imports onto workspace package entrypoints | `docs/build-log/2026-03-06-pr-053-workspace-entrypoints.md` |
 
 ## In progress
 - None.
 
 ## Next
-- Move cross-package TypeScript imports onto workspace package entrypoints before considering deeper shared script/build abstractions.
+- Decide whether repeated workspace script orchestration should move behind shared package-level commands now that internal imports use workspace entrypoints.
 
 ## Notes
 - PR20 is intentionally reserved as documentation reconciliation so sequence alignment is explicit and auditable.

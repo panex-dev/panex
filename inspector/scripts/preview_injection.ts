@@ -2,7 +2,7 @@ import {
   injectChromeSimEntrypoint,
   type ChromeSimEntrypointInjectionOptions,
   type ScriptLike
-} from "../../shared/chrome-sim/src/bootstrap";
+} from "@panex/chrome-sim/bootstrap";
 
 const closingHeadPattern = /<\/head>/i;
 const existingInjectionPattern = /<script[^>]*data-panex-chrome-sim[^>]*>/i;

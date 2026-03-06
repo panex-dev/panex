@@ -13,6 +13,9 @@ importers:
       '@msgpack/msgpack':
         specifier: ^3.1.2
         version: 3.1.3
+      '@panex/protocol':
+        specifier: workspace:*
+        version: link:../shared/protocol
     devDependencies:
       '@types/chrome':
         specifier: ^0.0.273
@@ -35,6 +38,12 @@ importers:
       '@msgpack/msgpack':
         specifier: ^3.1.2
         version: 3.1.3
+      '@panex/chrome-sim':
+        specifier: workspace:*
+        version: link:../shared/chrome-sim
+      '@panex/protocol':
+        specifier: workspace:*
+        version: link:../shared/protocol
       solid-js:
         specifier: ^1.9.9
         version: 1.9.11
@@ -57,6 +66,9 @@ importers:
       '@msgpack/msgpack':
         specifier: ^3.1.2
         version: 3.1.3
+      '@panex/protocol':
+        specifier: workspace:*
+        version: link:../protocol
     devDependencies:
       '@types/node':
         specifier: 22.13.8

@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { decode, encode } from "@msgpack/msgpack";
 
-import { PROTOCOL_VERSION, type Envelope } from "../../protocol/src/index";
+import { PROTOCOL_VERSION, type Envelope } from "@panex/protocol";
 import { createChromeSimTransport, type TransportSocket } from "../src/transport";
 
 describe("chrome-sim transport", () => {

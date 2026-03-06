@@ -1,4 +1,4 @@
-import type { Envelope } from "../../protocol/src/index";
+import type { Envelope } from "@panex/protocol";
 import type { ChromeSimTransport } from "./transport";
 
 export interface RuntimeOnMessageListener {

@@ -16,7 +16,7 @@ import {
   type StorageRemove,
   type StorageSet,
   type StorageSnapshot
-} from "../../shared/protocol/src/index";
+} from "@panex/protocol";
 import {
   createContext,
   createSignal,

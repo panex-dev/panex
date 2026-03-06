@@ -7,7 +7,7 @@ import {
   type ChromeAPIEvent,
   type Envelope,
   type Hello
-} from "../../protocol/src/index";
+} from "@panex/protocol";
 import { reconnectCeilingMS, reconnectDelay, reconnectFloorMS } from "./reconnect";
 
 export type TransportStatus = "connecting" | "open" | "reconnecting" | "closed";

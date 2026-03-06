@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
-import type { Envelope } from "../../protocol/src/index";
+import type { Envelope } from "@panex/protocol";
 import { createRuntimeNamespace } from "../src/runtime";
 import type { ChromeSimTransport } from "../src/transport";
 

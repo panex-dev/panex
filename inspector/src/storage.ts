@@ -2,7 +2,7 @@ import type {
   QueryStorageResult,
   StorageDiff,
   StorageSnapshot
-} from "../../shared/protocol/src/index";
+} from "@panex/protocol";
 
 export type StorageArea = "local" | "sync" | "session";
 export type StorageAreaFilter = "all" | StorageArea;

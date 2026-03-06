@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import type { Envelope } from "../../shared/protocol/src/index";
+import type { Envelope } from "@panex/protocol";
 
 import { handleReloadCommand, isReloadCommand } from "../src/reload";
 
