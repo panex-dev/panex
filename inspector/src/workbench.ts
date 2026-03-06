@@ -1,4 +1,7 @@
-import type { StorageSnapshot } from "@panex/protocol";
+import type {
+  ChromeAPIResult,
+  StorageSnapshot
+} from "@panex/protocol";
 
 import type { ConnectionStatus } from "./connection";
 import { formatStorageValue, type StorageArea } from "./storage";
@@ -26,6 +29,20 @@ export interface WorkbenchStoragePresetSummary extends WorkbenchStoragePresetDef
   currentValueText: string | null;
 }
 
+export interface WorkbenchRuntimeProbeDefinition {
+  id: string;
+  label: string;
+  description: string;
+  payload: Record<string, unknown>;
+}
+
+export interface WorkbenchRuntimeProbeSummary extends WorkbenchRuntimeProbeDefinition {
+  payloadText: string;
+  lastResultText: string | null;
+  lastEventText: string | null;
+  lastActivityAtMS: number | null;
+}
+
 export interface WorkbenchTimelineSummary {
   totalEvents: number;
   liveEvents: number;
@@ -41,6 +58,7 @@ export interface WorkbenchModel {
   totalStorageKeys: number;
   storageAreas: WorkbenchStorageAreaSummary[];
   storagePresets: WorkbenchStoragePresetSummary[];
+  runtimeProbe: WorkbenchRuntimeProbeSummary;
   timeline: WorkbenchTimelineSummary;
 }
 
@@ -88,6 +106,18 @@ const workbenchStoragePresets: readonly WorkbenchStoragePresetDefinition[] = [
   }
 ] as const;
 
+const runtimeProbeDefinition: WorkbenchRuntimeProbeDefinition = {
+  id: "runtime-ping",
+  label: "Send runtime ping",
+  description: "Dispatches a namespaced runtime.sendMessage probe and watches the echoed result + onMessage event.",
+  payload: {
+    kind: "panex.workbench.runtime-probe",
+    probe_id: "runtime-ping",
+    topic: "ping",
+    source: "workbench"
+  }
+};
+
 export function buildWorkbenchModel(args: {
   status: ConnectionStatus;
   socketURL: string;
@@ -102,6 +132,7 @@ export function buildWorkbenchModel(args: {
     totalStorageKeys: countStorageKeys(args.storage),
     storageAreas: summarizeStorageAreas(args.storage),
     storagePresets: summarizeStoragePresets(args.storage),
+    runtimeProbe: summarizeRuntimeProbe(args.timeline),
     timeline: summarizeTimeline(args.timeline)
   };
 }
@@ -138,6 +169,25 @@ export function summarizeStoragePresets(
         currentValue === missingStorageValue ? null : formatStorageValue(currentValue)
     };
   });
+}
+
+export function summarizeRuntimeProbe(
+  timeline: TimelineEntry[]
+): WorkbenchRuntimeProbeSummary {
+  const lastResult = findLatestRuntimeProbeResult(timeline);
+  const lastEvent = findLatestRuntimeProbeEvent(timeline);
+  const lastActivityAtMS =
+    typeof lastResult?.recordedAtMS === "number" && typeof lastEvent?.recordedAtMS === "number"
+      ? Math.max(lastResult.recordedAtMS, lastEvent.recordedAtMS)
+      : lastResult?.recordedAtMS ?? lastEvent?.recordedAtMS ?? null;
+
+  return {
+    ...runtimeProbeDefinition,
+    payloadText: formatStorageValue(runtimeProbeDefinition.payload),
+    lastResultText: lastResult ? formatRuntimeResult(lastResult.result) : null,
+    lastEventText: lastEvent ? formatStorageValue(lastEvent.message) : null,
+    lastActivityAtMS
+  };
 }
 
 export function summarizeTimeline(timeline: TimelineEntry[]): WorkbenchTimelineSummary {
@@ -248,4 +298,104 @@ function stableValueText(value: unknown, seen = new WeakSet<object>()): string {
     .join(",")}}`;
   seen.delete(value);
   return serialized;
+}
+
+function findLatestRuntimeProbeResult(
+  timeline: TimelineEntry[]
+): { recordedAtMS: number; result: ChromeAPIResult } | null {
+  for (let index = timeline.length - 1; index >= 0; index -= 1) {
+    const entry = timeline[index];
+    if (!entry) {
+      continue;
+    }
+
+    const result = decodeRuntimeProbeResult(entry);
+    if (result) {
+      return { recordedAtMS: entry.recordedAtMS, result };
+    }
+  }
+
+  return null;
+}
+
+function findLatestRuntimeProbeEvent(
+  timeline: TimelineEntry[]
+): { recordedAtMS: number; message: unknown } | null {
+  for (let index = timeline.length - 1; index >= 0; index -= 1) {
+    const entry = timeline[index];
+    if (!entry) {
+      continue;
+    }
+
+    const message = decodeRuntimeProbeEvent(entry);
+    if (typeof message !== "undefined") {
+      return { recordedAtMS: entry.recordedAtMS, message };
+    }
+  }
+
+  return null;
+}
+
+function decodeRuntimeProbeResult(entry: TimelineEntry): ChromeAPIResult | null {
+  const envelope = entry.envelope;
+  if (envelope.name !== "chrome.api.result" || envelope.t !== "event" || !isRecord(envelope.data)) {
+    return null;
+  }
+
+  const success = typeof envelope.data.success === "boolean" ? envelope.data.success : null;
+  if (success === null) {
+    return null;
+  }
+
+  if (!matchesRuntimeProbePayload(envelope.data.data)) {
+    return null;
+  }
+
+  return {
+    call_id: typeof envelope.data.call_id === "string" ? envelope.data.call_id : "",
+    success,
+    data: envelope.data.data,
+    error: typeof envelope.data.error === "string" ? envelope.data.error : undefined
+  };
+}
+
+function decodeRuntimeProbeEvent(entry: TimelineEntry): unknown {
+  const envelope = entry.envelope;
+  if (envelope.name !== "chrome.api.event" || envelope.t !== "event" || !isRecord(envelope.data)) {
+    return undefined;
+  }
+
+  if (envelope.data.namespace !== "runtime" || envelope.data.event !== "onMessage") {
+    return undefined;
+  }
+
+  if (!Array.isArray(envelope.data.args) || envelope.data.args.length === 0) {
+    return undefined;
+  }
+
+  const message = envelope.data.args[0];
+  return matchesRuntimeProbePayload(message) ? message : undefined;
+}
+
+function matchesRuntimeProbePayload(value: unknown): value is Record<string, unknown> {
+  if (!isRecord(value)) {
+    return false;
+  }
+
+  return (
+    value.kind === runtimeProbeDefinition.payload.kind &&
+    value.probe_id === runtimeProbeDefinition.payload.probe_id
+  );
+}
+
+function formatRuntimeResult(result: ChromeAPIResult): string {
+  if (!result.success) {
+    return result.error ? `failure: ${result.error}` : "failure";
+  }
+
+  return result.data ? `success: ${formatStorageValue(result.data)}` : "success";
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
 }

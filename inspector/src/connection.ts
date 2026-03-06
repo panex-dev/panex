@@ -5,6 +5,7 @@ import {
   isHelloAck,
   isQueryEventsResult,
   isQueryStorageResult,
+  type ChromeAPICall,
   type Envelope,
   type Hello,
   type QueryEvents,
@@ -54,6 +55,7 @@ interface ConnectionContextValue {
   setStorageItem: (area: string, key: string, value: unknown) => boolean;
   removeStorageItem: (area: string, key: string) => boolean;
   clearStorageArea: (area: string) => boolean;
+  sendRuntimeMessage: (message: unknown) => boolean;
 }
 
 const ConnectionContext = createContext<ConnectionContextValue>();
@@ -72,6 +74,7 @@ export function ConnectionProvider(props: ParentProps) {
   let reconnectTimer: number | undefined;
   let reconnectAttempt = 0;
   let stopped = false;
+  let chromeCallSeq = 0;
 
   const send = (envelope: Envelope): boolean => {
     if (!socket || socket.readyState !== WebSocket.OPEN) {
@@ -133,6 +136,15 @@ export function ConnectionProvider(props: ParentProps) {
     return true;
   };
 
+  const sendRuntimeMessage = (message: unknown): boolean => {
+    if (!socket || socket.readyState !== WebSocket.OPEN) {
+      return false;
+    }
+
+    socket.send(encode(buildChromeRuntimeSendMessage(message, ++chromeCallSeq)));
+    return true;
+  };
+
   const connect = () => {
     if (stopped) {
       return;
@@ -165,7 +177,10 @@ export function ConnectionProvider(props: ParentProps) {
             "storage.diff",
             "storage.set",
             "storage.remove",
-            "storage.clear"
+            "storage.clear",
+            "chrome.api.call",
+            "chrome.api.result",
+            "chrome.api.event"
           ]
         }
       };
@@ -284,7 +299,8 @@ export function ConnectionProvider(props: ParentProps) {
       refreshStorage,
       setStorageItem,
       removeStorageItem,
-      clearStorageArea
+      clearStorageArea,
+      sendRuntimeMessage
     },
     get children() {
       return props.children;
@@ -423,6 +439,24 @@ function buildStorageClear(area: string): Envelope<StorageClear> | null {
     src: { role: "inspector", id: inspectorID },
     data: {
       area: normalizedArea
+    }
+  };
+}
+
+function buildChromeRuntimeSendMessage(
+  message: unknown,
+  seq: number
+): Envelope<ChromeAPICall> {
+  return {
+    v: PROTOCOL_VERSION,
+    t: "command",
+    name: "chrome.api.call",
+    src: { role: "inspector", id: inspectorID },
+    data: {
+      call_id: `runtime-send-${seq}`,
+      namespace: "runtime",
+      method: "sendMessage",
+      args: [message]
     }
   };
 }
