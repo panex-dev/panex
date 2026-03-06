@@ -90,6 +90,7 @@ describe("buildWorkbenchModel", () => {
     assert.equal(model.storagePresets[0]?.state, "customized");
     assert.equal(model.storagePresets[0]?.actionLabel, "update");
     assert.equal(model.runtimeProbe.lastResultText, null);
+    assert.equal(model.runtimeProbe.replayPayload, null);
     assert.equal(model.timeline.latestEventName, "query.events.result");
   });
 });
@@ -181,6 +182,8 @@ describe("summarizeRuntimeProbe", () => {
     assert.match(probe.lastResultText ?? "", /success:/);
     assert.match(probe.lastEventText ?? "", /runtime-probe/);
     assert.equal(probe.lastActivityAtMS, 120);
+    assert.match(probe.replayPayloadText ?? "", /runtime-probe/);
+    assert.equal(probe.replaySourceText, "latest runtime.onMessage payload");
   });
 
   it("ignores unrelated chrome api traffic", () => {
@@ -201,6 +204,27 @@ describe("summarizeRuntimeProbe", () => {
     assert.equal(probe.lastResultText, null);
     assert.equal(probe.lastEventText, null);
     assert.equal(probe.lastActivityAtMS, null);
+    assert.equal(probe.replayPayload, null);
+    assert.equal(probe.replaySourceText, null);
+  });
+
+  it("falls back to replaying the latest matching runtime result when no event is present", () => {
+    const timeline: TimelineEntry[] = [
+      eventEntry("chrome.api.result", 300, {
+        call_id: "runtime-send-7",
+        success: true,
+        data: {
+          kind: "panex.workbench.runtime-probe",
+          probe_id: "runtime-ping",
+          topic: "ping",
+          source: "workbench"
+        }
+      })
+    ];
+
+    const probe = summarizeRuntimeProbe(timeline);
+    assert.match(probe.replayPayloadText ?? "", /runtime-probe/);
+    assert.equal(probe.replaySourceText, "latest runtime result payload");
   });
 });
 
