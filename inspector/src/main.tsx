@@ -51,7 +51,8 @@ function InspectorApp() {
           storage: connection.storage,
           timeline: connection.timeline,
           setStorageItem: connection.setStorageItem,
-          removeStorageItem: connection.removeStorageItem
+          removeStorageItem: connection.removeStorageItem,
+          sendRuntimeMessage: connection.sendRuntimeMessage
         });
       case "replay":
         return disabledTab(activeTab);

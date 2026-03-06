@@ -54,12 +54,13 @@ As of 2026-03-06.
 | 53 | Move cross-package TypeScript imports onto workspace package entrypoints | `docs/build-log/2026-03-06-pr-053-workspace-entrypoints.md` |
 | 54 | Enable the first real Workbench tab as a read-only operator overview | `docs/build-log/2026-03-06-pr-054-workbench-tab.md` |
 | 55 | Add reversible namespaced storage presets as the first actionable Workbench tool | `docs/build-log/2026-03-06-pr-055-workbench-storage-presets.md` |
+| 56 | Add the first namespaced Workbench runtime probe on top of `runtime.sendMessage` | `docs/build-log/2026-03-06-pr-056-workbench-runtime-probe.md` |
 
 ## In progress
 - None.
 
 ## Next
-- Add the first Workbench runtime probe on top of the existing `runtime.sendMessage` transport without introducing a second interaction model too early.
+- Add the first Workbench replay control on top of existing timeline state without widening daemon scope prematurely.
 
 ## Notes
 - PR20 is intentionally reserved as documentation reconciliation so sequence alignment is explicit and auditable.

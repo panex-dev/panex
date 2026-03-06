@@ -5,6 +5,7 @@ import type { StorageSnapshot } from "@panex/protocol";
 
 import {
   buildWorkbenchModel,
+  summarizeRuntimeProbe,
   summarizeStorageAreas,
   summarizeStoragePresets,
   summarizeTimeline
@@ -88,6 +89,7 @@ describe("buildWorkbenchModel", () => {
     ]);
     assert.equal(model.storagePresets[0]?.state, "customized");
     assert.equal(model.storagePresets[0]?.actionLabel, "update");
+    assert.equal(model.runtimeProbe.lastResultText, null);
     assert.equal(model.timeline.latestEventName, "query.events.result");
   });
 });
@@ -147,6 +149,61 @@ describe("summarizeStoragePresets", () => {
   });
 });
 
+describe("summarizeRuntimeProbe", () => {
+  it("captures the latest runtime probe result and runtime.onMessage event from timeline entries", () => {
+    const timeline: TimelineEntry[] = [
+      eventEntry("chrome.api.result", 100, {
+        call_id: "runtime-send-1",
+        success: true,
+        data: {
+          kind: "panex.workbench.runtime-probe",
+          probe_id: "runtime-ping",
+          topic: "ping",
+          source: "workbench"
+        }
+      }),
+      eventEntry("chrome.api.event", 120, {
+        namespace: "runtime",
+        event: "onMessage",
+        args: [
+          {
+            kind: "panex.workbench.runtime-probe",
+            probe_id: "runtime-ping",
+            topic: "ping",
+            source: "workbench"
+          }
+        ]
+      })
+    ];
+
+    const probe = summarizeRuntimeProbe(timeline);
+    assert.match(probe.payloadText, /panex\.workbench\.runtime-probe/);
+    assert.match(probe.lastResultText ?? "", /success:/);
+    assert.match(probe.lastEventText ?? "", /runtime-probe/);
+    assert.equal(probe.lastActivityAtMS, 120);
+  });
+
+  it("ignores unrelated chrome api traffic", () => {
+    const timeline: TimelineEntry[] = [
+      eventEntry("chrome.api.result", 200, {
+        call_id: "tabs-query-1",
+        success: true,
+        data: [{ id: 7 }]
+      }),
+      eventEntry("chrome.api.event", 220, {
+        namespace: "runtime",
+        event: "onMessage",
+        args: [{ topic: "other" }]
+      })
+    ];
+
+    const probe = summarizeRuntimeProbe(timeline);
+    assert.equal(probe.lastResultText, null);
+    assert.equal(probe.lastEventText, null);
+    assert.equal(probe.lastActivityAtMS, null);
+  });
+});
+
 function entry(name: string, recordedAtMS: number, id?: number): TimelineEntry {
   return {
     key: typeof id === "number" ? `db-${id}` : `live-${recordedAtMS}`,
@@ -158,6 +215,20 @@ function entry(name: string, recordedAtMS: number, id?: number): TimelineEntry {
       name: name as TimelineEntry["envelope"]["name"],
       src: { role: "daemon", id: "daemon-1" },
       data: {}
+    }
+  };
+}
+
+function eventEntry(name: TimelineEntry["envelope"]["name"], recordedAtMS: number, data: unknown): TimelineEntry {
+  return {
+    key: `live-${name}-${recordedAtMS}`,
+    recordedAtMS,
+    envelope: {
+      v: 1,
+      t: "event",
+      name,
+      src: { role: "daemon", id: "daemon-1" },
+      data
     }
   };
 }

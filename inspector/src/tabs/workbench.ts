@@ -15,15 +15,14 @@ interface WorkbenchTabProps {
   timeline: Accessor<TimelineEntry[]>;
   setStorageItem: (area: string, key: string, value: unknown) => boolean;
   removeStorageItem: (area: string, key: string) => boolean;
+  sendRuntimeMessage: (message: unknown) => boolean;
 }
 
-const plannedTools = [
-  "Runtime message probes",
-  "Replay controls"
-] as const;
+const plannedTools = ["Replay controls"] as const;
 
 export function WorkbenchTab(props: WorkbenchTabProps) {
   const [presetMessage, setPresetMessage] = createSignal<string | null>(null);
+  const [runtimeMessage, setRuntimeMessage] = createSignal<string | null>(null);
   const model = createMemo(() =>
     buildWorkbenchModel({
       status: props.status(),
@@ -90,17 +89,19 @@ export function WorkbenchTab(props: WorkbenchTabProps) {
       </li>`;
     });
 
+  const runtimeProbe = () => model().runtimeProbe;
+
   return html`<section class="panel workbench-panel">
     <div class="panel-header">
       <h2>Workbench</h2>
-      <p>overview + presets</p>
+      <p>overview + live tools</p>
     </div>
 
     <div class="workbench-intro">
       <p>
-        Workbench now exposes the first operator action using the existing storage mutation path. Every
-        preset is reversible and restricted to <code>panex.workbench.*</code> keys so the surface stays
-        safe while the broader tool model evolves.
+        Workbench now exposes constrained storage and runtime actions on top of existing transport.
+        Both tools stay namespaced and reversible so the surface can grow without widening backend
+        contracts prematurely.
       </p>
     </div>
 
@@ -132,6 +133,41 @@ export function WorkbenchTab(props: WorkbenchTabProps) {
         <ul class="workbench-list">${storageAreaRows}</ul>
       </article>
 
+      <article class="workbench-card">
+        <p class="workbench-eyebrow">Runtime probe</p>
+        <strong class="workbench-metric">1 live probe</strong>
+        <p class="subtle">${() => runtimeProbe().description}</p>
+        <p class="subtle">Payload: <code>${() => runtimeProbe().payloadText}</code></p>
+        <button
+          class="filter-reset"
+          type="button"
+          disabled=${() => props.status() !== "open"}
+          onClick=${() => {
+            const sent = props.sendRuntimeMessage(runtimeProbe().payload);
+            setRuntimeMessage(
+              sent
+                ? `Sent runtime.sendMessage for ${runtimeProbe().id}.`
+                : `Unable to send runtime probe for ${runtimeProbe().id} while websocket is closed.`
+            );
+          }}
+        >
+          ${() => runtimeProbe().label}
+        </button>
+        ${() => (runtimeMessage() ? html`<p class="subtle">${runtimeMessage()}</p>` : null)}
+        <p class="subtle">
+          ${() =>
+            runtimeProbe().lastResultText
+              ? `Last result: ${runtimeProbe().lastResultText}`
+              : "Last result: none yet"}
+        </p>
+        <p class="subtle">
+          ${() =>
+            runtimeProbe().lastEventText
+              ? `Last onMessage payload: ${runtimeProbe().lastEventText}`
+              : "Last onMessage payload: none yet"}
+        </p>
+      </article>
+
       <article class="workbench-card workbench-card-wide">
         <p class="workbench-eyebrow">Storage presets</p>
         <strong class="workbench-metric">3 reversible actions</strong>
@@ -150,11 +186,11 @@ export function WorkbenchTab(props: WorkbenchTabProps) {
 
       <article class="workbench-card">
         <p class="workbench-eyebrow">Roadmap</p>
-        <strong class="workbench-metric">1 live tool</strong>
+        <strong class="workbench-metric">2 live tools</strong>
         <ul class="workbench-list">
           ${plannedTools.map((label) => html`<li><span>${label}</span><strong>planned</strong></li>`)}
         </ul>
-        <p class="subtle">Preset storage mutations are live. The remaining tools stay intentionally deferred.</p>
+        <p class="subtle">Storage presets and the runtime ping probe are live. The remaining tools stay intentionally deferred.</p>
       </article>
     </div>
   </section>`;
