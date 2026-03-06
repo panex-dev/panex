@@ -27,6 +27,8 @@ make build  # compile ./bin/panex + frontend build outputs
 
 ## Branch Workflow
 
+Repository-wide agent operating rules live in [`AGENTS.md`](./AGENTS.md). Coding agents are expected to follow that protocol in addition to the branch workflow below.
+
 Start every new PR from latest `origin/main` in a dedicated worktree:
 
 ```bash
