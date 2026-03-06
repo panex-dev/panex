@@ -79,14 +79,10 @@ jobs:
         with:
           node-version: "22"
           cache: pnpm
-          cache-dependency-path: |
-            shared/protocol/pnpm-lock.yaml
-            agent/pnpm-lock.yaml
-            inspector/pnpm-lock.yaml
-            shared/chrome-sim/pnpm-lock.yaml
+          cache-dependency-path: pnpm-lock.yaml
 
       - name: Install dependencies
-        run: pnpm --dir "${{ matrix.package.dir }}" install --frozen-lockfile
+        run: pnpm install --frozen-lockfile
 
       - name: Type-check
         run: pnpm --dir "${{ matrix.package.dir }}" run check

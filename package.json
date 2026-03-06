@@ -1,0 +1,5 @@
+{
+  "name": "panex",
+  "private": true,
+  "packageManager": "pnpm@8.15.4"
+}
