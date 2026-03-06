@@ -36,3 +36,6 @@ Example:
 ```text
 file:///.../inspector/index.html?ws=ws://127.0.0.1:4317/ws&token=dev-token
 ```
+
+If your browser environment cannot connect cleanly to `127.0.0.1`, pass `ws=ws://localhost:4317/ws`
+explicitly or set `PANEX_DAEMON_URL=ws://localhost:4317/ws` before building the preview bundle.
