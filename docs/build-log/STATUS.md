@@ -56,6 +56,7 @@ As of 2026-03-06.
 | 55 | Add reversible namespaced storage presets as the first actionable Workbench tool | `docs/build-log/2026-03-06-pr-055-workbench-storage-presets.md` |
 | 56 | Add the first namespaced Workbench runtime probe on top of `runtime.sendMessage` | `docs/build-log/2026-03-06-pr-056-workbench-runtime-probe.md` |
 | 57 | Add the first Workbench replay control by replaying the latest observed runtime probe payload | `docs/build-log/2026-03-06-pr-057-workbench-replay-control.md` |
+| 58 | Replace inspector CSP-breaking template rendering with CSP-safe Solid hyperscript rendering | `docs/build-log/2026-03-06-pr-058-inspector-csp-safe-rendering.md` |
 
 ## In progress
 - None.

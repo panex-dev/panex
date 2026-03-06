@@ -1,5 +1,5 @@
-import html from "solid-js/html";
-import { ErrorBoundary } from "solid-js";
+import h from "solid-js/h";
+import { ErrorBoundary, type JSX } from "solid-js";
 import { render } from "solid-js/web";
 
 import "./styles.css";
@@ -24,7 +24,7 @@ const tabs: readonly ShellTabSpec[] = [
   { id: "replay", label: "Replay", disabled: true }
 ];
 
-function InspectorApp() {
+function InspectorApp(): JSX.Element {
   const connection = useConnection();
   const router = createInspectorRouter("timeline");
 
@@ -76,26 +76,32 @@ function InspectorApp() {
 }
 
 function disabledTab(tab: Exclude<InspectorTab, "timeline" | "storage">) {
-  return html`<section class="panel placeholder-panel">
-    <div class="panel-header">
-      <h2>${tab}</h2>
-      <p>disabled</p>
-    </div>
-    <div class="placeholder-body">
-      <p>${tab} is planned but not enabled in this milestone.</p>
-      <p>Use Timeline and Storage tabs for the current development loop.</p>
-    </div>
-  </section>`;
+  return (
+    <section class="panel placeholder-panel">
+      <div class="panel-header">
+        <h2>{tab}</h2>
+        <p>disabled</p>
+      </div>
+      <div class="placeholder-body">
+        <p>{tab} is planned but not enabled in this milestone.</p>
+        <p>Use Timeline and Storage tabs for the current development loop.</p>
+      </div>
+    </section>
+  );
 }
 
 function renderFallback(error: unknown, reset: () => void) {
-  return html`<main class="layout">
-    <header class="topbar">
-      <h1>Panex Inspector</h1>
-      <p class="error">render failure: ${String(error)}</p>
-      <button class="filter-reset" type="button" onClick=${reset}>retry</button>
-    </header>
-  </main>`;
+  return (
+    <main class="layout">
+      <header class="topbar">
+        <h1>Panex Inspector</h1>
+        <p class="error">render failure: {String(error)}</p>
+        <button class="filter-reset" type="button" onClick={reset}>
+          retry
+        </button>
+      </header>
+    </main>
+  );
 }
 
 render(
