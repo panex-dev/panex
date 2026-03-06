@@ -80,21 +80,13 @@ jobs:
           node-version: "22"
           cache: pnpm
           cache-dependency-path: |
-            shared/protocol/package.json
+            shared/protocol/pnpm-lock.yaml
             agent/pnpm-lock.yaml
             inspector/pnpm-lock.yaml
             shared/chrome-sim/pnpm-lock.yaml
 
       - name: Install dependencies
-        shell: bash
-        run: |
-          set -euo pipefail
-          dir="${{ matrix.package.dir }}"
-          if [[ -f "$dir/pnpm-lock.yaml" ]]; then
-            pnpm --dir "$dir" install --frozen-lockfile
-          else
-            pnpm --dir "$dir" install --no-frozen-lockfile
-          fi
+        run: pnpm --dir "${{ matrix.package.dir }}" install --frozen-lockfile
 
       - name: Type-check
         run: pnpm --dir "${{ matrix.package.dir }}" run check
