@@ -32,7 +32,7 @@ await build({
 
 const sourceMarkup = await readFile(sourceHTML, "utf8");
 const previewMarkup = injectChromeSimIntoHTML(normalizeMainScriptPath(sourceMarkup), {
-  daemonURL: readEnv("PANEX_DAEMON_URL", "ws://127.0.0.1:4317/ws"),
+  daemonURL: readEnv("PANEX_DAEMON_URL", "ws://localhost:4317/ws"),
   authToken: readEnv("PANEX_DAEMON_TOKEN", "dev-token"),
   extensionID: readEnv("PANEX_EXTENSION_ID", ""),
   moduleURL: "./chrome-sim.js"

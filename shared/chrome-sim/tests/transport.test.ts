@@ -6,6 +6,27 @@ import { PROTOCOL_VERSION, type Envelope } from "@panex/protocol";
 import { createChromeSimTransport, type TransportSocket } from "../src/transport";
 
 describe("chrome-sim transport", () => {
+  it("defaults browser-facing transport connections to localhost", async () => {
+    const sockets: FakeSocket[] = [];
+    const transport = createChromeSimTransport({
+      webSocketFactory: (url) => {
+        const socket = new FakeSocket(url);
+        sockets.push(socket);
+        return socket;
+      }
+    });
+
+    const pending = transport.call("storage.local", "get");
+    assert.equal(sockets.length, 1);
+    assert.equal(sockets[0]?.url, "ws://localhost:4317/ws");
+    sockets[0]?.open();
+    sockets[0]?.messageEnvelope(buildHelloAckEnvelope("sess-default"));
+    await waitFor(() => sockets[0]!.sent.length >= 2);
+    sockets[0]?.messageEnvelope(buildChromeAPIResultEnvelope("call-1", true, {}));
+    await pending;
+    transport.close();
+  });
+
   it("handshakes and resolves calls using correlated chrome.api.result envelopes", async () => {
     const sockets: FakeSocket[] = [];
     const transport = createChromeSimTransport({

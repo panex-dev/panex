@@ -58,6 +58,7 @@ As of 2026-03-06.
 | 57 | Add the first Workbench replay control by replaying the latest observed runtime probe payload | `docs/build-log/2026-03-06-pr-057-workbench-replay-control.md` |
 | 58 | Replace inspector CSP-breaking template rendering with CSP-safe Solid hyperscript rendering | `docs/build-log/2026-03-06-pr-058-inspector-csp-safe-rendering.md` |
 | 59 | Enable the first focused Replay tab from observed runtime probe history | `docs/build-log/2026-03-07-pr-059-replay-tab.md` |
+| 60 | Prefer `localhost` for browser-facing local websocket defaults | `docs/build-log/2026-03-07-pr-060-localhost-preview-defaults.md` |
 
 ## In progress
 - None.
