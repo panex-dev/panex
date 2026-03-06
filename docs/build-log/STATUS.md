@@ -57,12 +57,13 @@ As of 2026-03-06.
 | 56 | Add the first namespaced Workbench runtime probe on top of `runtime.sendMessage` | `docs/build-log/2026-03-06-pr-056-workbench-runtime-probe.md` |
 | 57 | Add the first Workbench replay control by replaying the latest observed runtime probe payload | `docs/build-log/2026-03-06-pr-057-workbench-replay-control.md` |
 | 58 | Replace inspector CSP-breaking template rendering with CSP-safe Solid hyperscript rendering | `docs/build-log/2026-03-06-pr-058-inspector-csp-safe-rendering.md` |
+| 59 | Enable the first focused Replay tab from observed runtime probe history | `docs/build-log/2026-03-07-pr-059-replay-tab.md` |
 
 ## In progress
 - None.
 
 ## Next
-- Decide whether to graduate the disabled Replay tab into a focused history-driven surface using the Workbench-proven replay pattern without widening daemon scope.
+- Decide whether replay should stay constrained to the runtime-probe contract or grow into a broader inspector-side history filter for additional replay-safe message families.
 
 ## Notes
 - PR20 is intentionally reserved as documentation reconciliation so sequence alignment is explicit and auditable.
