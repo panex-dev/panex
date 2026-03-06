@@ -23,8 +23,9 @@ await build({
   format: "esm",
   platform: "browser",
   target: ["chrome116"],
-  jsx: "automatic",
-  jsxImportSource: "solid-js",
+  jsx: "transform",
+  jsxFactory: "h",
+  jsxFragment: "h.Fragment",
   sourcemap: true,
   logLevel: "info"
 });
@@ -49,5 +50,7 @@ function readEnv(name: string, fallback: string): string {
 }
 
 function normalizeMainScriptPath(html: string): string {
-  return html.replace(/src=(["'])\.\/dist\/main\.js\1/i, "src=\"./main.js\"");
+  return html
+    .replace(/src=(["'])\.\/dist\/main\.js\1/i, "src=\"./main.js\"")
+    .replace(/href=(["'])\.\/dist\/main\.css\1/i, "href=\"./main.css\"");
 }
