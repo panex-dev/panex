@@ -53,12 +53,13 @@ As of 2026-03-06.
 | 52 | Extract shared TypeScript compiler presets while keeping package-local build behavior | `docs/build-log/2026-03-06-pr-052-tsconfig-presets.md` |
 | 53 | Move cross-package TypeScript imports onto workspace package entrypoints | `docs/build-log/2026-03-06-pr-053-workspace-entrypoints.md` |
 | 54 | Enable the first real Workbench tab as a read-only operator overview | `docs/build-log/2026-03-06-pr-054-workbench-tab.md` |
+| 55 | Add reversible namespaced storage presets as the first actionable Workbench tool | `docs/build-log/2026-03-06-pr-055-workbench-storage-presets.md` |
 
 ## In progress
 - None.
 
 ## Next
-- Add the first actionable Workbench tool on top of existing inspector/daemon capabilities without widening protocol scope prematurely.
+- Add the first Workbench runtime probe on top of the existing `runtime.sendMessage` transport without introducing a second interaction model too early.
 
 ## Notes
 - PR20 is intentionally reserved as documentation reconciliation so sequence alignment is explicit and auditable.

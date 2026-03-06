@@ -3,7 +3,12 @@ import { describe, it } from "node:test";
 
 import type { StorageSnapshot } from "@panex/protocol";
 
-import { buildWorkbenchModel, summarizeStorageAreas, summarizeTimeline } from "../src/workbench";
+import {
+  buildWorkbenchModel,
+  summarizeStorageAreas,
+  summarizeStoragePresets,
+  summarizeTimeline
+} from "../src/workbench";
 import type { TimelineEntry } from "../src/timeline";
 
 describe("summarizeStorageAreas", () => {
@@ -59,7 +64,16 @@ describe("buildWorkbenchModel", () => {
       socketURL: "ws://127.0.0.1:4317/ws?token=dev-token",
       lastError: null,
       storage: [
-        { area: "local", items: { theme: "dark" } },
+        {
+          area: "local",
+          items: {
+            "panex.workbench.featureFlag": {
+              enabled: false,
+              rollout: 1,
+              source: "custom"
+            }
+          }
+        },
         { area: "sync", items: {} }
       ],
       timeline: [entry("query.events.result", 99, 5)]
@@ -72,7 +86,64 @@ describe("buildWorkbenchModel", () => {
       { area: "local", keys: 1 },
       { area: "sync", keys: 0 }
     ]);
+    assert.equal(model.storagePresets[0]?.state, "customized");
+    assert.equal(model.storagePresets[0]?.actionLabel, "update");
     assert.equal(model.timeline.latestEventName, "query.events.result");
+  });
+});
+
+describe("summarizeStoragePresets", () => {
+  it("marks missing, applied, and customized preset states from storage snapshots", () => {
+    const snapshots: StorageSnapshot[] = [
+      {
+        area: "local",
+        items: {
+          "panex.workbench.featureFlag": {
+            source: "workbench",
+            rollout: 1,
+            enabled: true
+          }
+        }
+      },
+      {
+        area: "sync",
+        items: {
+          "panex.workbench.layoutProfile": {
+            theme: "midnight",
+            density: "compact"
+          }
+        }
+      }
+    ];
+
+    assert.deepEqual(
+      summarizeStoragePresets(snapshots).map((preset) => ({
+        id: preset.id,
+        state: preset.state,
+        actionLabel: preset.actionLabel,
+        currentValueText: preset.currentValueText
+      })),
+      [
+        {
+          id: "local-feature-flag",
+          state: "applied",
+          actionLabel: "remove",
+          currentValueText: '{"source":"workbench","rollout":1,"enabled":true}'
+        },
+        {
+          id: "sync-layout-profile",
+          state: "customized",
+          actionLabel: "update",
+          currentValueText: '{"theme":"midnight","density":"compact"}'
+        },
+        {
+          id: "session-query-draft",
+          state: "missing",
+          actionLabel: "apply",
+          currentValueText: null
+        }
+      ]
+    );
   });
 });
 
