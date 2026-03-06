@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
 	"sort"
 	"strings"
 
@@ -87,8 +88,12 @@ func (c Config) Validate() error {
 	if strings.TrimSpace(c.Extension.OutDir) == "" {
 		return errors.New("extension.out_dir is required")
 	}
-	if c.Extension.SourceDir == c.Extension.OutDir {
-		return errors.New("extension.source_dir and extension.out_dir must differ")
+	overlap, err := pathsOverlap(c.Extension.SourceDir, c.Extension.OutDir)
+	if err != nil {
+		return fmt.Errorf("resolve extension paths: %w", err)
+	}
+	if overlap {
+		return errors.New("extension.source_dir and extension.out_dir must not overlap")
 	}
 	if c.Server.Port < minPort || c.Server.Port > maxPort {
 		return fmt.Errorf("server.port must be between %d and %d", minPort, maxPort)
@@ -98,4 +103,29 @@ func (c Config) Validate() error {
 	}
 
 	return nil
+}
+
+func pathsOverlap(first, second string) (bool, error) {
+	absFirst, err := filepath.Abs(first)
+	if err != nil {
+		return false, err
+	}
+	absSecond, err := filepath.Abs(second)
+	if err != nil {
+		return false, err
+	}
+
+	return isSameOrNestedPath(absFirst, absSecond) || isSameOrNestedPath(absSecond, absFirst), nil
+}
+
+func isSameOrNestedPath(parent, child string) bool {
+	relPath, err := filepath.Rel(parent, child)
+	if err != nil {
+		return false
+	}
+	if relPath == "." {
+		return true
+	}
+
+	return relPath != ".." && !strings.HasPrefix(relPath, ".."+string(filepath.Separator))
 }

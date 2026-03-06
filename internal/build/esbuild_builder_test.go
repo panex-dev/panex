@@ -11,8 +11,12 @@ import (
 func TestNewEsbuildBuilderValidation(t *testing.T) {
 	tmpDir := t.TempDir()
 	plainFile := filepath.Join(tmpDir, "plain.txt")
+	nestedSourceDir := filepath.Join(tmpDir, "src")
 	if err := os.WriteFile(plainFile, []byte("x"), 0o600); err != nil {
 		t.Fatalf("write fixture file: %v", err)
+	}
+	if err := os.MkdirAll(nestedSourceDir, 0o755); err != nil {
+		t.Fatalf("create nested source directory: %v", err)
 	}
 
 	testCases := []struct {
@@ -43,7 +47,19 @@ func TestNewEsbuildBuilderValidation(t *testing.T) {
 			name:      "source equals output directory",
 			sourceDir: tmpDir,
 			outDir:    tmpDir,
-			wantError: "source and output directories must differ",
+			wantError: "source and output directories must not overlap",
+		},
+		{
+			name:      "output nested within source directory",
+			sourceDir: tmpDir,
+			outDir:    filepath.Join(tmpDir, "dist"),
+			wantError: "source and output directories must not overlap",
+		},
+		{
+			name:      "source nested within output directory",
+			sourceDir: nestedSourceDir,
+			outDir:    tmpDir,
+			wantError: "source and output directories must not overlap",
 		},
 	}
 

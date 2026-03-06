@@ -46,12 +46,13 @@ As of 2026-03-06.
 | 45 | Inspector preview build hook calls `injectChromeSimEntrypoint(...)` and emits injected `dist/index.html` | `docs/build-log/2026-03-05-pr-045-inspector-preview-injection-hook.md` |
 | 46 | Core Go build pipeline copies HTML surfaces and injects `chrome-sim` bootstrap | `docs/build-log/2026-03-06-pr-046-core-build-html-chrome-sim-injection.md` |
 | 47 | Daemon startup build before steady-state watch loop | `docs/build-log/2026-03-06-pr-047-startup-build.md` |
+| 48 | Reject overlapping extension source/output directories | `docs/build-log/2026-03-06-pr-048-source-outdir-overlap-guard.md` |
 
 ## In progress
 - None.
 
 ## Next
-- Prevent overlapping `extension.source_dir` and `extension.out_dir` values so build outputs cannot feed back into the watcher.
+- Add repo-level build coverage and CI checks for the full Go + TypeScript toolchain so the documented top-level workflow matches the actual project surface.
 
 ## Notes
 - PR20 is intentionally reserved as documentation reconciliation so sequence alignment is explicit and auditable.
