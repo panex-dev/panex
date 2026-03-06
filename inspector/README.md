@@ -28,11 +28,14 @@ Filter values are persisted in browser localStorage per host.
 Inspector reconnects automatically with exponential backoff if the daemon drops.
 
 Optional URL params:
-- `ws`: daemon websocket endpoint (default `ws://localhost:4317/ws`)
+- `ws`: daemon websocket endpoint (default `ws://127.0.0.1:4317/ws`)
 - `token`: daemon auth token (default `dev-token`)
 
 Example:
 
 ```text
-file:///.../inspector/index.html?ws=ws://localhost:4317/ws&token=dev-token
+file:///.../inspector/index.html?ws=ws://127.0.0.1:4317/ws&token=dev-token
 ```
+
+If your browser environment cannot connect cleanly to `127.0.0.1`, pass `ws=ws://localhost:4317/ws`
+explicitly or set `PANEX_DAEMON_URL=ws://localhost:4317/ws` before building the preview bundle.

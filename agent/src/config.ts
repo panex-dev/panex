@@ -5,7 +5,7 @@ export interface AgentConfig {
 }
 
 export const defaultConfig: AgentConfig = {
-  wsUrl: "ws://localhost:4317/ws",
+  wsUrl: "ws://127.0.0.1:4317/ws",
   token: "dev-token",
   agentId: "dev-agent-1"
 };

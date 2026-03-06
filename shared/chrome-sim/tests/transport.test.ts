@@ -6,7 +6,7 @@ import { PROTOCOL_VERSION, type Envelope } from "@panex/protocol";
 import { createChromeSimTransport, type TransportSocket } from "../src/transport";
 
 describe("chrome-sim transport", () => {
-  it("defaults browser-facing transport connections to localhost", async () => {
+  it("defaults browser-facing transport connections to 127.0.0.1", async () => {
     const sockets: FakeSocket[] = [];
     const transport = createChromeSimTransport({
       webSocketFactory: (url) => {
@@ -18,7 +18,7 @@ describe("chrome-sim transport", () => {
 
     const pending = transport.call("storage.local", "get");
     assert.equal(sockets.length, 1);
-    assert.equal(sockets[0]?.url, "ws://localhost:4317/ws");
+    assert.equal(sockets[0]?.url, "ws://127.0.0.1:4317/ws");
     sockets[0]?.open();
     sockets[0]?.messageEnvelope(buildHelloAckEnvelope("sess-default"));
     await waitFor(() => sockets[0]!.sent.length >= 2);

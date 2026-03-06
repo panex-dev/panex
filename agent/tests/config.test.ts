@@ -25,8 +25,8 @@ function setChromeStorage(value: unknown): void {
 }
 
 describe("config loading", () => {
-  it("uses localhost for the default daemon websocket URL", () => {
-    assert.equal(defaultConfig.wsUrl, "ws://localhost:4317/ws");
+  it("uses 127.0.0.1 for the default daemon websocket URL", () => {
+    assert.equal(defaultConfig.wsUrl, "ws://127.0.0.1:4317/ws");
   });
 
   it("falls back to defaults when storage is empty or invalid", async () => {

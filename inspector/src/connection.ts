@@ -464,7 +464,7 @@ function buildChromeRuntimeSendMessage(
 function resolveConnectionParams(): { wsURL: string; token: string } {
   const params = new URLSearchParams(window.location.search);
   return {
-    wsURL: nonEmpty(params.get("ws"), "ws://localhost:4317/ws"),
+    wsURL: nonEmpty(params.get("ws"), "ws://127.0.0.1:4317/ws"),
     token: nonEmpty(params.get("token"), "dev-token")
   };
 }

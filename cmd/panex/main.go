@@ -136,14 +136,14 @@ func startDevServer(cfg panexconfig.Config, stdout io.Writer) error {
 		return err
 	}
 
-	if err := writef(stdout, "panex dev\nws_url=ws://localhost:%d/ws\n", cfg.Server.Port); err != nil {
+	if err := writef(stdout, "panex dev\nws_url=ws://127.0.0.1:%d/ws\n", cfg.Server.Port); err != nil {
 		return err
 	}
 
 	builderOptions := []build.Option{}
 	if injection, ok := build.AutoDetectChromeSimInjection(
 		cfg.Extension.SourceDir,
-		fmt.Sprintf("ws://localhost:%d/ws", cfg.Server.Port),
+		fmt.Sprintf("ws://127.0.0.1:%d/ws", cfg.Server.Port),
 		cfg.Server.AuthToken,
 		"",
 	); ok {

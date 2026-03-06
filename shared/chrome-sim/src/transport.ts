@@ -436,7 +436,7 @@ function resolveDefaultDaemonURL(): string {
       return candidate;
     }
   }
-  return "ws://localhost:4317/ws";
+  return "ws://127.0.0.1:4317/ws";
 }
 
 function resolveDefaultAuthToken(): string | undefined {
