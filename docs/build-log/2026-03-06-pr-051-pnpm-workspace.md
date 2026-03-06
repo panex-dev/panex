@@ -26,7 +26,7 @@
 - Change 3:
   - Why: switch contributor guidance and CI caching/install behavior to the root workspace install path so local usage and automation follow the same dependency contract.
   - Where: `README.md:61-65`
-  - Where: `.github/workflows/ci.yml:77-90`
+  - Where: `.github/workflows/ci.yml:72-89`
   - Where: `docs/build-log/README.md:44-46`
   - Where: `docs/build-log/STATUS.md:52-58`
 
