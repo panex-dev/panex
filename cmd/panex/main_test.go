@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"os"
 	"path/filepath"
@@ -240,10 +241,12 @@ func TestRunBuildLoopBroadcastsBuildComplete(t *testing.T) {
 
 	changes := make(chan daemon.FileChangeEvent, 1)
 	broadcaster := &fakeBroadcaster{}
+	var buildCalls int
 	builder := fakeBuildRunner{
 		build: func(_ context.Context, changedPaths []string) (build.Result, error) {
+			buildCalls++
 			return build.Result{
-				BuildID:      "build-123",
+				BuildID:      fmt.Sprintf("build-123-%d", buildCalls),
 				Success:      true,
 				DurationMS:   21,
 				ChangedFiles: changedPaths,
@@ -256,6 +259,38 @@ func TestRunBuildLoopBroadcastsBuildComplete(t *testing.T) {
 		done <- runBuildLoop(ctx, builder, broadcaster, changes)
 	}()
 
+	startupBuildEvent := waitForBroadcast(t, broadcaster, 2*time.Second)
+	if startupBuildEvent.Name != protocol.MessageBuildComplete {
+		t.Fatalf("unexpected startup message name: got %q, want %q", startupBuildEvent.Name, protocol.MessageBuildComplete)
+	}
+
+	startupPayload, ok := startupBuildEvent.Data.(protocol.BuildComplete)
+	if !ok {
+		t.Fatalf("unexpected startup payload type: got %T", startupBuildEvent.Data)
+	}
+	if startupPayload.BuildID != "build-123-1" {
+		t.Fatalf("unexpected startup build id: got %q, want %q", startupPayload.BuildID, "build-123-1")
+	}
+	if len(startupPayload.ChangedFiles) != 0 {
+		t.Fatalf("expected no startup changed files, got %v", startupPayload.ChangedFiles)
+	}
+
+	startupReloadEvent := waitForBroadcast(t, broadcaster, 2*time.Second)
+	if startupReloadEvent.Name != protocol.MessageCommandReload {
+		t.Fatalf("unexpected startup reload message name: got %q, want %q", startupReloadEvent.Name, protocol.MessageCommandReload)
+	}
+
+	startupReloadPayload, ok := startupReloadEvent.Data.(protocol.CommandReload)
+	if !ok {
+		t.Fatalf("unexpected startup reload payload type: got %T", startupReloadEvent.Data)
+	}
+	if startupReloadPayload.Reason != "startup" {
+		t.Fatalf("unexpected startup reload reason: got %q, want %q", startupReloadPayload.Reason, "startup")
+	}
+	if startupReloadPayload.BuildID != "build-123-1" {
+		t.Fatalf("unexpected startup reload build id: got %q, want %q", startupReloadPayload.BuildID, "build-123-1")
+	}
+
 	changes <- daemon.FileChangeEvent{Paths: []string{"src/index.ts"}, OccurredAt: time.Now()}
 
 	buildEvent := waitForBroadcast(t, broadcaster, 2*time.Second)
@@ -267,11 +302,11 @@ func TestRunBuildLoopBroadcastsBuildComplete(t *testing.T) {
 	if !ok {
 		t.Fatalf("unexpected payload type: got %T", buildEvent.Data)
 	}
-	if payload.BuildID != "build-123" {
-		t.Fatalf("unexpected build id: got %q, want %q", payload.BuildID, "build-123")
-	}
 	if !payload.Success {
 		t.Fatal("expected successful payload")
+	}
+	if payload.BuildID != "build-123-2" {
+		t.Fatalf("unexpected build id: got %q, want %q", payload.BuildID, "build-123-2")
 	}
 	if len(payload.ChangedFiles) != 1 || payload.ChangedFiles[0] != "src/index.ts" {
 		t.Fatalf("unexpected changed files: %v", payload.ChangedFiles)
@@ -289,8 +324,8 @@ func TestRunBuildLoopBroadcastsBuildComplete(t *testing.T) {
 	if reloadPayload.Reason != "build.complete" {
 		t.Fatalf("unexpected reload reason: got %q, want %q", reloadPayload.Reason, "build.complete")
 	}
-	if reloadPayload.BuildID != "build-123" {
-		t.Fatalf("unexpected reload build id: got %q, want %q", reloadPayload.BuildID, "build-123")
+	if reloadPayload.BuildID != "build-123-2" {
+		t.Fatalf("unexpected reload build id: got %q, want %q", reloadPayload.BuildID, "build-123-2")
 	}
 
 	cancel()
@@ -310,8 +345,18 @@ func TestRunBuildLoopBuilderErrorStillBroadcastsFailure(t *testing.T) {
 
 	changes := make(chan daemon.FileChangeEvent, 1)
 	broadcaster := &fakeBroadcaster{}
+	var buildCalls int
 	builder := fakeBuildRunner{
-		build: func(_ context.Context, _ []string) (build.Result, error) {
+		build: func(_ context.Context, changedPaths []string) (build.Result, error) {
+			buildCalls++
+			if buildCalls == 1 {
+				return build.Result{
+					BuildID:      "build-startup-1",
+					Success:      true,
+					DurationMS:   12,
+					ChangedFiles: changedPaths,
+				}, nil
+			}
 			return build.Result{}, errors.New("boom")
 		},
 	}
@@ -320,6 +365,15 @@ func TestRunBuildLoopBuilderErrorStillBroadcastsFailure(t *testing.T) {
 	go func() {
 		done <- runBuildLoop(ctx, builder, broadcaster, changes)
 	}()
+
+	startupBuildEvent := waitForBroadcast(t, broadcaster, 2*time.Second)
+	if startupBuildEvent.Name != protocol.MessageBuildComplete {
+		t.Fatalf("unexpected startup message name: got %q, want %q", startupBuildEvent.Name, protocol.MessageBuildComplete)
+	}
+	startupReloadEvent := waitForBroadcast(t, broadcaster, 2*time.Second)
+	if startupReloadEvent.Name != protocol.MessageCommandReload {
+		t.Fatalf("unexpected startup reload name: got %q, want %q", startupReloadEvent.Name, protocol.MessageCommandReload)
+	}
 
 	changes <- daemon.FileChangeEvent{Paths: []string{"src/invalid.ts"}, OccurredAt: time.Now()}
 
