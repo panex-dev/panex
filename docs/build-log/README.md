@@ -41,6 +41,6 @@ In every PR description:
 5. Record architectural decisions in ADRs at decision time, not later.
 6. Keep branches short-lived and non-stacked; every PR branch starts from latest `origin/main` in its own worktree.
 
-## Current build check (2026-03-06)
-- Completed log entries: PR1-PR42 and PR45-PR58 (PR20 reserved for numbering reconciliation, PR27 process-only).
-- Next target increment: decide whether to graduate the disabled Replay tab into a focused history-driven surface using the Workbench-proven replay pattern without widening daemon scope.
+## Current build check (2026-03-07)
+- Completed log entries: PR1-PR42 and PR45-PR59 (PR20 reserved for numbering reconciliation, PR27 process-only).
+- Next target increment: decide whether replay should stay constrained to the runtime-probe contract or grow into a broader inspector-side history filter for additional replay-safe message families.

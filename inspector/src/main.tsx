@@ -5,9 +5,10 @@ import { render } from "solid-js/web";
 import "./styles.css";
 
 import { ConnectionProvider, useConnection } from "./connection";
-import { createInspectorRouter, type InspectorTab } from "./router";
+import { createInspectorRouter } from "./router";
 import { Sidebar } from "./sidebar";
 import { Shell, type ShellTabSpec } from "./shell";
+import { ReplayTab } from "./tabs/replay";
 import { StorageTab } from "./tabs/storage";
 import { TimelineTab } from "./tabs/timeline";
 import { WorkbenchTab } from "./tabs/workbench";
@@ -21,7 +22,7 @@ const tabs: readonly ShellTabSpec[] = [
   { id: "timeline", label: "Timeline" },
   { id: "storage", label: "Storage" },
   { id: "workbench", label: "Workbench" },
-  { id: "replay", label: "Replay", disabled: true }
+  { id: "replay", label: "Replay" }
 ];
 
 function InspectorApp(): JSX.Element {
@@ -55,7 +56,13 @@ function InspectorApp(): JSX.Element {
           sendRuntimeMessage: connection.sendRuntimeMessage
         });
       case "replay":
-        return disabledTab(activeTab);
+        return ReplayTab({
+          status: connection.status,
+          socketURL: connection.socketURL,
+          lastError: connection.lastError,
+          timeline: connection.timeline,
+          sendRuntimeMessage: connection.sendRuntimeMessage
+        });
       default:
         return TimelineTab({ timeline: connection.timeline });
     }
@@ -73,21 +80,6 @@ function InspectorApp(): JSX.Element {
       }),
     content: renderContent
   });
-}
-
-function disabledTab(tab: Exclude<InspectorTab, "timeline" | "storage">) {
-  return (
-    <section class="panel placeholder-panel">
-      <div class="panel-header">
-        <h2>{tab}</h2>
-        <p>disabled</p>
-      </div>
-      <div class="placeholder-body">
-        <p>{tab} is planned but not enabled in this milestone.</p>
-        <p>Use Timeline and Storage tabs for the current development loop.</p>
-      </div>
-    </section>
-  );
 }
 
 function renderFallback(error: unknown, reset: () => void) {

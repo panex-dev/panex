@@ -214,8 +214,8 @@ export function WorkbenchTab(props: WorkbenchTabProps): JSX.Element {
           <strong class="workbench-metric">3 live controls</strong>
           {plannedTools.length === 0 ? (
             <p class="subtle">
-              Replay controls are now live through the runtime replay button. Broader tooling
-              remains intentionally deferred.
+              Replay controls now span the Workbench quick action and the focused Replay tab.
+              Broader tooling remains intentionally deferred.
             </p>
           ) : (
             <ul class="workbench-list">
@@ -228,8 +228,8 @@ export function WorkbenchTab(props: WorkbenchTabProps): JSX.Element {
             </ul>
           )}
           <p class="subtle">
-            Storage presets, the runtime ping probe, and replay of the latest runtime payload are
-            live.
+            Storage presets, the runtime ping probe, and history-driven replay of observed runtime
+            payloads are live.
           </p>
         </article>
       </div>
