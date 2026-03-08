@@ -51,6 +51,7 @@
   - `GOCACHE=/tmp/go-build go test ./internal/daemon -run "WebSocketBroadcastUnregistersClosedSession|WebSocketCloseCancelsInFlightQueryEvents" -count=1`
   - `GOCACHE=/tmp/go-build go test ./internal/daemon -count=1`
 - Additional checks:
+  - `GOCACHE=/tmp/go-build go test ./internal/protocol -run TestTypeScriptProtocolParity -count=1`
   - Result: full repo verification completed cleanly after the daemon-specific regressions passed.
 
 ## Teach-back
