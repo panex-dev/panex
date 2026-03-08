@@ -4,6 +4,8 @@ export interface AgentConfig {
   agentId: string;
 }
 
+const loopbackHosts = new Set(["127.0.0.1", "localhost"]);
+
 export const defaultConfig: AgentConfig = {
   wsUrl: "ws://127.0.0.1:4317/ws",
   token: "dev-token",
@@ -15,7 +17,7 @@ export async function loadConfig(): Promise<AgentConfig> {
   const value = raw.panex as Partial<AgentConfig> | undefined;
 
   return {
-    wsUrl: nonEmpty(value?.wsUrl, defaultConfig.wsUrl),
+    wsUrl: normalizeDaemonWebSocketURL(value?.wsUrl, defaultConfig.wsUrl),
     token: nonEmpty(value?.token, defaultConfig.token),
     agentId: nonEmpty(value?.agentId, defaultConfig.agentId)
   };
@@ -35,4 +37,31 @@ function nonEmpty(value: string | undefined, fallback: string): string {
 
   const trimmed = value.trim();
   return trimmed.length > 0 ? trimmed : fallback;
+}
+
+function normalizeDaemonWebSocketURL(value: string | undefined, fallback: string): string {
+  const trimmed = nonEmpty(value, "");
+  if (trimmed === "") {
+    return fallback;
+  }
+
+  let parsed: URL;
+  try {
+    parsed = new URL(trimmed);
+  } catch {
+    return fallback;
+  }
+
+  if (
+    parsed.protocol !== "ws:" ||
+    !loopbackHosts.has(parsed.hostname) ||
+    parsed.pathname !== "/ws" ||
+    parsed.username !== "" ||
+    parsed.password !== ""
+  ) {
+    return fallback;
+  }
+
+  parsed.hash = "";
+  return parsed.toString();
 }

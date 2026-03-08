@@ -1,6 +1,6 @@
 # Build Status Tracker
 
-As of 2026-03-06.
+As of 2026-03-09.
 
 ## Completed
 | PR | Scope | Evidence |
@@ -59,6 +59,7 @@ As of 2026-03-06.
 | 58 | Replace inspector CSP-breaking template rendering with CSP-safe Solid hyperscript rendering | `docs/build-log/2026-03-06-pr-058-inspector-csp-safe-rendering.md` |
 | 59 | Enable the first focused Replay tab from observed runtime probe history | `docs/build-log/2026-03-07-pr-059-replay-tab.md` |
 | 60 | Keep `127.0.0.1` as the local websocket default and document `localhost` override | `docs/build-log/2026-03-07-pr-060-loopback-defaults.md` |
+| 61 | Guard loopback daemon URL overrides and start an explicit audit tracker | `docs/build-log/2026-03-09-pr-061-loopback-daemon-url-guards.md` |
 
 ## In progress
 - None.

@@ -56,6 +56,38 @@ describe("config loading", () => {
       agentId: "agent-a"
     });
   });
+
+  it("accepts loopback localhost overrides on the daemon port contract", async () => {
+    setChromeStorage({
+      wsUrl: "ws://localhost:4317/ws?client=agent",
+      token: "secret",
+      agentId: "agent-a"
+    });
+
+    const config = await loadConfig();
+
+    assert.deepEqual(config, {
+      wsUrl: "ws://localhost:4317/ws?client=agent",
+      token: "secret",
+      agentId: "agent-a"
+    });
+  });
+
+  it("falls back when the stored websocket URL points off loopback or to the wrong path", async () => {
+    setChromeStorage({
+      wsUrl: "ws://evil.example:4317/not-ws",
+      token: "secret",
+      agentId: "agent-a"
+    });
+
+    const config = await loadConfig();
+
+    assert.deepEqual(config, {
+      wsUrl: defaultConfig.wsUrl,
+      token: "secret",
+      agentId: "agent-a"
+    });
+  });
 });
 
 describe("daemon URL construction", () => {
