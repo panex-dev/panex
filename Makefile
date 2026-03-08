@@ -1,4 +1,4 @@
-.PHONY: build build-go build-ts check check-ts test test-go test-ts lint fmt clean
+.PHONY: init build build-go build-ts check check-ts test test-go test-ts lint fmt clean
 
 # Pin tool versions for reproductivity
 GOLANGCI_LINT_VERSION := v1.64.5
@@ -8,6 +8,9 @@ BIN_DIR := ./bin
 BIN_NAME := panex
 TS_CHECK_DIRS := shared/protocol agent inspector shared/chrome-sim
 TS_BUILD_DIRS := agent inspector
+
+init:
+	./scripts/install-git-hooks.sh
 
 build: build-go build-ts
 
