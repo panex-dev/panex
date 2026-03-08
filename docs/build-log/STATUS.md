@@ -60,6 +60,7 @@ As of 2026-03-09.
 | 59 | Enable the first focused Replay tab from observed runtime probe history | `docs/build-log/2026-03-07-pr-059-replay-tab.md` |
 | 60 | Keep `127.0.0.1` as the local websocket default and document `localhost` override | `docs/build-log/2026-03-07-pr-060-loopback-defaults.md` |
 | 61 | Guard loopback daemon URL overrides and start an explicit audit tracker | `docs/build-log/2026-03-09-pr-061-loopback-daemon-url-guards.md` |
+| 62 | Add a supported `make init` bootstrap for git hook installation | `docs/build-log/2026-03-09-pr-062-make-init-bootstrap.md` |
 
 ## In progress
 - None.

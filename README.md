@@ -13,6 +13,7 @@ A development runtime for Chrome extensions. Save and instantly see behavior acr
 ## Setup
 
 ```bash
+make init
 go mod verify
 ```
 
@@ -38,7 +39,7 @@ Start every new PR from latest `origin/main` in a dedicated worktree:
 Install pre-push hooks once per clone to block stale branch pushes:
 
 ```bash
-./scripts/install-git-hooks.sh
+make init
 ```
 
 Before push (and in CI), verify branch base:
