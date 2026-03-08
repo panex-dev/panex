@@ -62,6 +62,7 @@ As of 2026-03-09.
 | 61 | Guard loopback daemon URL overrides and start an explicit audit tracker | `docs/build-log/2026-03-09-pr-061-loopback-daemon-url-guards.md` |
 | 62 | Add a supported `make init` bootstrap for git hook installation | `docs/build-log/2026-03-09-pr-062-make-init-bootstrap.md` |
 | 63 | Add CI dependency verification with `go mod verify` and `pnpm audit` | `docs/build-log/2026-03-09-pr-063-dependency-verification.md` |
+| 64 | Decode raw protocol payload bytes without a msgpack round trip | `docs/build-log/2026-03-09-pr-064-raw-payload-decode.md` |
 
 ## In progress
 - None.
