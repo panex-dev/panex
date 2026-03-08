@@ -11,6 +11,10 @@ This file tracks follow-up work from [audit-1.md](./audit-1.md) until the origin
 
 - `make init` now installs the repo's git hooks through the supported bootstrap entrypoint.
 
+## Resolved in PR63
+
+- CI now runs `go mod verify` and `pnpm audit --audit-level high --prod` as an explicit dependency-verification gate.
+
 ## Deferred Or Dependent Items
 
 - Broad dev-agent `host_permissions` are still open.
@@ -21,7 +25,7 @@ This file tracks follow-up work from [audit-1.md](./audit-1.md) until the origin
   Reason: fixing this cleanly needs a protocol decode API change, not just an error-message tweak.
 - Browser-side inbound websocket message size limiting is still open.
   Reason: the daemon now enforces a read limit, but browser WebSocket clients do not expose equivalent receive-side caps.
-- Dependency CVE scanning is still missing from CI.
-  Reason: needs an explicit CI policy for `go mod verify`, `npm`/`pnpm` audit behavior, and failure thresholds.
 - `cmd/panex` orchestration coverage is still low.
   Reason: needs a dedicated CLI lifecycle test slice instead of being mixed into this client-side hardening PR.
+- Go toolchain vulnerability scanning via `govulncheck` is still open.
+  Reason: a probe on 2026-03-09 reported multiple standard-library vulnerabilities against the current Go 1.24.0 baseline, so enabling that gate now would redline CI until the project upgrades its Go toolchain policy.

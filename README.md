@@ -24,6 +24,8 @@ make fmt    # format code
 make lint   # run linters
 make test   # run Go tests with race detector + TypeScript package tests
 make build  # compile ./bin/panex + frontend build outputs
+go mod verify
+pnpm audit --audit-level high --prod
 ```
 
 ## Branch Workflow
