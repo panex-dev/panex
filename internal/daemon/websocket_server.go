@@ -57,6 +57,9 @@ type WebSocketServer struct {
 	cfg      WebSocketConfig
 	upgrader websocket.Upgrader
 
+	ctx    context.Context
+	cancel context.CancelFunc
+
 	mu       sync.RWMutex
 	sessions map[string]*sessionConn
 
@@ -74,8 +77,10 @@ type WebSocketServer struct {
 }
 
 type sessionConn struct {
-	conn *websocket.Conn
-	mu   sync.Mutex
+	conn      *websocket.Conn
+	mu        sync.Mutex
+	closeOnce sync.Once
+	closeErr  error
 }
 
 type simulatedTab struct {
@@ -119,11 +124,15 @@ func NewWebSocketServer(cfg WebSocketConfig) (*WebSocketServer, error) {
 		return nil, fmt.Errorf("configure event store: %w", err)
 	}
 
+	serverCtx, cancel := context.WithCancel(context.Background())
+
 	return &WebSocketServer{
 		cfg: cfg,
 		upgrader: websocket.Upgrader{
 			CheckOrigin: isLocalOrigin,
 		},
+		ctx:        serverCtx,
+		cancel:     cancel,
 		sessions:   make(map[string]*sessionConn),
 		storage:    defaultStorageState(),
 		tabs:       defaultTabsState(),
@@ -191,6 +200,8 @@ func (s *WebSocketServer) ConnectionCount() int {
 
 func (s *WebSocketServer) Close() error {
 	s.closeOnce.Do(func() {
+		s.cancel()
+		s.closeAllConnections()
 		s.closeErr = s.eventStore.Close()
 	})
 
@@ -221,8 +232,9 @@ func (s *WebSocketServer) handleWebSocket(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	s.register(sessionID, &sessionConn{conn: conn})
-	go s.readLoop(sessionID, conn)
+	session := &sessionConn{conn: conn}
+	s.register(sessionID, session)
+	go s.readLoop(sessionID, session)
 }
 
 func (s *WebSocketServer) authorized(r *http.Request) bool {
@@ -303,22 +315,22 @@ func (s *WebSocketServer) handshake(ctx context.Context, conn *websocket.Conn) (
 	return sessionID, nil
 }
 
-func (s *WebSocketServer) readLoop(sessionID string, conn *websocket.Conn) {
+func (s *WebSocketServer) readLoop(sessionID string, session *sessionConn) {
 	defer func() {
 		s.unregister(sessionID)
-		_ = conn.Close()
+		_ = session.close()
 	}()
 
 	for {
-		_, rawMessage, err := conn.ReadMessage()
+		_, rawMessage, err := session.conn.ReadMessage()
 		if err != nil {
 			if !websocket.IsCloseError(err, websocket.CloseNormalClosure, websocket.CloseGoingAway) {
 				fmt.Fprintf(os.Stderr, "panex: readLoop session %s: %v\n", sessionID, err)
 			}
 			return
 		}
-		if err := s.handleClientMessage(context.Background(), sessionID, rawMessage); err != nil {
-			_ = conn.WriteControl(
+		if err := s.handleClientMessage(s.ctx, sessionID, rawMessage); err != nil {
+			_ = session.writeControl(
 				websocket.CloseMessage,
 				websocket.FormatCloseMessage(websocket.ClosePolicyViolation, err.Error()),
 				time.Now().Add(time.Second),
@@ -347,11 +359,9 @@ func (s *WebSocketServer) Broadcast(ctx context.Context, message protocol.Envelo
 
 	var failed []string
 	for sessionID, session := range sessions {
-		session.mu.Lock()
-		writeErr := session.conn.WriteMessage(websocket.BinaryMessage, encoded)
-		session.mu.Unlock()
+		writeErr := session.writeMessage(websocket.BinaryMessage, encoded)
 		if writeErr != nil {
-			_ = session.conn.Close()
+			_ = session.close()
 			failed = append(failed, sessionID)
 		}
 	}
@@ -1248,10 +1258,7 @@ func (s *WebSocketServer) writeSessionMessage(sessionID string, encoded []byte) 
 		return fmt.Errorf("session %q is not connected", sessionID)
 	}
 
-	session.mu.Lock()
-	defer session.mu.Unlock()
-
-	return session.conn.WriteMessage(websocket.BinaryMessage, encoded)
+	return session.writeMessage(websocket.BinaryMessage, encoded)
 }
 
 func (s *WebSocketServer) nextSessionID() string {
@@ -1282,8 +1289,33 @@ func (s *WebSocketServer) closeAllConnections() {
 	s.mu.RUnlock()
 
 	for _, session := range connections {
-		_ = session.conn.Close()
+		_ = session.close()
 	}
+}
+
+func (s *sessionConn) writeMessage(messageType int, data []byte) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	return s.conn.WriteMessage(messageType, data)
+}
+
+func (s *sessionConn) writeControl(messageType int, data []byte, deadline time.Time) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	return s.conn.WriteControl(messageType, data, deadline)
+}
+
+func (s *sessionConn) close() error {
+	s.closeOnce.Do(func() {
+		s.mu.Lock()
+		defer s.mu.Unlock()
+
+		s.closeErr = s.conn.Close()
+	})
+
+	return s.closeErr
 }
 
 func (s *WebSocketServer) buildStorageSnapshots(area string) ([]protocol.StorageSnapshot, error) {

@@ -19,6 +19,10 @@ This file tracks follow-up work from [audit-1.md](./audit-1.md) until the origin
 
 - Protocol envelope decoding now preserves raw msgpack payload bytes, and payload decoding unmarshals those bytes directly instead of doing a marshal-then-unmarshal round trip.
 
+## Resolved in PR65
+
+- Daemon client-message handling now inherits the server lifecycle context, and session close/write operations are serialized so failed broadcasts cannot race connection shutdown.
+
 ## Deferred Or Dependent Items
 
 - Broad dev-agent `host_permissions` are still open.

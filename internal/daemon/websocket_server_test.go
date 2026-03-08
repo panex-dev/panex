@@ -12,6 +12,7 @@ import (
 	"github.com/gorilla/websocket"
 
 	"github.com/panex-dev/panex/internal/protocol"
+	"github.com/panex-dev/panex/internal/store"
 )
 
 func TestWebSocketAuthRejectsMissingToken(t *testing.T) {
@@ -176,6 +177,105 @@ func TestWebSocketBroadcastToConnectedClient(t *testing.T) {
 	if len(payload.ChangedFiles) != 1 || payload.ChangedFiles[0] != "index.ts" {
 		t.Fatalf("unexpected changed files: %v", payload.ChangedFiles)
 	}
+}
+
+func TestWebSocketBroadcastUnregistersClosedSession(t *testing.T) {
+	server := newTestServer(t)
+	defer server.httpServer.Close()
+
+	conn := dialAuthorizedConnection(t, server.wsURL, server.token)
+	t.Cleanup(func() {
+		_ = conn.Close()
+	})
+
+	_ = mustHandshake(t, conn)
+	waitForConnectionCount(t, server.ws, 1)
+
+	liveSessionID := singleSessionID(t, server.ws)
+
+	server.ws.mu.RLock()
+	session := server.ws.sessions[liveSessionID]
+	server.ws.mu.RUnlock()
+	if session == nil {
+		t.Fatalf("expected session %q to be registered", liveSessionID)
+	}
+	if err := session.close(); err != nil {
+		t.Fatalf("session.close() returned error: %v", err)
+	}
+	waitForConnectionCount(t, server.ws, 0)
+
+	const staleSessionID = "stale-session"
+	server.ws.register(staleSessionID, session)
+	waitForConnectionCount(t, server.ws, 1)
+
+	buildComplete := protocol.NewBuildComplete(
+		protocol.Source{
+			Role: protocol.SourceDaemon,
+			ID:   "daemon-test",
+		},
+		protocol.BuildComplete{
+			BuildID:      "build-closed",
+			Success:      true,
+			DurationMS:   42,
+			ChangedFiles: []string{"index.ts"},
+		},
+	)
+	err := server.ws.Broadcast(context.Background(), buildComplete)
+	if err == nil {
+		t.Fatal("expected Broadcast() to fail for closed session")
+	}
+	if !strings.Contains(err.Error(), staleSessionID) {
+		t.Fatalf("expected Broadcast() error to mention %q, got %v", staleSessionID, err)
+	}
+
+	waitForConnectionCount(t, server.ws, 0)
+}
+
+func TestWebSocketCloseCancelsInFlightQueryEvents(t *testing.T) {
+	eventStore := &blockingRecentEventStore{
+		recentStarted:  make(chan struct{}),
+		recentCanceled: make(chan struct{}),
+	}
+	server := newTestServerWithStore(t, eventStore)
+	defer server.httpServer.Close()
+
+	conn := dialAuthorizedConnection(t, server.wsURL, server.token)
+	t.Cleanup(func() {
+		_ = conn.Close()
+	})
+
+	_ = mustHandshake(t, conn)
+	waitForConnectionCount(t, server.ws, 1)
+
+	query := protocol.NewQueryEvents(
+		protocol.Source{Role: protocol.SourceInspector, ID: "inspector-1"},
+		protocol.QueryEvents{Limit: 1},
+	)
+	rawQuery, err := protocol.Encode(query)
+	if err != nil {
+		t.Fatalf("Encode(query.events) returned error: %v", err)
+	}
+	if err := conn.WriteMessage(websocket.BinaryMessage, rawQuery); err != nil {
+		t.Fatalf("WriteMessage(query.events) returned error: %v", err)
+	}
+
+	select {
+	case <-eventStore.recentStarted:
+	case <-time.After(2 * time.Second):
+		t.Fatal("timed out waiting for in-flight query.events call")
+	}
+
+	if err := server.ws.Close(); err != nil {
+		t.Fatalf("Close() returned error: %v", err)
+	}
+
+	select {
+	case <-eventStore.recentCanceled:
+	case <-time.After(2 * time.Second):
+		t.Fatal("timed out waiting for in-flight query.events cancellation")
+	}
+
+	waitForConnectionCount(t, server.ws, 0)
 }
 
 func TestWebSocketRejectsFirstMessageThatIsNotHello(t *testing.T) {
@@ -1401,6 +1501,12 @@ type testServer struct {
 func newTestServer(t *testing.T) testServer {
 	t.Helper()
 
+	return newTestServerWithStore(t, nil)
+}
+
+func newTestServerWithStore(t *testing.T, testEventStore eventStore) testServer {
+	t.Helper()
+
 	const token = "test-token"
 
 	ws, err := NewWebSocketServer(WebSocketConfig{
@@ -1412,6 +1518,12 @@ func newTestServer(t *testing.T) testServer {
 	})
 	if err != nil {
 		t.Fatalf("NewWebSocketServer() returned error: %v", err)
+	}
+	if testEventStore != nil {
+		if err := ws.eventStore.Close(); err != nil {
+			t.Fatalf("close sqlite event store before test override: %v", err)
+		}
+		ws.eventStore = testEventStore
 	}
 	t.Cleanup(func() {
 		_ = ws.Close()
@@ -1457,6 +1569,23 @@ func waitForConnectionCount(t *testing.T, server *WebSocketServer, want int) {
 	}
 
 	t.Fatalf("timed out waiting for connection count %d (last=%d)", want, server.ConnectionCount())
+}
+
+func singleSessionID(t *testing.T, server *WebSocketServer) string {
+	t.Helper()
+
+	server.mu.RLock()
+	defer server.mu.RUnlock()
+
+	if len(server.sessions) != 1 {
+		t.Fatalf("expected exactly one session, got %d", len(server.sessions))
+	}
+	for sessionID := range server.sessions {
+		return sessionID
+	}
+
+	t.Fatal("expected one registered session")
+	return ""
 }
 
 func mustHandshake(t *testing.T, conn *websocket.Conn) protocol.Envelope {
@@ -1572,4 +1701,24 @@ func mustInt64(t *testing.T, value any) int64 {
 		t.Fatalf("expected integer numeric payload, got %T (%#v)", value, value)
 		return 0
 	}
+}
+
+type blockingRecentEventStore struct {
+	recentStarted  chan struct{}
+	recentCanceled chan struct{}
+}
+
+func (s *blockingRecentEventStore) Append(context.Context, protocol.Envelope) error {
+	return nil
+}
+
+func (s *blockingRecentEventStore) Recent(ctx context.Context, _ int) ([]store.Record, error) {
+	close(s.recentStarted)
+	<-ctx.Done()
+	close(s.recentCanceled)
+	return nil, ctx.Err()
+}
+
+func (s *blockingRecentEventStore) Close() error {
+	return nil
 }
