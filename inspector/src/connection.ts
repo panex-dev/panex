@@ -43,6 +43,10 @@ import {
 
 export type ConnectionStatus = "connecting" | "open" | "reconnecting" | "closed";
 
+const defaultDaemonWSURL = "ws://127.0.0.1:4317/ws";
+const defaultDaemonToken = "dev-token";
+const loopbackHosts = new Set(["127.0.0.1", "localhost"]);
+
 interface ConnectionContextValue {
   status: Accessor<ConnectionStatus>;
   timeline: Accessor<TimelineEntry[]>;
@@ -462,10 +466,24 @@ function buildChromeRuntimeSendMessage(
 }
 
 function resolveConnectionParams(): { wsURL: string; token: string } {
-  const params = new URLSearchParams(window.location.search);
+  return resolveConnectionParamsFromSearch(window.location.search, isEmbeddedContext());
+}
+
+export function resolveConnectionParamsFromSearch(
+  search: string,
+  embedded = false
+): { wsURL: string; token: string } {
+  if (embedded) {
+    return {
+      wsURL: defaultDaemonWSURL,
+      token: defaultDaemonToken
+    };
+  }
+
+  const params = new URLSearchParams(search);
   return {
-    wsURL: nonEmpty(params.get("ws"), "ws://127.0.0.1:4317/ws"),
-    token: nonEmpty(params.get("token"), "dev-token")
+    wsURL: normalizeDaemonWebSocketURL(params.get("ws"), defaultDaemonWSURL),
+    token: nonEmpty(params.get("token"), defaultDaemonToken)
   };
 }
 
@@ -490,6 +508,37 @@ function nonEmpty(value: string | null, fallback: string): string {
 
   const trimmed = value.trim();
   return trimmed.length > 0 ? trimmed : fallback;
+}
+
+function normalizeDaemonWebSocketURL(value: string | null, fallback: string): string {
+  const trimmed = nonEmpty(value, "");
+  if (trimmed === "") {
+    return fallback;
+  }
+
+  let parsed: URL;
+  try {
+    parsed = new URL(trimmed);
+  } catch {
+    return fallback;
+  }
+
+  if (
+    parsed.protocol !== "ws:" ||
+    !loopbackHosts.has(parsed.hostname) ||
+    parsed.pathname !== "/ws" ||
+    parsed.username !== "" ||
+    parsed.password !== ""
+  ) {
+    return fallback;
+  }
+
+  parsed.hash = "";
+  return parsed.toString();
+}
+
+function isEmbeddedContext(): boolean {
+  return window.self !== window.top;
 }
 
 function normalizeStorageArea(
