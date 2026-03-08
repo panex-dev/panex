@@ -15,14 +15,16 @@ This file tracks follow-up work from [audit-1.md](./audit-1.md) until the origin
 
 - CI now runs `go mod verify` and `pnpm audit --audit-level high --prod` as an explicit dependency-verification gate.
 
+## Resolved in PR64
+
+- Protocol envelope decoding now preserves raw msgpack payload bytes, and payload decoding unmarshals those bytes directly instead of doing a marshal-then-unmarshal round trip.
+
 ## Deferred Or Dependent Items
 
 - Broad dev-agent `host_permissions` are still open.
   Reason: narrowing the manifest to `:4317` would break non-default daemon ports, and the correct MV3 permission model needs to be verified before changing product behavior.
 - Query-string token transport remains in place.
   Reason: browser WebSocket clients cannot send arbitrary auth headers, so removing `?token=` requires a different handshake/auth contract rather than a local cleanup.
-- `internal/protocol/codec.go` still does marshal-then-unmarshal payload decoding.
-  Reason: fixing this cleanly needs a protocol decode API change, not just an error-message tweak.
 - Browser-side inbound websocket message size limiting is still open.
   Reason: the daemon now enforces a read limit, but browser WebSocket clients do not expose equivalent receive-side caps.
 - `cmd/panex` orchestration coverage is still low.
