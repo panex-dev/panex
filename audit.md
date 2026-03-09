@@ -23,6 +23,10 @@ This file tracks follow-up work from [audit-1.md](./audit-1.md) until the origin
 
 - Daemon client-message handling now inherits the server lifecycle context, and session close/write operations are serialized so failed broadcasts cannot race connection shutdown.
 
+## Resolved in PR66
+
+- `cmd/panex` now has dedicated startup orchestration tests covering injected daemon/build/watcher wiring, which raises package coverage from 46.2% to 76.2%.
+
 ## Deferred Or Dependent Items
 
 - Broad dev-agent `host_permissions` are still open.
@@ -31,7 +35,5 @@ This file tracks follow-up work from [audit-1.md](./audit-1.md) until the origin
   Reason: browser WebSocket clients cannot send arbitrary auth headers, so removing `?token=` requires a different handshake/auth contract rather than a local cleanup.
 - Browser-side inbound websocket message size limiting is still open.
   Reason: the daemon now enforces a read limit, but browser WebSocket clients do not expose equivalent receive-side caps.
-- `cmd/panex` orchestration coverage is still low.
-  Reason: needs a dedicated CLI lifecycle test slice instead of being mixed into this client-side hardening PR.
 - Go toolchain vulnerability scanning via `govulncheck` is still open.
   Reason: a probe on 2026-03-09 reported multiple standard-library vulnerabilities against the current Go 1.24.0 baseline, so enabling that gate now would redline CI until the project upgrades its Go toolchain policy.
