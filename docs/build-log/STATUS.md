@@ -69,12 +69,21 @@ As of 2026-03-09.
 | 68 | Move daemon auth from websocket query params into the hello handshake | `docs/build-log/2026-03-09-pr-068-websocket-hello-auth.md` |
 | 69 | Upgrade Go baseline to 1.25.8 and gate CI with `govulncheck` | `docs/build-log/2026-03-09-pr-069-go-toolchain-govulncheck.md` |
 | 70 | Centralize the replay contract boundary and keep replay scoped to runtime probes | `docs/build-log/2026-03-09-pr-070-replay-contract-boundary.md` |
+| 71 | Fold preserved code-review follow-ups into the roadmap queue | `docs/build-log/2026-03-09-pr-071-review-followup-queue.md` |
 
 ## In progress
 - None.
 
 ## Next
 - Add a focused Workbench chrome API activity log over existing timeline history so operators can inspect runtime probes, tabs queries, and unsupported calls in one place without widening protocol scope.
+
+## Queued Follow-Ons
+- Add daemon websocket read/write deadlines so slow or stalled clients cannot hold server resources indefinitely.
+- Enforce agent-side `hello.ack` completion before accepting live commands, so reload behavior depends on a completed handshake instead of optimistic startup.
+- Add optional agent diagnostic logging for websocket lifecycle and command handling to improve extension-side debugging without widening default noise.
+- Implement focus-visible and ARIA polish for inspector controls so keyboard navigation and assistive technology support stop lagging behind the product surface.
+- Publish first-run config/schema documentation for `panex.toml`, including the auth token contract and supported local-development defaults.
+- Keep longer-horizon release work queued behind those slices: multi-extension support, `$PANEX_AUTH_TOKEN` override, packaging/distribution, timeline scalability, and transactional storage mutation persistence.
 
 ## Notes
 - PR20 is intentionally reserved as documentation reconciliation so sequence alignment is explicit and auditable.
