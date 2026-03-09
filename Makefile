@@ -1,4 +1,4 @@
-.PHONY: init build build-go build-ts check check-ts test test-go test-ts lint fmt clean
+.PHONY: init build build-go build-ts check check-ts test test-go test-ts lint fmt release clean
 
 # Pin tool versions for reproductivity
 GOLANGCI_LINT_VERSION := v1.64.5
@@ -6,6 +6,7 @@ GOLANGCI_LINT_VERSION := v1.64.5
 # Default binary output
 BIN_DIR := ./bin
 BIN_NAME := panex
+RELEASE_DIR := ./dist/release
 TS_CHECK_DIRS := shared/protocol agent inspector shared/chrome-sim
 TS_BUILD_DIRS := agent inspector
 
@@ -60,5 +61,17 @@ fmt:
 	goimports -w -local github.com/panex-dev/panex .
 	gofmt -s -w .
 
+release:
+	@if [ -z "$(VERSION)" ]; then \
+		echo "VERSION is required (example: make release VERSION=v0.1.0)"; \
+		exit 1; \
+	fi
+	@set -e; \
+	args="--version $(VERSION) --out-dir $(RELEASE_DIR)"; \
+	if [ -n "$(TARGETS)" ]; then \
+		args="$$args --targets $(TARGETS)"; \
+	fi; \
+	go run ./cmd/panex-release $$args
+
 clean:
-	rm -rf $(BIN_DIR)
+	rm -rf $(BIN_DIR) $(RELEASE_DIR)

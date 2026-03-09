@@ -1,6 +1,6 @@
 # Build Status Tracker
 
-As of 2026-03-09.
+As of 2026-03-10.
 
 ## Completed
 | PR | Scope | Evidence |
@@ -77,12 +77,13 @@ As of 2026-03-09.
 | 76 | Polish inspector keyboard focus treatment and ARIA semantics | `docs/build-log/2026-03-09-pr-076-inspector-accessibility-polish.md` |
 | 77 | Publish first-run `panex.toml` config/schema documentation and local-dev guidance | `docs/build-log/2026-03-09-pr-077-panex-config-guide.md` |
 | 78 | Support `$PANEX_AUTH_TOKEN` overrides in `panex dev` for automation/package flows | `docs/build-log/2026-03-09-pr-078-panex-auth-token-override.md` |
+| 79 | Package reproducible release archives for the `panex` CLI | `docs/build-log/2026-03-10-pr-079-release-archives.md` |
 
 ## In progress
 - None.
 
 ## Next
-- Package reproducible release archives for the `panex` CLI as the first distribution-oriented slice.
+- Publish tagged CI release artifacts on top of the local release packager.
 
 ## Queued Follow-Ons
 - Keep longer-horizon release work queued behind those slices: multi-extension support, timeline scalability, and transactional storage mutation persistence.
