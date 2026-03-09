@@ -110,6 +110,33 @@ git push origin v0.1.0
 
 The `Release` workflow reruns dependency verification, lint, tests, and builds before calling `make release VERSION=<tag>`. If those checks stay green, it uploads the generated `dist/release/*` archives and `panex_<version>_SHA256SUMS` both as workflow artifacts and as assets on the matching GitHub release. Tags with a hyphen, such as `v0.2.0-rc.1`, publish as prereleases.
 
+## Release Verification
+
+After downloading a release archive, download the matching `panex_<version>_SHA256SUMS` file from the same GitHub release and verify the specific asset you fetched.
+
+Linux:
+
+```bash
+grep ' panex_v0.1.0_linux_amd64.tar.gz$' panex_v0.1.0_SHA256SUMS | sha256sum -c -
+```
+
+macOS:
+
+```bash
+grep ' panex_v0.1.0_darwin_arm64.tar.gz$' panex_v0.1.0_SHA256SUMS | shasum -a 256 -c -
+```
+
+PowerShell:
+
+```powershell
+$expected = ((Select-String ' panex_v0.1.0_windows_amd64.zip$' .\panex_v0.1.0_SHA256SUMS).Line -split '\s+')[0].ToLower()
+$actual = (Get-FileHash .\panex_v0.1.0_windows_amd64.zip -Algorithm SHA256).Hash.ToLower()
+if ($actual -ne $expected) { throw "checksum mismatch" }
+Write-Host "checksum ok"
+```
+
+Replace the version and filename with the asset you actually downloaded. A successful verification prints `OK` on Linux/macOS or `checksum ok` in PowerShell.
+
 ## Branch Workflow
 
 Repository-wide agent operating rules live in [`AGENTS.md`](./AGENTS.md). Coding agents are expected to follow that protocol in addition to the branch workflow below.

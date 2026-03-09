@@ -80,12 +80,13 @@ As of 2026-03-10.
 | 79 | Package reproducible release archives for the `panex` CLI | `docs/build-log/2026-03-10-pr-079-release-archives.md` |
 | 80 | Publish tagged CI release artifacts on top of the local release packager | `docs/build-log/2026-03-10-pr-080-release-publish-ci.md` |
 | 81 | Publish SHA256 checksums alongside tagged release assets | `docs/build-log/2026-03-10-pr-081-release-checksums.md` |
+| 82 | Document download verification against published release checksums | `docs/build-log/2026-03-10-pr-082-release-download-verification.md` |
 
 ## In progress
 - None.
 
 ## Next
-- Document download verification against published release checksums.
+- Select the next post-release milestone from the queued follow-ons.
 
 ## Queued Follow-Ons
 - Keep longer-horizon release work queued behind those slices: multi-extension support, timeline scalability, and transactional storage mutation persistence.
