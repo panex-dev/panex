@@ -15,24 +15,67 @@ import (
 	"github.com/panex-dev/panex/internal/store"
 )
 
-func TestWebSocketAuthRejectsMissingToken(t *testing.T) {
+func TestWebSocketHandshakeRejectsMissingHelloAuthToken(t *testing.T) {
 	server := newTestServer(t)
 	defer server.httpServer.Close()
 
-	dialer := websocket.Dialer{HandshakeTimeout: time.Second}
-	_, resp, err := dialer.Dial(server.wsURL+"/ws", nil)
+	conn := dialAuthorizedConnection(t, server.wsURL, server.token)
+	t.Cleanup(func() {
+		_ = conn.Close()
+	})
+
+	hello := protocol.NewHello(
+		protocol.Source{
+			Role: protocol.SourceDevAgent,
+			ID:   "agent-1",
+		},
+		protocol.Hello{
+			ProtocolVersion:       protocol.CurrentVersion,
+			ClientKind:            "dev-agent",
+			ClientVersion:         "dev",
+			CapabilitiesRequested: []string{"command.reload"},
+		},
+	)
+	rawHello, err := protocol.Encode(hello)
+	if err != nil {
+		t.Fatalf("Encode(hello) returned error: %v", err)
+	}
+	if err := conn.WriteMessage(websocket.BinaryMessage, rawHello); err != nil {
+		t.Fatalf("WriteMessage(hello) returned error: %v", err)
+	}
+
+	helloAckEnv := mustReadEnvelope(t, conn)
+	if helloAckEnv.Name != protocol.MessageHelloAck {
+		t.Fatalf("unexpected message name: got %q, want %q", helloAckEnv.Name, protocol.MessageHelloAck)
+	}
+
+	var helloAck protocol.HelloAck
+	if err := protocol.DecodePayload(helloAckEnv.Data, &helloAck); err != nil {
+		t.Fatalf("DecodePayload(hello.ack) returned error: %v", err)
+	}
+	if helloAck.AuthOK {
+		t.Fatal("expected auth_ok=false")
+	}
+	if helloAck.SessionID != "" {
+		t.Fatalf("expected empty session id, got %q", helloAck.SessionID)
+	}
+	if len(helloAck.CapabilitiesSupported) != 0 {
+		t.Fatalf("expected no supported capabilities, got %v", helloAck.CapabilitiesSupported)
+	}
+
+	_, _, err = conn.ReadMessage()
 	if err == nil {
-		t.Fatal("expected unauthorized handshake error, got nil")
+		t.Fatal("expected connection close after unauthorized hello")
 	}
-	if resp == nil {
-		t.Fatal("expected HTTP response for failed handshake")
+	closeErr, ok := err.(*websocket.CloseError)
+	if !ok {
+		t.Fatalf("expected websocket.CloseError, got %T (%v)", err, err)
 	}
-	defer func() {
-		_ = resp.Body.Close()
-	}()
-	if resp.StatusCode != http.StatusUnauthorized {
-		t.Fatalf("unexpected status: got %d, want %d", resp.StatusCode, http.StatusUnauthorized)
+	if closeErr.Code != websocket.ClosePolicyViolation {
+		t.Fatalf("unexpected close code: got %d, want %d", closeErr.Code, websocket.ClosePolicyViolation)
 	}
+
+	waitForConnectionCount(t, server.ws, 0)
 }
 
 func TestWebSocketHandshakeSendsHelloAckAndTracksConnection(t *testing.T) {
@@ -99,6 +142,7 @@ func TestWebSocketHandshakeNegotiatesCapabilities(t *testing.T) {
 		},
 		protocol.Hello{
 			ProtocolVersion:       protocol.CurrentVersion,
+			AuthToken:             server.token,
 			ClientKind:            "inspector",
 			ClientVersion:         "dev",
 			CapabilitiesRequested: []string{"query.events", "unknown.capability", "query.events"},
@@ -1458,7 +1502,7 @@ func TestWebSocketRejectsNonLocalOrigin(t *testing.T) {
 
 	dialer := websocket.Dialer{HandshakeTimeout: time.Second}
 	_, resp, err := dialer.Dial(
-		server.wsURL+"/ws?token="+server.token,
+		server.wsURL+"/ws",
 		http.Header{"Origin": []string{"http://evil.com"}},
 	)
 	if resp != nil {
@@ -1540,11 +1584,13 @@ func newTestServerWithStore(t *testing.T, testEventStore eventStore) testServer 
 	}
 }
 
-func dialAuthorizedConnection(t *testing.T, wsURL, token string) *websocket.Conn {
+const defaultHandshakeToken = "test-token"
+
+func dialAuthorizedConnection(t *testing.T, wsURL, _ string) *websocket.Conn {
 	t.Helper()
 
 	dialer := websocket.Dialer{HandshakeTimeout: time.Second}
-	conn, resp, err := dialer.Dial(wsURL+"/ws?token="+token, nil)
+	conn, resp, err := dialer.Dial(wsURL+"/ws", nil)
 	if resp != nil {
 		defer func() {
 			_ = resp.Body.Close()
@@ -1589,6 +1635,10 @@ func singleSessionID(t *testing.T, server *WebSocketServer) string {
 }
 
 func mustHandshake(t *testing.T, conn *websocket.Conn) protocol.Envelope {
+	return mustHandshakeWithToken(t, conn, defaultHandshakeToken)
+}
+
+func mustHandshakeWithToken(t *testing.T, conn *websocket.Conn, token string) protocol.Envelope {
 	t.Helper()
 
 	hello := protocol.NewHello(
@@ -1598,6 +1648,7 @@ func mustHandshake(t *testing.T, conn *websocket.Conn) protocol.Envelope {
 		},
 		protocol.Hello{
 			ProtocolVersion:       protocol.CurrentVersion,
+			AuthToken:             token,
 			ClientKind:            "dev-agent",
 			ClientVersion:         "dev",
 			CapabilitiesRequested: []string{"command.reload"},

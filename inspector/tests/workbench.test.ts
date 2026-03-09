@@ -62,7 +62,7 @@ describe("buildWorkbenchModel", () => {
   it("combines connection, storage, and timeline state into a stable view model", () => {
     const model = buildWorkbenchModel({
       status: "open",
-      socketURL: "ws://127.0.0.1:4317/ws?token=dev-token",
+      socketURL: "ws://127.0.0.1:4317/ws",
       lastError: null,
       storage: [
         {
@@ -81,7 +81,7 @@ describe("buildWorkbenchModel", () => {
     });
 
     assert.equal(model.status, "open");
-    assert.equal(model.socketURL, "ws://127.0.0.1:4317/ws?token=dev-token");
+    assert.equal(model.socketURL, "ws://127.0.0.1:4317/ws");
     assert.equal(model.totalStorageKeys, 1);
     assert.deepEqual(model.storageAreas, [
       { area: "local", keys: 1 },

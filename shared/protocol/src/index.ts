@@ -61,6 +61,7 @@ export interface Envelope<TData = unknown> {
 
 export interface Hello {
   protocol_version: number;
+  auth_token?: string;
   client_kind?: string;
   client_version?: string;
   capabilities_requested?: string[];

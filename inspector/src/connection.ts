@@ -74,7 +74,7 @@ export function ConnectionProvider(props: ParentProps) {
   const [storageHighlights, setStorageHighlights] = createSignal(new Set<string>());
   const [lastError, setLastError] = createSignal<string | null>(null);
   const { wsURL, token } = resolveConnectionParams();
-  const daemonURL = buildDaemonURL(wsURL, token);
+  const daemonURL = buildDaemonURL(wsURL);
 
   let socket: WebSocket | null = null;
   let reconnectTimer: number | undefined;
@@ -175,6 +175,7 @@ export function ConnectionProvider(props: ParentProps) {
         src: { role: "inspector", id: inspectorID },
         data: {
           protocol_version: PROTOCOL_VERSION,
+          auth_token: token,
           client_kind: "inspector",
           client_version: "dev",
           capabilities_requested: [
@@ -495,9 +496,9 @@ export function resolveConnectionParamsFromSearch(
   };
 }
 
-function buildDaemonURL(wsURL: string, token: string): string {
+function buildDaemonURL(wsURL: string): string {
   const url = new URL(wsURL);
-  url.searchParams.set("token", token);
+  url.searchParams.delete("token");
   return url.toString();
 }
 
@@ -542,6 +543,7 @@ function normalizeDaemonWebSocketURL(value: string | null, fallback: string): st
   }
 
   parsed.hash = "";
+  parsed.searchParams.delete("token");
   return parsed.toString();
 }
 

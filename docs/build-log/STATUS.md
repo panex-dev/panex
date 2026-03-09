@@ -66,6 +66,7 @@ As of 2026-03-09.
 | 65 | Harden daemon session lifecycle cancellation and close serialization | `docs/build-log/2026-03-09-pr-065-daemon-session-lifecycle.md` |
 | 66 | Cover panex CLI startup orchestration and raise `cmd/panex` coverage | `docs/build-log/2026-03-09-pr-066-panex-cli-coverage.md` |
 | 67 | Guard browser websocket clients against oversized inbound frames | `docs/build-log/2026-03-09-pr-067-browser-websocket-message-guard.md` |
+| 68 | Move daemon auth from websocket query params into the hello handshake | `docs/build-log/2026-03-09-pr-068-websocket-hello-auth.md` |
 
 ## In progress
 - None.

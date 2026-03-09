@@ -43,7 +43,7 @@ func TestIntegrationDaemonLifecycle(t *testing.T) {
 	wsURL := "ws" + strings.TrimPrefix(httpServer.URL, "http")
 
 	// --- Step 1: Agent connects and handshakes ---
-	agentConn := dial(t, wsURL, token)
+	agentConn := dial(t, wsURL)
 	t.Cleanup(func() { _ = agentConn.Close() })
 
 	agentHelloAck := handshake(t, agentConn, protocol.Source{
@@ -51,6 +51,7 @@ func TestIntegrationDaemonLifecycle(t *testing.T) {
 		ID:   "agent-integration",
 	}, protocol.Hello{
 		ProtocolVersion:       protocol.CurrentVersion,
+		AuthToken:             token,
 		ClientKind:            "dev-agent",
 		ClientVersion:         "test",
 		CapabilitiesRequested: []string{"command.reload"},
@@ -97,7 +98,7 @@ func TestIntegrationDaemonLifecycle(t *testing.T) {
 	}
 
 	// --- Step 3: Inspector connects and handshakes ---
-	inspectorConn := dial(t, wsURL, token)
+	inspectorConn := dial(t, wsURL)
 	t.Cleanup(func() { _ = inspectorConn.Close() })
 
 	inspectorHelloAck := handshake(t, inspectorConn, protocol.Source{
@@ -105,6 +106,7 @@ func TestIntegrationDaemonLifecycle(t *testing.T) {
 		ID:   "inspector-integration",
 	}, protocol.Hello{
 		ProtocolVersion:       protocol.CurrentVersion,
+		AuthToken:             token,
 		ClientKind:            "inspector",
 		ClientVersion:         "test",
 		CapabilitiesRequested: []string{"query.events", "query.storage", "storage.diff"},
@@ -227,10 +229,10 @@ func TestIntegrationDaemonLifecycle(t *testing.T) {
 
 // --- Integration test helpers ---
 
-func dial(t *testing.T, wsURL, token string) *websocket.Conn {
+func dial(t *testing.T, wsURL string) *websocket.Conn {
 	t.Helper()
 	dialer := websocket.Dialer{HandshakeTimeout: time.Second}
-	conn, resp, err := dialer.Dial(wsURL+"/ws?token="+token, nil)
+	conn, resp, err := dialer.Dial(wsURL+"/ws", nil)
 	if resp != nil {
 		defer func() { _ = resp.Body.Close() }()
 	}
