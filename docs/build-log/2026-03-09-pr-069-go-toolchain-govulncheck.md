@@ -8,6 +8,7 @@
 - Commit(s):
   - `build(go): upgrade to Go 1.25.8 and gate CI with govulncheck`
   - `ci: fix govulncheck workflow yaml quoting`
+  - `ci: install golangci-lint with the active Go toolchain`
 
 ## Problem
 - The audit still had one open security-process item: `govulncheck` was not in CI because the project baseline was pinned to Go 1.24.0, and a real probe on that baseline reported reachable standard-library vulnerabilities.

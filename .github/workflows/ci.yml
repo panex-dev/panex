@@ -77,6 +77,7 @@ jobs:
         uses: golangci/golangci-lint-action@v6
         with:
           version: v1.64.5
+          install-mode: goinstall
 
       - name: Run tests
         run: go test -race -count=1 ./...
