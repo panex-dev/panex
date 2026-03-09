@@ -178,6 +178,78 @@ auth_token = "custom-token"
 	}
 }
 
+func TestRunDevEnvAuthTokenOverride(t *testing.T) {
+	tempDir := t.TempDir()
+	writePanexConfig(t, filepath.Join(tempDir, "panex.toml"), `
+[extension]
+source_dir = "./src"
+out_dir = "./dist"
+
+[server]
+port = 3000
+auth_token = "config-token"
+`)
+
+	withStubbedLookupEnv(t, func(key string) (string, bool) {
+		if key != "PANEX_AUTH_TOKEN" {
+			return "", false
+		}
+		return "  env-token  ", true
+	})
+
+	var out bytes.Buffer
+	var captured panexconfig.Config
+	withStubbedStartDev(t, func(cfg panexconfig.Config, stdout io.Writer) error {
+		captured = cfg
+		_, err := io.WriteString(stdout, "dev started\n")
+		return err
+	})
+
+	err := withWorkingDir(tempDir, func() error {
+		return run([]string{"dev"}, &out)
+	})
+	if err != nil {
+		t.Fatalf("run(dev) returned error: %v", err)
+	}
+
+	if captured.Server.AuthToken != "env-token" {
+		t.Fatalf("unexpected auth token: got %q, want %q", captured.Server.AuthToken, "env-token")
+	}
+}
+
+func TestRunDevRejectsEmptyEnvAuthTokenOverride(t *testing.T) {
+	tempDir := t.TempDir()
+	writePanexConfig(t, filepath.Join(tempDir, "panex.toml"), `
+[extension]
+source_dir = "./src"
+out_dir = "./dist"
+
+[server]
+port = 3000
+auth_token = "config-token"
+`)
+
+	withStubbedLookupEnv(t, func(key string) (string, bool) {
+		if key != "PANEX_AUTH_TOKEN" {
+			return "", false
+		}
+		return "   ", true
+	})
+
+	var out bytes.Buffer
+	err := withWorkingDir(tempDir, func() error {
+		return run([]string{"dev"}, &out)
+	})
+	cliErr := requireCLIError(t, err)
+
+	if cliErr.code != 2 {
+		t.Fatalf("unexpected error code: got %d, want 2", cliErr.code)
+	}
+	if !strings.Contains(cliErr.msg, "PANEX_AUTH_TOKEN must not be empty when set") {
+		t.Fatalf("unexpected error message: %q", cliErr.msg)
+	}
+}
+
 func TestRunDevUnexpectedPositionalArg(t *testing.T) {
 	var out bytes.Buffer
 
@@ -608,6 +680,16 @@ func withStubbedStartDev(t *testing.T, stub func(cfg panexconfig.Config, stdout 
 	startDev = stub
 	t.Cleanup(func() {
 		startDev = original
+	})
+}
+
+func withStubbedLookupEnv(t *testing.T, stub func(string) (string, bool)) {
+	t.Helper()
+
+	original := lookupEnv
+	lookupEnv = stub
+	t.Cleanup(func() {
+		lookupEnv = original
 	})
 }
 

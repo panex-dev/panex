@@ -76,15 +76,16 @@ As of 2026-03-09.
 | 75 | Add optional dev-agent websocket lifecycle diagnostics behind stored config | `docs/build-log/2026-03-09-pr-075-agent-diagnostic-logging.md` |
 | 76 | Polish inspector keyboard focus treatment and ARIA semantics | `docs/build-log/2026-03-09-pr-076-inspector-accessibility-polish.md` |
 | 77 | Publish first-run `panex.toml` config/schema documentation and local-dev guidance | `docs/build-log/2026-03-09-pr-077-panex-config-guide.md` |
+| 78 | Support `$PANEX_AUTH_TOKEN` overrides in `panex dev` for automation/package flows | `docs/build-log/2026-03-09-pr-078-panex-auth-token-override.md` |
 
 ## In progress
 - None.
 
 ## Next
-- Support a `$PANEX_AUTH_TOKEN` override so local automation and packaging flows can change daemon auth without rewriting `panex.toml`.
+- Package reproducible release archives for the `panex` CLI as the first distribution-oriented slice.
 
 ## Queued Follow-Ons
-- Keep longer-horizon release work queued behind those slices: multi-extension support, packaging/distribution, timeline scalability, and transactional storage mutation persistence.
+- Keep longer-horizon release work queued behind those slices: multi-extension support, timeline scalability, and transactional storage mutation persistence.
 
 ## Notes
 - PR20 is intentionally reserved as documentation reconciliation so sequence alignment is explicit and auditable.

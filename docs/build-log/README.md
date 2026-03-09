@@ -42,7 +42,7 @@ In every PR description:
 6. Keep branches short-lived and non-stacked; every PR branch starts from latest `origin/main` in its own worktree.
 
 ## Current build check (2026-03-09)
-- Completed log entries: PR1-PR42 and PR45-PR77 (PR20 reserved for numbering reconciliation, PR27 process-only).
-- Next target increment: support a `$PANEX_AUTH_TOKEN` override so local automation and packaging flows can change daemon auth without rewriting `panex.toml`.
+- Completed log entries: PR1-PR42 and PR45-PR78 (PR20 reserved for numbering reconciliation, PR27 process-only).
+- Next target increment: package reproducible release archives for the `panex` CLI as the first distribution-oriented slice.
 - Queued follow-ons from the preserved 2026-03-07 review:
-  - longer-horizon release work (multi-extension support, packaging, timeline scalability, transactional storage persistence)
+  - longer-horizon release work (multi-extension support, timeline scalability, transactional storage persistence)

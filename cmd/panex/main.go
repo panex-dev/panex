@@ -8,6 +8,7 @@ import (
 	"io"
 	"os"
 	"os/signal"
+	"strings"
 	"sync/atomic"
 	"syscall"
 	"time"
@@ -27,6 +28,7 @@ Usage:
 
 // This is overridden in release builds via -ldflags "-X main.version=<semver>".
 var version = "dev"
+var lookupEnv = os.LookupEnv
 
 var startDev = startDevServer
 var buildFailureSeq uint64
@@ -136,8 +138,30 @@ func runDev(args []string, stdout io.Writer) error {
 			msg:  fmt.Sprintf("failed to load config %q: %v", *configPath, err),
 		}
 	}
+	cfg, err = applyEnvironmentOverrides(cfg)
+	if err != nil {
+		return &cliError{
+			code: 2,
+			msg:  err.Error(),
+		}
+	}
 
 	return startDev(cfg, stdout)
+}
+
+func applyEnvironmentOverrides(cfg panexconfig.Config) (panexconfig.Config, error) {
+	authToken, ok := lookupEnv("PANEX_AUTH_TOKEN")
+	if !ok {
+		return cfg, nil
+	}
+
+	authToken = strings.TrimSpace(authToken)
+	if authToken == "" {
+		return panexconfig.Config{}, errors.New("PANEX_AUTH_TOKEN must not be empty when set")
+	}
+
+	cfg.Server.AuthToken = authToken
+	return cfg, nil
 }
 
 func writef(w io.Writer, format string, args ...any) error {
