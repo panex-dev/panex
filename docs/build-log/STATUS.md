@@ -65,6 +65,7 @@ As of 2026-03-09.
 | 64 | Decode raw protocol payload bytes without a msgpack round trip | `docs/build-log/2026-03-09-pr-064-raw-payload-decode.md` |
 | 65 | Harden daemon session lifecycle cancellation and close serialization | `docs/build-log/2026-03-09-pr-065-daemon-session-lifecycle.md` |
 | 66 | Cover panex CLI startup orchestration and raise `cmd/panex` coverage | `docs/build-log/2026-03-09-pr-066-panex-cli-coverage.md` |
+| 67 | Guard browser websocket clients against oversized inbound frames | `docs/build-log/2026-03-09-pr-067-browser-websocket-message-guard.md` |
 
 ## In progress
 - None.

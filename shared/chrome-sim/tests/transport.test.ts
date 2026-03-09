@@ -178,6 +178,28 @@ describe("chrome-sim transport", () => {
     unsubscribe();
     transport.close();
   });
+
+  it("closes the socket when an inbound websocket frame exceeds the browser-side limit", async () => {
+    const sockets: FakeSocket[] = [];
+    const transport = createChromeSimTransport({
+      daemonURL: "ws://127.0.0.1:4317/ws",
+      handshakeTimeoutMS: 25,
+      webSocketFactory: (url) => {
+        const socket = new FakeSocket(url);
+        sockets.push(socket);
+        return socket;
+      }
+    });
+
+    const pending = transport.call("storage.local", "get");
+    const socket = sockets[0];
+    socket.open();
+    socket.messageRaw(new Uint8Array((1 << 20) + 1));
+
+    await assert.rejects(async () => pending, /closed before hello\.ack/);
+    assert.deepEqual(socket.closeCalls, [{ code: 1009, reason: "message exceeds limit" }]);
+    transport.close();
+  });
 });
 
 class FakeSocket implements TransportSocket {
@@ -185,6 +207,7 @@ class FakeSocket implements TransportSocket {
   readyState = 0;
   binaryType?: string;
   sent: Uint8Array[] = [];
+  closeCalls: Array<{ code?: number; reason?: string }> = [];
   private listeners: Record<string, Array<(event: any) => void>> = {
     open: [],
     message: [],
@@ -207,7 +230,8 @@ class FakeSocket implements TransportSocket {
     this.sent.push(data);
   }
 
-  close() {
+  close(code?: number, reason?: string) {
+    this.closeCalls.push({ code, reason });
     if (this.readyState === 3) {
       return;
     }
@@ -222,6 +246,10 @@ class FakeSocket implements TransportSocket {
 
   messageEnvelope(envelope: Envelope) {
     this.emit("message", { data: encode(envelope) });
+  }
+
+  messageRaw(data: Uint8Array) {
+    this.emit("message", { data });
   }
 
   private emit(type: "open" | "message" | "error" | "close", event: any) {
