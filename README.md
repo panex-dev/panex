@@ -97,7 +97,7 @@ Limit the build to a smaller target set with `TARGETS=`:
 make release VERSION=v0.1.0 TARGETS=linux/amd64,darwin/arm64
 ```
 
-Each archive includes the versioned `panex` binary (`panex.exe` on Windows) plus the repo `README.md`, and the packager uses deterministic archive metadata plus `go build -trimpath -buildvcs=false -ldflags="-buildid= -X main.version=<version>"` so repeated runs for the same target and version produce identical archive bytes.
+Each archive includes the versioned `panex` binary (`panex.exe` on Windows) plus the repo `README.md`, and the packager uses deterministic archive metadata plus `go build -trimpath -buildvcs=false -ldflags="-buildid= -X main.version=<version>"` so repeated runs for the same target and version produce identical archive bytes. It also writes `panex_<version>_SHA256SUMS` beside the archives so published releases carry one sorted checksum manifest for verification.
 
 ## Tagged Releases
 
@@ -108,7 +108,7 @@ git tag v0.1.0
 git push origin v0.1.0
 ```
 
-The `Release` workflow reruns dependency verification, lint, tests, and builds before calling `make release VERSION=<tag>`. If those checks stay green, it uploads the generated `dist/release/*` archives both as workflow artifacts and as assets on the matching GitHub release. Tags with a hyphen, such as `v0.2.0-rc.1`, publish as prereleases.
+The `Release` workflow reruns dependency verification, lint, tests, and builds before calling `make release VERSION=<tag>`. If those checks stay green, it uploads the generated `dist/release/*` archives and `panex_<version>_SHA256SUMS` both as workflow artifacts and as assets on the matching GitHub release. Tags with a hyphen, such as `v0.2.0-rc.1`, publish as prereleases.
 
 ## Branch Workflow
 

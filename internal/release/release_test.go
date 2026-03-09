@@ -117,6 +117,27 @@ func TestWriteArchiveZipIsDeterministic(t *testing.T) {
 	}
 }
 
+func TestWriteChecksumManifestSortsEntries(t *testing.T) {
+	entries := map[string]string{
+		"panex_v1.2.3_windows_amd64.zip":  SHA256Hex([]byte("windows")),
+		"panex_v1.2.3_linux_amd64.tar.gz": SHA256Hex([]byte("linux")),
+	}
+
+	var buffer bytes.Buffer
+	if err := WriteChecksumManifest(&buffer, entries); err != nil {
+		t.Fatalf("WriteChecksumManifest() returned error: %v", err)
+	}
+
+	want := strings.Join([]string{
+		SHA256Hex([]byte("linux")) + "  panex_v1.2.3_linux_amd64.tar.gz",
+		SHA256Hex([]byte("windows")) + "  panex_v1.2.3_windows_amd64.zip",
+		"",
+	}, "\n")
+	if buffer.String() != want {
+		t.Fatalf("unexpected checksum manifest:\n%s", buffer.String())
+	}
+}
+
 func writeArchiveBytes(t *testing.T, target Target, files []File) []byte {
 	t.Helper()
 

@@ -57,14 +57,28 @@ func run(args []string, stdout io.Writer) error {
 		return fmt.Errorf("create release output dir: %w", err)
 	}
 
+	checksumEntries := map[string]string{}
 	for _, target := range targets {
 		archivePath := filepath.Join(*outDir, release.ArchiveFileName(*version, target))
 		if err := packageTarget(repoRoot, archivePath, *version, target, readmeBytes); err != nil {
 			return err
 		}
+		archiveBytes, err := os.ReadFile(archivePath)
+		if err != nil {
+			return fmt.Errorf("read archive %q for checksum: %w", archivePath, err)
+		}
+		checksumEntries[filepath.Base(archivePath)] = release.SHA256Hex(archiveBytes)
 		if _, err := fmt.Fprintf(stdout, "wrote %s\n", archivePath); err != nil {
 			return err
 		}
+	}
+
+	checksumPath := filepath.Join(*outDir, release.ChecksumFileName(*version))
+	if err := writeChecksumManifest(checksumPath, checksumEntries); err != nil {
+		return err
+	}
+	if _, err := fmt.Fprintf(stdout, "wrote %s\n", checksumPath); err != nil {
+		return err
 	}
 
 	return nil
@@ -169,6 +183,27 @@ func writeArchive(path string, target release.Target, files []release.File) (err
 
 	if err := release.WriteArchive(file, target, files); err != nil {
 		return fmt.Errorf("write archive %q: %w", path, err)
+	}
+	return nil
+}
+
+func writeChecksumManifest(path string, entries map[string]string) (err error) {
+	file, err := os.Create(path)
+	if err != nil {
+		return fmt.Errorf("create checksum manifest %q: %w", path, err)
+	}
+	defer func() {
+		closeErr := file.Close()
+		if err == nil && closeErr != nil {
+			err = closeErr
+		}
+		if err != nil {
+			_ = os.Remove(path)
+		}
+	}()
+
+	if err := release.WriteChecksumManifest(file, entries); err != nil {
+		return fmt.Errorf("write checksum manifest %q: %w", path, err)
 	}
 	return nil
 }
