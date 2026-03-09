@@ -42,5 +42,12 @@ In every PR description:
 6. Keep branches short-lived and non-stacked; every PR branch starts from latest `origin/main` in its own worktree.
 
 ## Current build check (2026-03-09)
-- Completed log entries: PR1-PR42 and PR45-PR70 (PR20 reserved for numbering reconciliation, PR27 process-only).
+- Completed log entries: PR1-PR42 and PR45-PR71 (PR20 reserved for numbering reconciliation, PR27 process-only).
 - Next target increment: add a focused Workbench chrome API activity log over existing timeline history so operators can inspect runtime probes, tabs queries, and unsupported calls in one place without widening protocol scope.
+- Queued follow-ons from the preserved 2026-03-07 review:
+  - daemon websocket read/write deadlines
+  - agent-side `hello.ack` enforcement before command handling
+  - optional agent diagnostic logging
+  - inspector accessibility polish (`:focus-visible`, ARIA)
+  - config/schema documentation for `panex.toml`
+  - longer-horizon release work (multi-extension support, auth token override, packaging, timeline scalability, transactional storage persistence)
