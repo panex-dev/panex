@@ -35,9 +35,11 @@ This file tracks follow-up work from [audit-1.md](./audit-1.md) until the origin
 
 - Daemon auth now moves through the initial `hello` payload instead of the websocket URL query string, and browser-side websocket URL builders strip stale `token=` params before connect.
 
+## Resolved in PR69
+
+- The repo now targets Go 1.25.8, and CI runs pinned `govulncheck` vulnerability scanning as a required security gate alongside module verification.
+
 ## Deferred Or Dependent Items
 
 - Broad dev-agent `host_permissions` are still open.
   Reason: narrowing the manifest to `:4317` would break non-default daemon ports, and the correct MV3 permission model needs to be verified before changing product behavior.
-- Go toolchain vulnerability scanning via `govulncheck` is still open.
-  Reason: a probe on 2026-03-09 reported multiple standard-library vulnerabilities against the current Go 1.24.0 baseline, so enabling that gate now would redline CI until the project upgrades its Go toolchain policy.
