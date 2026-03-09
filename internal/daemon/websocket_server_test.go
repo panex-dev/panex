@@ -322,6 +322,67 @@ func TestWebSocketCloseCancelsInFlightQueryEvents(t *testing.T) {
 	waitForConnectionCount(t, server.ws, 0)
 }
 
+func TestWebSocketPingKeepsResponsiveClientConnected(t *testing.T) {
+	server := newTestServerWithConfig(t, WebSocketConfig{
+		ReadTimeout:  250 * time.Millisecond,
+		WriteTimeout: 100 * time.Millisecond,
+		PingInterval: 50 * time.Millisecond,
+	})
+	defer server.httpServer.Close()
+
+	conn := dialAuthorizedConnection(t, server.wsURL, server.token)
+	t.Cleanup(func() {
+		_ = conn.Close()
+	})
+
+	_ = mustHandshake(t, conn)
+	waitForConnectionCount(t, server.ws, 1)
+
+	readDone := make(chan struct{})
+	go func() {
+		defer close(readDone)
+		for {
+			if _, _, err := conn.ReadMessage(); err != nil {
+				return
+			}
+		}
+	}()
+
+	time.Sleep(400 * time.Millisecond)
+	waitForConnectionCount(t, server.ws, 1)
+
+	if err := conn.Close(); err != nil {
+		t.Fatalf("Close() returned error: %v", err)
+	}
+	<-readDone
+}
+
+func TestWebSocketClosesClientThatStopsRespondingToPing(t *testing.T) {
+	server := newTestServerWithConfig(t, WebSocketConfig{
+		ReadTimeout:  250 * time.Millisecond,
+		WriteTimeout: 100 * time.Millisecond,
+		PingInterval: 50 * time.Millisecond,
+	})
+	defer server.httpServer.Close()
+
+	conn := dialAuthorizedConnection(t, server.wsURL, server.token)
+	t.Cleanup(func() {
+		_ = conn.Close()
+	})
+
+	conn.SetPingHandler(func(string) error {
+		return nil
+	})
+
+	_ = mustHandshake(t, conn)
+	waitForConnectionCount(t, server.ws, 1)
+	waitForConnectionCount(t, server.ws, 0)
+
+	if _, _, err := conn.ReadMessage(); err == nil {
+		t.Fatal("expected connection close after ping timeout")
+	}
+}
+
 func TestWebSocketRejectsFirstMessageThatIsNotHello(t *testing.T) {
 	server := newTestServer(t)
 	defer server.httpServer.Close()
@@ -1545,21 +1606,37 @@ type testServer struct {
 func newTestServer(t *testing.T) testServer {
 	t.Helper()
 
-	return newTestServerWithStore(t, nil)
+	return newTestServerWithConfigAndStore(t, WebSocketConfig{}, nil)
+}
+
+func newTestServerWithConfig(t *testing.T, cfg WebSocketConfig) testServer {
+	t.Helper()
+
+	return newTestServerWithConfigAndStore(t, cfg, nil)
 }
 
 func newTestServerWithStore(t *testing.T, testEventStore eventStore) testServer {
 	t.Helper()
 
+	return newTestServerWithConfigAndStore(t, WebSocketConfig{}, testEventStore)
+}
+
+func newTestServerWithConfigAndStore(
+	t *testing.T,
+	cfg WebSocketConfig,
+	testEventStore eventStore,
+) testServer {
+	t.Helper()
+
 	const token = "test-token"
 
-	ws, err := NewWebSocketServer(WebSocketConfig{
-		Port:           18080,
-		AuthToken:      token,
-		EventStorePath: filepath.Join(t.TempDir(), "events.db"),
-		ServerVersion:  "test-version",
-		DaemonID:       "daemon-test",
-	})
+	cfg.Port = 18080
+	cfg.AuthToken = token
+	cfg.EventStorePath = filepath.Join(t.TempDir(), "events.db")
+	cfg.ServerVersion = "test-version"
+	cfg.DaemonID = "daemon-test"
+
+	ws, err := NewWebSocketServer(cfg)
 	if err != nil {
 		t.Fatalf("NewWebSocketServer() returned error: %v", err)
 	}
