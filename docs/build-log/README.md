@@ -42,7 +42,7 @@ In every PR description:
 6. Keep branches short-lived and non-stacked; every PR branch starts from latest `origin/main` in its own worktree.
 
 ## Current build check (2026-03-10)
-- Completed log entries: PR1-PR42 and PR45-PR79 (PR20 reserved for numbering reconciliation, PR27 process-only).
-- Next target increment: publish tagged CI release artifacts on top of the local release packager.
+- Completed log entries: PR1-PR42 and PR45-PR80 (PR20 reserved for numbering reconciliation, PR27 process-only).
+- Next target increment: publish SHA256 checksums alongside tagged release assets.
 - Queued follow-ons from the preserved 2026-03-07 review:
   - longer-horizon release work (multi-extension support, timeline scalability, transactional storage persistence)
