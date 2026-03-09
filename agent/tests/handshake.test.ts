@@ -13,7 +13,8 @@ import {
 const config: AgentConfig = {
   wsUrl: "ws://127.0.0.1:4317/ws",
   token: "dev-token",
-  agentId: "agent-1"
+  agentId: "agent-1",
+  diagnosticLogging: false
 };
 
 describe("buildHelloEnvelope", () => {

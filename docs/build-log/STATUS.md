@@ -73,15 +73,15 @@ As of 2026-03-09.
 | 72 | Add a focused Workbench chrome API activity log over existing timeline history | `docs/build-log/2026-03-09-pr-072-workbench-chrome-api-activity-log.md` |
 | 73 | Enforce dev-agent `hello.ack` completion before accepting live commands | `docs/build-log/2026-03-09-pr-073-agent-hello-ack-enforcement.md` |
 | 74 | Add daemon websocket read/write deadlines and ping keepalive | `docs/build-log/2026-03-09-pr-074-daemon-websocket-deadlines.md` |
+| 75 | Add optional dev-agent websocket lifecycle diagnostics behind stored config | `docs/build-log/2026-03-09-pr-075-agent-diagnostic-logging.md` |
 
 ## In progress
 - None.
 
 ## Next
-- Add optional agent diagnostic logging for websocket lifecycle and command handling to improve extension-side debugging without widening default noise.
+- Implement focus-visible and ARIA polish for inspector controls so keyboard navigation and assistive technology support stop lagging behind the product surface.
 
 ## Queued Follow-Ons
-- Implement focus-visible and ARIA polish for inspector controls so keyboard navigation and assistive technology support stop lagging behind the product surface.
 - Publish first-run config/schema documentation for `panex.toml`, including the auth token contract and supported local-development defaults.
 - Keep longer-horizon release work queued behind those slices: multi-extension support, `$PANEX_AUTH_TOKEN` override, packaging/distribution, timeline scalability, and transactional storage mutation persistence.
 

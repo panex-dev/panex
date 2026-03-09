@@ -66,6 +66,10 @@ After a PR is merged, delete branch/worktree and return to `main`:
 - `shared/protocol/`: shared TypeScript protocol contract consumed by both clients
 - `shared/chrome-sim/`: browser shim that routes `chrome.*` simulator calls over daemon WebSocket
 
+## Agent Diagnostics
+
+To enable temporary Chrome Dev Agent websocket lifecycle and command-handling diagnostics, set `chrome.storage.local.panex.diagnosticLogging = true`. The flag is off by default and emits structured service-worker console logs only when explicitly enabled.
+
 Install TypeScript dependencies once from the repo root before using the root TypeScript targets:
 
 ```bash

@@ -2,6 +2,7 @@ export interface AgentConfig {
   wsUrl: string;
   token: string;
   agentId: string;
+  diagnosticLogging: boolean;
 }
 
 const loopbackHosts = new Set(["127.0.0.1", "localhost"]);
@@ -9,7 +10,8 @@ const loopbackHosts = new Set(["127.0.0.1", "localhost"]);
 export const defaultConfig: AgentConfig = {
   wsUrl: "ws://127.0.0.1:4317/ws",
   token: "dev-token",
-  agentId: "dev-agent-1"
+  agentId: "dev-agent-1",
+  diagnosticLogging: false
 };
 
 export async function loadConfig(): Promise<AgentConfig> {
@@ -19,7 +21,8 @@ export async function loadConfig(): Promise<AgentConfig> {
   return {
     wsUrl: normalizeDaemonWebSocketURL(value?.wsUrl, defaultConfig.wsUrl),
     token: nonEmpty(value?.token, defaultConfig.token),
-    agentId: nonEmpty(value?.agentId, defaultConfig.agentId)
+    agentId: nonEmpty(value?.agentId, defaultConfig.agentId),
+    diagnosticLogging: normalizeBoolean(value?.diagnosticLogging)
   };
 }
 
@@ -36,6 +39,10 @@ function nonEmpty(value: string | undefined, fallback: string): string {
 
   const trimmed = value.trim();
   return trimmed.length > 0 ? trimmed : fallback;
+}
+
+function normalizeBoolean(value: unknown): boolean {
+  return value === true;
 }
 
 function normalizeDaemonWebSocketURL(value: string | undefined, fallback: string): string {
