@@ -10,6 +10,7 @@ import (
 	"os/signal"
 	"sync/atomic"
 	"syscall"
+	"time"
 
 	"github.com/panex-dev/panex/internal/build"
 	panexconfig "github.com/panex-dev/panex/internal/config"
@@ -29,13 +30,38 @@ var version = "dev"
 
 var startDev = startDevServer
 var buildFailureSeq uint64
+var newWebSocketServer = func(cfg daemon.WebSocketConfig) (devRuntimeServer, error) {
+	return daemon.NewWebSocketServer(cfg)
+}
+var newEsbuildBuilder = func(sourceDir, outDir string, opts ...build.Option) (buildRunner, error) {
+	return build.NewEsbuildBuilder(sourceDir, outDir, opts...)
+}
+var newFileWatcher = func(
+	root string,
+	debounce time.Duration,
+	emit func(daemon.FileChangeEvent),
+) (runtimeRunner, error) {
+	return daemon.NewFileWatcher(root, debounce, emit)
+}
+var newSignalContext = func() (context.Context, context.CancelFunc) {
+	return signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+}
 
 type buildRunner interface {
 	Build(ctx context.Context, changedPaths []string) (build.Result, error)
 }
 
+type runtimeRunner interface {
+	Run(ctx context.Context) error
+}
+
 type envelopeBroadcaster interface {
 	Broadcast(ctx context.Context, message protocol.Envelope) error
+}
+
+type devRuntimeServer interface {
+	runtimeRunner
+	envelopeBroadcaster
 }
 
 func main() {
@@ -125,7 +151,7 @@ func writeString(w io.Writer, value string) error {
 }
 
 func startDevServer(cfg panexconfig.Config, stdout io.Writer) error {
-	server, err := daemon.NewWebSocketServer(daemon.WebSocketConfig{
+	server, err := newWebSocketServer(daemon.WebSocketConfig{
 		Port:           cfg.Server.Port,
 		AuthToken:      cfg.Server.AuthToken,
 		EventStorePath: cfg.Server.EventStorePath,
@@ -150,13 +176,13 @@ func startDevServer(cfg panexconfig.Config, stdout io.Writer) error {
 		builderOptions = append(builderOptions, build.WithChromeSimInjection(injection))
 	}
 
-	builder, err := build.NewEsbuildBuilder(cfg.Extension.SourceDir, cfg.Extension.OutDir, builderOptions...)
+	builder, err := newEsbuildBuilder(cfg.Extension.SourceDir, cfg.Extension.OutDir, builderOptions...)
 	if err != nil {
 		return fmt.Errorf("configure esbuild: %w", err)
 	}
 
 	changeEvents := make(chan daemon.FileChangeEvent, 64)
-	watcher, err := daemon.NewFileWatcher(
+	watcher, err := newFileWatcher(
 		cfg.Extension.SourceDir,
 		daemon.DefaultWatchDebounce,
 		func(event daemon.FileChangeEvent) {
@@ -170,7 +196,7 @@ func startDevServer(cfg panexconfig.Config, stdout io.Writer) error {
 		return fmt.Errorf("configure file watcher: %w", err)
 	}
 
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	ctx, stop := newSignalContext()
 	defer stop()
 
 	runErrCh := make(chan error, 3)

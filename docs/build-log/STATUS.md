@@ -64,6 +64,7 @@ As of 2026-03-09.
 | 63 | Add CI dependency verification with `go mod verify` and `pnpm audit` | `docs/build-log/2026-03-09-pr-063-dependency-verification.md` |
 | 64 | Decode raw protocol payload bytes without a msgpack round trip | `docs/build-log/2026-03-09-pr-064-raw-payload-decode.md` |
 | 65 | Harden daemon session lifecycle cancellation and close serialization | `docs/build-log/2026-03-09-pr-065-daemon-session-lifecycle.md` |
+| 66 | Cover panex CLI startup orchestration and raise `cmd/panex` coverage | `docs/build-log/2026-03-09-pr-066-panex-cli-coverage.md` |
 
 ## In progress
 - None.
