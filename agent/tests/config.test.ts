@@ -33,7 +33,8 @@ describe("config loading", () => {
     setChromeStorage({
       wsUrl: " ",
       token: "",
-      agentId: 42
+      agentId: 42,
+      diagnosticLogging: "yes"
     });
 
     const config = await loadConfig();
@@ -45,7 +46,8 @@ describe("config loading", () => {
     setChromeStorage({
       wsUrl: "ws://127.0.0.1:9999/ws",
       token: "secret",
-      agentId: "agent-a"
+      agentId: "agent-a",
+      diagnosticLogging: true
     });
 
     const config = await loadConfig();
@@ -53,7 +55,8 @@ describe("config loading", () => {
     assert.deepEqual(config, {
       wsUrl: "ws://127.0.0.1:9999/ws",
       token: "secret",
-      agentId: "agent-a"
+      agentId: "agent-a",
+      diagnosticLogging: true
     });
   });
 
@@ -61,7 +64,8 @@ describe("config loading", () => {
     setChromeStorage({
       wsUrl: "ws://localhost:4317/ws?client=agent&token=leak",
       token: "secret",
-      agentId: "agent-a"
+      agentId: "agent-a",
+      diagnosticLogging: false
     });
 
     const config = await loadConfig();
@@ -69,7 +73,8 @@ describe("config loading", () => {
     assert.deepEqual(config, {
       wsUrl: "ws://localhost:4317/ws?client=agent",
       token: "secret",
-      agentId: "agent-a"
+      agentId: "agent-a",
+      diagnosticLogging: false
     });
   });
 
@@ -77,7 +82,8 @@ describe("config loading", () => {
     setChromeStorage({
       wsUrl: "ws://evil.example:4317/not-ws",
       token: "secret",
-      agentId: "agent-a"
+      agentId: "agent-a",
+      diagnosticLogging: true
     });
 
     const config = await loadConfig();
@@ -85,8 +91,23 @@ describe("config loading", () => {
     assert.deepEqual(config, {
       wsUrl: defaultConfig.wsUrl,
       token: "secret",
-      agentId: "agent-a"
+      agentId: "agent-a",
+      diagnosticLogging: true
     });
+  });
+
+  it("enables diagnostic logging only for an explicit boolean true", async () => {
+    setChromeStorage({
+      diagnosticLogging: true
+    });
+
+    assert.equal((await loadConfig()).diagnosticLogging, true);
+
+    setChromeStorage({
+      diagnosticLogging: "true"
+    });
+
+    assert.equal((await loadConfig()).diagnosticLogging, false);
   });
 });
 
