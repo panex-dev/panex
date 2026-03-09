@@ -345,9 +345,56 @@ body {
   color: #16643a;
 }
 
+.workbench-pill-success {
+  background: #dcf4e6;
+  color: #16643a;
+}
+
+.workbench-pill-failure {
+  background: #ffe1df;
+  color: #9a2717;
+}
+
+.workbench-pill-unsupported {
+  background: #fff1d8;
+  color: #865400;
+}
+
+.workbench-pill-event {
+  background: #e6efff;
+  color: #214f8a;
+}
+
+.workbench-pill-pending {
+  background: #e8eef5;
+  color: #39536b;
+}
+
 .workbench-preset-actions {
   display: flex;
   align-items: start;
+}
+
+.workbench-activity-list {
+  list-style: none;
+  margin: 14px 0 0;
+  padding: 0;
+  display: grid;
+  gap: 0;
+}
+
+.workbench-activity-item {
+  padding: 12px 0;
+  border-top: 1px solid #d6e2ef;
+}
+
+.workbench-activity-item:first-child {
+  padding-top: 0;
+  border-top: 0;
+}
+
+.workbench-activity-copy p {
+  margin: 6px 0 0;
 }
 
 .replay-panel {
