@@ -71,15 +71,15 @@ As of 2026-03-09.
 | 70 | Centralize the replay contract boundary and keep replay scoped to runtime probes | `docs/build-log/2026-03-09-pr-070-replay-contract-boundary.md` |
 | 71 | Fold preserved code-review follow-ups into the roadmap queue | `docs/build-log/2026-03-09-pr-071-review-followup-queue.md` |
 | 72 | Add a focused Workbench chrome API activity log over existing timeline history | `docs/build-log/2026-03-09-pr-072-workbench-chrome-api-activity-log.md` |
+| 73 | Enforce dev-agent `hello.ack` completion before accepting live commands | `docs/build-log/2026-03-09-pr-073-agent-hello-ack-enforcement.md` |
 
 ## In progress
 - None.
 
 ## Next
-- Enforce agent-side `hello.ack` completion before the dev-agent accepts live commands so extension behavior depends on a completed handshake instead of optimistic startup.
+- Add daemon websocket read/write deadlines so slow or stalled clients cannot hold server resources indefinitely.
 
 ## Queued Follow-Ons
-- Add daemon websocket read/write deadlines so slow or stalled clients cannot hold server resources indefinitely.
 - Add optional agent diagnostic logging for websocket lifecycle and command handling to improve extension-side debugging without widening default noise.
 - Implement focus-visible and ARIA polish for inspector controls so keyboard navigation and assistive technology support stop lagging behind the product surface.
 - Publish first-run config/schema documentation for `panex.toml`, including the auth token contract and supported local-development defaults.
