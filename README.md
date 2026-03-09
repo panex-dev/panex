@@ -44,6 +44,11 @@ Config contract:
 - `[server].auth_token`: required shared secret for local websocket clients. The daemon stays on `ws://127.0.0.1:<port>/ws`, and clients authenticate with this token during the `hello` handshake rather than in the URL.
 - `[server].event_store_path`: optional SQLite path for the event log. If omitted, Panex defaults it to `.panex/events.db`.
 
+Runtime override:
+
+- Set `PANEX_AUTH_TOKEN` before `panex dev` to override `server.auth_token` for local automation or packaging flows without editing `panex.toml`.
+- If `PANEX_AUTH_TOKEN` is set, it must be non-empty after trimming whitespace.
+
 Validation rules:
 
 - Unknown config keys are rejected.
