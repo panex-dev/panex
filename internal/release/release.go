@@ -4,6 +4,8 @@ import (
 	"archive/tar"
 	"archive/zip"
 	"compress/gzip"
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"io"
@@ -131,6 +133,10 @@ func ArchiveFileName(version string, target Target) string {
 	return base + ".tar.gz"
 }
 
+func ChecksumFileName(version string) string {
+	return fmt.Sprintf("%s_%s_SHA256SUMS", BinaryName, version)
+}
+
 func ReleaseFiles(version string, target Target, binaryContents []byte, readmeContents []byte) []File {
 	root := ArchiveBaseName(version, target)
 	return []File{
@@ -152,6 +158,26 @@ func WriteArchive(w io.Writer, target Target, files []File) error {
 		return writeZipArchive(w, files)
 	}
 	return writeTarGzArchive(w, files)
+}
+
+func SHA256Hex(data []byte) string {
+	sum := sha256.Sum256(data)
+	return hex.EncodeToString(sum[:])
+}
+
+func WriteChecksumManifest(w io.Writer, entries map[string]string) error {
+	names := make([]string, 0, len(entries))
+	for name := range entries {
+		names = append(names, name)
+	}
+	slices.Sort(names)
+
+	for _, name := range names {
+		if _, err := fmt.Fprintf(w, "%s  %s\n", entries[name], name); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func writeTarGzArchive(w io.Writer, files []File) error {

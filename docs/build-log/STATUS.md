@@ -79,12 +79,13 @@ As of 2026-03-10.
 | 78 | Support `$PANEX_AUTH_TOKEN` overrides in `panex dev` for automation/package flows | `docs/build-log/2026-03-09-pr-078-panex-auth-token-override.md` |
 | 79 | Package reproducible release archives for the `panex` CLI | `docs/build-log/2026-03-10-pr-079-release-archives.md` |
 | 80 | Publish tagged CI release artifacts on top of the local release packager | `docs/build-log/2026-03-10-pr-080-release-publish-ci.md` |
+| 81 | Publish SHA256 checksums alongside tagged release assets | `docs/build-log/2026-03-10-pr-081-release-checksums.md` |
 
 ## In progress
 - None.
 
 ## Next
-- Publish SHA256 checksums alongside tagged release assets.
+- Document download verification against published release checksums.
 
 ## Queued Follow-Ons
 - Keep longer-horizon release work queued behind those slices: multi-extension support, timeline scalability, and transactional storage mutation persistence.
