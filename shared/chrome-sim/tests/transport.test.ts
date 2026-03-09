@@ -47,8 +47,10 @@ describe("chrome-sim transport", () => {
 
     await waitFor(() => socket.sent.length >= 1);
     const hello = decodeEnvelope(socket.sent[0]);
+    const helloData = hello.data as { auth_token?: string };
     assert.equal(hello.name, "hello");
     assert.equal(hello.t, "lifecycle");
+    assert.equal(helloData.auth_token, "dev-token");
 
     socket.messageEnvelope(buildHelloAckEnvelope("sess-1"));
     await waitFor(() => socket.sent.length >= 2);
@@ -198,6 +200,35 @@ describe("chrome-sim transport", () => {
 
     await assert.rejects(async () => pending, /closed before hello\.ack/);
     assert.deepEqual(socket.closeCalls, [{ code: 1009, reason: "message exceeds limit" }]);
+    transport.close();
+  });
+
+  it("strips token query params from the websocket URL and keeps auth in hello", async () => {
+    const sockets: FakeSocket[] = [];
+    const transport = createChromeSimTransport({
+      daemonURL: "ws://127.0.0.1:4317/ws?foo=1&token=leak",
+      authToken: "secret-token",
+      webSocketFactory: (url) => {
+        const socket = new FakeSocket(url);
+        sockets.push(socket);
+        return socket;
+      }
+    });
+
+    const pending = transport.call("storage.local", "get");
+    const socket = sockets[0];
+    assert.equal(socket.url, "ws://127.0.0.1:4317/ws?foo=1");
+    socket.open();
+    await waitFor(() => socket.sent.length >= 1);
+
+    const hello = decodeEnvelope(socket.sent[0]);
+    const helloData = hello.data as { auth_token?: string };
+    assert.equal(helloData.auth_token, "secret-token");
+
+    socket.messageEnvelope(buildHelloAckEnvelope("sess-auth"));
+    await waitFor(() => socket.sent.length >= 2);
+    socket.messageEnvelope(buildChromeAPIResultEnvelope("call-1", true, {}));
+    await pending;
     transport.close();
   });
 });

@@ -91,6 +91,7 @@ func (e Envelope) ValidateBase() error {
 
 type Hello struct {
 	ProtocolVersion       uint8    `msgpack:"protocol_version"`
+	AuthToken             string   `msgpack:"auth_token,omitempty"`
 	ClientKind            string   `msgpack:"client_kind,omitempty"`
 	ClientVersion         string   `msgpack:"client_version,omitempty"`
 	CapabilitiesRequested []string `msgpack:"capabilities_requested,omitempty"`

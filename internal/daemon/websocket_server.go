@@ -22,7 +22,10 @@ import (
 	"github.com/panex-dev/panex/internal/store"
 )
 
-const maxMessageBytes = 1 << 20 // 1 MiB keeps accidental payload explosions bounded.
+const (
+	maxMessageBytes  = 1 << 20 // 1 MiB keeps accidental payload explosions bounded.
+	handshakeTimeout = 5 * time.Second
+)
 
 var daemonCapabilities = []string{
 	"command.reload",
@@ -209,11 +212,6 @@ func (s *WebSocketServer) Close() error {
 }
 
 func (s *WebSocketServer) handleWebSocket(w http.ResponseWriter, r *http.Request) {
-	if !s.authorized(r) {
-		http.Error(w, "unauthorized", http.StatusUnauthorized)
-		return
-	}
-
 	conn, err := s.upgrader.Upgrade(w, r, nil)
 	if err != nil {
 		return
@@ -237,14 +235,14 @@ func (s *WebSocketServer) handleWebSocket(w http.ResponseWriter, r *http.Request
 	go s.readLoop(sessionID, session)
 }
 
-func (s *WebSocketServer) authorized(r *http.Request) bool {
-	// Token is passed as a query parameter because the browser WebSocket API
-	// does not support custom headers (no Authorization header possible).
-	token := r.URL.Query().Get("token")
-	return subtle.ConstantTimeCompare([]byte(token), []byte(s.cfg.AuthToken)) == 1
-}
-
 func (s *WebSocketServer) handshake(ctx context.Context, conn *websocket.Conn) (string, error) {
+	if err := conn.SetReadDeadline(time.Now().Add(handshakeTimeout)); err != nil {
+		return "", fmt.Errorf("set handshake deadline: %w", err)
+	}
+	defer func() {
+		_ = conn.SetReadDeadline(time.Time{})
+	}()
+
 	_, raw, err := conn.ReadMessage()
 	if err != nil {
 		return "", fmt.Errorf("read hello message: %w", err)
@@ -275,6 +273,17 @@ func (s *WebSocketServer) handshake(ctx context.Context, conn *websocket.Conn) (
 			protocol.CurrentVersion,
 		)
 	}
+	if subtle.ConstantTimeCompare([]byte(hello.AuthToken), []byte(s.cfg.AuthToken)) != 1 {
+		if _, err := s.writeHelloAck(conn, protocol.HelloAck{
+			ProtocolVersion:       protocol.CurrentVersion,
+			DaemonVersion:         s.cfg.ServerVersion,
+			AuthOK:                false,
+			CapabilitiesSupported: []string{},
+		}); err != nil {
+			return "", fmt.Errorf("write unauthorized hello.ack message: %w", err)
+		}
+		return "", errors.New("unauthorized")
+	}
 	if err := s.eventStore.Append(ctx, message); err != nil {
 		return "", fmt.Errorf("persist hello message: %w", err)
 	}
@@ -287,25 +296,14 @@ func (s *WebSocketServer) handshake(ctx context.Context, conn *websocket.Conn) (
 	supportedCapabilities := negotiateCapabilities(requestedCapabilities, daemonCapabilities)
 
 	sessionID := s.nextSessionID()
-	helloAck := protocol.NewHelloAck(
-		protocol.Source{
-			Role: protocol.SourceDaemon,
-			ID:   s.cfg.DaemonID,
-		},
-		protocol.HelloAck{
-			ProtocolVersion:       protocol.CurrentVersion,
-			DaemonVersion:         s.cfg.ServerVersion,
-			SessionID:             sessionID,
-			AuthOK:                true,
-			CapabilitiesSupported: supportedCapabilities,
-		},
-	)
-
-	encodedHelloAck, err := protocol.Encode(helloAck)
+	helloAck, err := s.writeHelloAck(conn, protocol.HelloAck{
+		ProtocolVersion:       protocol.CurrentVersion,
+		DaemonVersion:         s.cfg.ServerVersion,
+		SessionID:             sessionID,
+		AuthOK:                true,
+		CapabilitiesSupported: supportedCapabilities,
+	})
 	if err != nil {
-		return "", fmt.Errorf("encode hello.ack message: %w", err)
-	}
-	if err := conn.WriteMessage(websocket.BinaryMessage, encodedHelloAck); err != nil {
 		return "", fmt.Errorf("write hello.ack message: %w", err)
 	}
 	if err := s.eventStore.Append(ctx, helloAck); err != nil {
@@ -313,6 +311,24 @@ func (s *WebSocketServer) handshake(ctx context.Context, conn *websocket.Conn) (
 	}
 
 	return sessionID, nil
+}
+
+func (s *WebSocketServer) writeHelloAck(conn *websocket.Conn, payload protocol.HelloAck) (protocol.Envelope, error) {
+	helloAck := protocol.NewHelloAck(
+		protocol.Source{
+			Role: protocol.SourceDaemon,
+			ID:   s.cfg.DaemonID,
+		},
+		payload,
+	)
+	encodedHelloAck, err := protocol.Encode(helloAck)
+	if err != nil {
+		return protocol.Envelope{}, fmt.Errorf("encode hello.ack message: %w", err)
+	}
+	if err := conn.WriteMessage(websocket.BinaryMessage, encodedHelloAck); err != nil {
+		return protocol.Envelope{}, fmt.Errorf("write hello.ack message: %w", err)
+	}
+	return helloAck, nil
 }
 
 func (s *WebSocketServer) readLoop(sessionID string, session *sessionConn) {

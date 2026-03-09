@@ -21,7 +21,7 @@ void connect();
 
 async function connect(): Promise<void> {
   const config = await loadConfig();
-  const url = buildDaemonURL(config.wsUrl, config.token);
+  const url = buildDaemonURL(config.wsUrl);
 
   socket = new WebSocket(url);
   socket.binaryType = "arraybuffer";
@@ -36,6 +36,7 @@ async function connect(): Promise<void> {
       src: { role: "dev-agent", id: config.agentId },
       data: {
         protocol_version: PROTOCOL_VERSION,
+        auth_token: config.token,
         client_kind: "dev-agent",
         client_version: "dev",
         capabilities_requested: ["command.reload"]

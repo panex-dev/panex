@@ -59,7 +59,7 @@ describe("config loading", () => {
 
   it("accepts loopback localhost overrides on the daemon port contract", async () => {
     setChromeStorage({
-      wsUrl: "ws://localhost:4317/ws?client=agent",
+      wsUrl: "ws://localhost:4317/ws?client=agent&token=leak",
       token: "secret",
       agentId: "agent-a"
     });
@@ -91,11 +91,11 @@ describe("config loading", () => {
 });
 
 describe("daemon URL construction", () => {
-  it("adds or replaces token query parameter", () => {
-    const url = buildDaemonURL("ws://127.0.0.1:4317/ws?foo=1&token=old", "new-token");
+  it("strips token query parameters and preserves unrelated params", () => {
+    const url = buildDaemonURL("ws://127.0.0.1:4317/ws?foo=1&token=old");
     const parsed = new URL(url);
 
     assert.equal(parsed.searchParams.get("foo"), "1");
-    assert.equal(parsed.searchParams.get("token"), "new-token");
+    assert.equal(parsed.searchParams.get("token"), null);
   });
 });

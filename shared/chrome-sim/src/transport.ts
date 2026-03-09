@@ -56,10 +56,8 @@ const closeMessageTooBig = 1009;
 export function createChromeSimTransport(options: ChromeSimTransportOptions = {}): ChromeSimTransport {
   const resolvedDaemonBaseURL =
     nonEmpty(options.daemonURL, resolveDefaultDaemonURL()) ?? resolveDefaultDaemonURL();
-  const daemonURL = buildDaemonURL(
-    resolvedDaemonBaseURL,
-    nonEmpty(options.authToken, resolveDefaultAuthToken())
-  );
+  const authToken = nonEmpty(options.authToken, resolveDefaultAuthToken());
+  const daemonURL = buildDaemonURL(resolvedDaemonBaseURL);
   const callTimeoutMS = normalizeTimeout(options.callTimeoutMS, defaultCallTimeoutMS);
   const handshakeTimeoutMS = normalizeTimeout(options.handshakeTimeoutMS, defaultHandshakeTimeoutMS);
   const floor = normalizeTimeout(options.reconnectFloorMS, reconnectFloorMS);
@@ -208,6 +206,7 @@ export function createChromeSimTransport(options: ChromeSimTransportOptions = {}
           src: { role: "inspector", id: clientID },
           data: {
             protocol_version: PROTOCOL_VERSION,
+            auth_token: authToken,
             client_kind: "chrome-sim",
             client_version: "dev",
             capabilities_requested: ["chrome.api.call", "chrome.api.result", "chrome.api.event"]
@@ -418,11 +417,9 @@ function nonEmpty(value: string | undefined, fallback: string | undefined): stri
   return fallbackTrimmed.length > 0 ? fallbackTrimmed : undefined;
 }
 
-function buildDaemonURL(baseURL: string, authToken?: string): string {
+function buildDaemonURL(baseURL: string): string {
   const url = new URL(baseURL);
-  if (authToken) {
-    url.searchParams.set("token", authToken);
-  }
+  url.searchParams.delete("token");
   return url.toString();
 }
 

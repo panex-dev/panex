@@ -13,9 +13,11 @@ describe("resolveConnectionParamsFromSearch", () => {
 
   it("accepts top-level loopback websocket overrides", () => {
     assert.deepEqual(
-      resolveConnectionParamsFromSearch("?ws=ws://localhost:9999/ws&token=secret"),
+      resolveConnectionParamsFromSearch(
+        "?ws=ws%3A%2F%2Flocalhost%3A9999%2Fws%3Fclient%3Dinspector%26token%3Dleak&token=secret"
+      ),
       {
-        wsURL: "ws://localhost:9999/ws",
+        wsURL: "ws://localhost:9999/ws?client=inspector",
         token: "secret"
       }
     );
@@ -23,7 +25,9 @@ describe("resolveConnectionParamsFromSearch", () => {
 
   it("falls back when the websocket override leaves the daemon contract", () => {
     assert.deepEqual(
-      resolveConnectionParamsFromSearch("?ws=ws://evil.example:4317/not-ws&token=secret"),
+      resolveConnectionParamsFromSearch(
+        "?ws=ws%3A%2F%2Fevil.example%3A4317%2Fnot-ws%3Ftoken%3Dleak&token=secret"
+      ),
       {
         wsURL: "ws://127.0.0.1:4317/ws",
         token: "secret"

@@ -31,11 +31,13 @@ This file tracks follow-up work from [audit-1.md](./audit-1.md) until the origin
 
 - All browser-side websocket clients now reject inbound frames larger than the 1 MiB daemon contract before decoding them, and close the socket with code `1009` instead of attempting to process oversized payloads.
 
+## Resolved in PR68
+
+- Daemon auth now moves through the initial `hello` payload instead of the websocket URL query string, and browser-side websocket URL builders strip stale `token=` params before connect.
+
 ## Deferred Or Dependent Items
 
 - Broad dev-agent `host_permissions` are still open.
   Reason: narrowing the manifest to `:4317` would break non-default daemon ports, and the correct MV3 permission model needs to be verified before changing product behavior.
-- Query-string token transport remains in place.
-  Reason: browser WebSocket clients cannot send arbitrary auth headers, so removing `?token=` requires a different handshake/auth contract rather than a local cleanup.
 - Go toolchain vulnerability scanning via `govulncheck` is still open.
   Reason: a probe on 2026-03-09 reported multiple standard-library vulnerabilities against the current Go 1.24.0 baseline, so enabling that gate now would redline CI until the project upgrades its Go toolchain policy.

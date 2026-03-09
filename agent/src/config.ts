@@ -23,10 +23,9 @@ export async function loadConfig(): Promise<AgentConfig> {
   };
 }
 
-export function buildDaemonURL(wsUrl: string, token: string): string {
+export function buildDaemonURL(wsUrl: string): string {
   const url = new URL(wsUrl);
-  // Keep auth in query params for parity with the daemon's current handshake gate.
-  url.searchParams.set("token", token);
+  url.searchParams.delete("token");
   return url.toString();
 }
 
@@ -63,5 +62,6 @@ function normalizeDaemonWebSocketURL(value: string | undefined, fallback: string
   }
 
   parsed.hash = "";
+  parsed.searchParams.delete("token");
   return parsed.toString();
 }

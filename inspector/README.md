@@ -28,7 +28,7 @@ Filter values are persisted in browser localStorage per host.
 Inspector reconnects automatically with exponential backoff if the daemon drops.
 
 Optional URL params:
-- `ws`: daemon websocket endpoint (default `ws://127.0.0.1:4317/ws`; only top-level loopback `ws://127.0.0.1:<port>/ws` or `ws://localhost:<port>/ws` values are honored)
+- `ws`: daemon websocket endpoint (default `ws://127.0.0.1:4317/ws`; only top-level loopback `ws://127.0.0.1:<port>/ws` or `ws://localhost:<port>/ws` values are honored, and any embedded `token=` query param is stripped before connect)
 - `token`: daemon auth token (default `dev-token`)
 
 Embedded inspector loads ignore URL param overrides and fall back to the built-in defaults.
