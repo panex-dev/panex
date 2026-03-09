@@ -23,8 +23,10 @@ import (
 )
 
 const (
-	maxMessageBytes  = 1 << 20 // 1 MiB keeps accidental payload explosions bounded.
-	handshakeTimeout = 5 * time.Second
+	maxMessageBytes     = 1 << 20 // 1 MiB keeps accidental payload explosions bounded.
+	handshakeTimeout    = 5 * time.Second
+	defaultReadTimeout  = 30 * time.Second
+	defaultWriteTimeout = 5 * time.Second
 )
 
 var daemonCapabilities = []string{
@@ -48,6 +50,9 @@ type WebSocketConfig struct {
 	EventStorePath string
 	ServerVersion  string
 	DaemonID       string
+	ReadTimeout    time.Duration
+	WriteTimeout   time.Duration
+	PingInterval   time.Duration
 }
 
 type eventStore interface {
@@ -84,6 +89,7 @@ type sessionConn struct {
 	mu        sync.Mutex
 	closeOnce sync.Once
 	closeErr  error
+	done      chan struct{}
 }
 
 type simulatedTab struct {
@@ -120,6 +126,15 @@ func NewWebSocketServer(cfg WebSocketConfig) (*WebSocketServer, error) {
 	}
 	if strings.TrimSpace(cfg.EventStorePath) == "" {
 		cfg.EventStorePath = ".panex/events.db"
+	}
+	if cfg.ReadTimeout <= 0 {
+		cfg.ReadTimeout = defaultReadTimeout
+	}
+	if cfg.WriteTimeout <= 0 {
+		cfg.WriteTimeout = defaultWriteTimeout
+	}
+	if cfg.PingInterval <= 0 || cfg.PingInterval >= cfg.ReadTimeout {
+		cfg.PingInterval = cfg.ReadTimeout - (cfg.ReadTimeout / 10)
 	}
 
 	eventStore, err := store.NewSQLiteEventStore(cfg.EventStorePath)
@@ -224,15 +239,26 @@ func (s *WebSocketServer) handleWebSocket(w http.ResponseWriter, r *http.Request
 		_ = conn.WriteControl(
 			websocket.CloseMessage,
 			websocket.FormatCloseMessage(websocket.ClosePolicyViolation, err.Error()),
-			time.Now().Add(time.Second),
+			time.Now().Add(s.cfg.WriteTimeout),
 		)
 		_ = conn.Close()
 		return
 	}
 
-	session := &sessionConn{conn: conn}
+	session := &sessionConn{
+		conn: conn,
+		done: make(chan struct{}),
+	}
+	session.conn.SetPongHandler(func(string) error {
+		return session.conn.SetReadDeadline(time.Now().Add(s.cfg.ReadTimeout))
+	})
+	if err := session.conn.SetReadDeadline(time.Now().Add(s.cfg.ReadTimeout)); err != nil {
+		_ = session.close()
+		return
+	}
 	s.register(sessionID, session)
 	go s.readLoop(sessionID, session)
+	go s.pingLoop(sessionID, session)
 }
 
 func (s *WebSocketServer) handshake(ctx context.Context, conn *websocket.Conn) (string, error) {
@@ -325,6 +351,9 @@ func (s *WebSocketServer) writeHelloAck(conn *websocket.Conn, payload protocol.H
 	if err != nil {
 		return protocol.Envelope{}, fmt.Errorf("encode hello.ack message: %w", err)
 	}
+	if err := conn.SetWriteDeadline(time.Now().Add(s.cfg.WriteTimeout)); err != nil {
+		return protocol.Envelope{}, fmt.Errorf("set hello.ack write deadline: %w", err)
+	}
 	if err := conn.WriteMessage(websocket.BinaryMessage, encodedHelloAck); err != nil {
 		return protocol.Envelope{}, fmt.Errorf("write hello.ack message: %w", err)
 	}
@@ -345,13 +374,41 @@ func (s *WebSocketServer) readLoop(sessionID string, session *sessionConn) {
 			}
 			return
 		}
+		if err := session.conn.SetReadDeadline(time.Now().Add(s.cfg.ReadTimeout)); err != nil {
+			_ = session.writeControl(
+				websocket.CloseMessage,
+				websocket.FormatCloseMessage(websocket.CloseInternalServerErr, err.Error()),
+				s.cfg.WriteTimeout,
+			)
+			return
+		}
 		if err := s.handleClientMessage(s.ctx, sessionID, rawMessage); err != nil {
 			_ = session.writeControl(
 				websocket.CloseMessage,
 				websocket.FormatCloseMessage(websocket.ClosePolicyViolation, err.Error()),
-				time.Now().Add(time.Second),
+				s.cfg.WriteTimeout,
 			)
 			return
+		}
+	}
+}
+
+func (s *WebSocketServer) pingLoop(sessionID string, session *sessionConn) {
+	ticker := time.NewTicker(s.cfg.PingInterval)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-s.ctx.Done():
+			return
+		case <-session.done:
+			return
+		case <-ticker.C:
+			if err := session.writeControl(websocket.PingMessage, nil, s.cfg.WriteTimeout); err != nil {
+				_ = session.close()
+				s.unregister(sessionID)
+				return
+			}
 		}
 	}
 }
@@ -375,7 +432,7 @@ func (s *WebSocketServer) Broadcast(ctx context.Context, message protocol.Envelo
 
 	var failed []string
 	for sessionID, session := range sessions {
-		writeErr := session.writeMessage(websocket.BinaryMessage, encoded)
+		writeErr := session.writeMessage(websocket.BinaryMessage, encoded, s.cfg.WriteTimeout)
 		if writeErr != nil {
 			_ = session.close()
 			failed = append(failed, sessionID)
@@ -1274,7 +1331,7 @@ func (s *WebSocketServer) writeSessionMessage(sessionID string, encoded []byte) 
 		return fmt.Errorf("session %q is not connected", sessionID)
 	}
 
-	return session.writeMessage(websocket.BinaryMessage, encoded)
+	return session.writeMessage(websocket.BinaryMessage, encoded, s.cfg.WriteTimeout)
 }
 
 func (s *WebSocketServer) nextSessionID() string {
@@ -1309,22 +1366,30 @@ func (s *WebSocketServer) closeAllConnections() {
 	}
 }
 
-func (s *sessionConn) writeMessage(messageType int, data []byte) error {
+func (s *sessionConn) writeMessage(messageType int, data []byte, timeout time.Duration) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
+	if err := s.conn.SetWriteDeadline(time.Now().Add(timeout)); err != nil {
+		return err
+	}
 	return s.conn.WriteMessage(messageType, data)
 }
 
-func (s *sessionConn) writeControl(messageType int, data []byte, deadline time.Time) error {
+func (s *sessionConn) writeControl(messageType int, data []byte, timeout time.Duration) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
+	deadline := time.Now().Add(timeout)
+	if err := s.conn.SetWriteDeadline(deadline); err != nil {
+		return err
+	}
 	return s.conn.WriteControl(messageType, data, deadline)
 }
 
 func (s *sessionConn) close() error {
 	s.closeOnce.Do(func() {
+		close(s.done)
 		s.mu.Lock()
 		defer s.mu.Unlock()
 
