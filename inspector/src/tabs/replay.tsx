@@ -3,6 +3,7 @@ import { createMemo, createSignal, type Accessor, type JSX } from "solid-js";
 
 import type { ConnectionStatus } from "../connection";
 import { summarizeReplayHistory } from "../replay";
+import { replayFamilies } from "../replay-contract";
 import { formatTime, type TimelineEntry } from "../timeline";
 
 interface ReplayTabProps {
@@ -16,17 +17,18 @@ interface ReplayTabProps {
 export function ReplayTab(props: ReplayTabProps): JSX.Element {
   const [feedback, setFeedback] = createSignal<string | null>(null);
   const entries = createMemo(() => summarizeReplayHistory(props.timeline()));
+  const replayFamily = replayFamilies[0];
 
   return (
     <section class="panel replay-panel">
       <div class="panel-header">
         <h2>Replay</h2>
-        <p>{`${entries().length} replayable runtime probe payloads`}</p>
+        <p>{`${entries().length} replayable ${replayFamily.payloadLabel}`}</p>
       </div>
 
       <div class="workbench-intro">
         <p>
-          Replay is still constrained to observed namespaced runtime probe payloads. This tab
+          Replay is still constrained to the {replayFamily.label} family. This tab
           surfaces the history directly so operators can replay what the system actually saw, not a
           speculative local draft.
         </p>
@@ -42,7 +44,7 @@ export function ReplayTab(props: ReplayTabProps): JSX.Element {
       <div class="placeholder-body">
         {entries().length === 0 ? (
           <p class="subtle">
-            No replayable runtime probe payloads have been observed yet. Use Workbench to send the
+            No replayable {replayFamily.payloadLabel} have been observed yet. Use Workbench to send the
             runtime probe first, then return here to replay specific observed payloads from history.
           </p>
         ) : (
