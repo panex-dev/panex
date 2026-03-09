@@ -74,6 +74,31 @@ govulncheck ./...
 pnpm audit --audit-level high --prod
 ```
 
+## Release Packaging
+
+Package reproducible CLI release archives with:
+
+```bash
+make release VERSION=v0.1.0
+```
+
+This writes versioned archives to `dist/release/` for the default target matrix:
+
+- `darwin/amd64`
+- `darwin/arm64`
+- `linux/amd64`
+- `linux/arm64`
+- `windows/amd64`
+- `windows/arm64`
+
+Limit the build to a smaller target set with `TARGETS=`:
+
+```bash
+make release VERSION=v0.1.0 TARGETS=linux/amd64,darwin/arm64
+```
+
+Each archive includes the versioned `panex` binary (`panex.exe` on Windows) plus the repo `README.md`, and the packager uses deterministic archive metadata plus `go build -trimpath -buildvcs=false -ldflags="-buildid= -X main.version=<version>"` so repeated runs for the same target and version produce identical archive bytes.
+
 ## Branch Workflow
 
 Repository-wide agent operating rules live in [`AGENTS.md`](./AGENTS.md). Coding agents are expected to follow that protocol in addition to the branch workflow below.

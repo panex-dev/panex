@@ -33,6 +33,7 @@ Thumbs.db
 package-lock.json
 agent/dist/
 inspector/dist/
+dist/release/
 
 # Local agent config
 .claude/
