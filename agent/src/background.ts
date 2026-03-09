@@ -1,14 +1,16 @@
 import { decode, encode } from "@msgpack/msgpack";
 import {
-  PROTOCOL_VERSION,
   readWebSocketMessageData,
-  type Envelope,
-  type Hello,
   isEnvelope
 } from "@panex/protocol";
 
 import { buildDaemonURL, loadConfig } from "./config";
-import { handleReloadCommand } from "./reload";
+import {
+  buildHelloEnvelope,
+  createAgentHandshakeState,
+  handleDaemonEnvelope,
+  resetAgentHandshakeState
+} from "./handshake";
 
 const reconnectFloorMS = 500;
 const reconnectCeilingMS = 5000;
@@ -16,6 +18,7 @@ const closeMessageTooBig = 1009;
 
 let socket: WebSocket | null = null;
 let reconnectAttempts = 0;
+const handshakeState = createAgentHandshakeState();
 
 void connect();
 
@@ -23,36 +26,32 @@ async function connect(): Promise<void> {
   const config = await loadConfig();
   const url = buildDaemonURL(config.wsUrl);
 
-  socket = new WebSocket(url);
-  socket.binaryType = "arraybuffer";
+  const nextSocket = new WebSocket(url);
+  nextSocket.binaryType = "arraybuffer";
+  socket = nextSocket;
 
-  socket.addEventListener("open", () => {
+  nextSocket.addEventListener("open", () => {
+    if (socket !== nextSocket) {
+      return;
+    }
+
     reconnectAttempts = 0;
+    resetAgentHandshakeState(handshakeState);
 
-    const hello: Envelope<Hello> = {
-      v: PROTOCOL_VERSION,
-      t: "lifecycle",
-      name: "hello",
-      src: { role: "dev-agent", id: config.agentId },
-      data: {
-        protocol_version: PROTOCOL_VERSION,
-        auth_token: config.token,
-        client_kind: "dev-agent",
-        client_version: "dev",
-        capabilities_requested: ["command.reload"]
-      }
-    };
-
-    socket?.send(encode(hello));
+    nextSocket.send(encode(buildHelloEnvelope(config)));
   });
 
-  socket.addEventListener("message", (event) => {
+  nextSocket.addEventListener("message", (event) => {
+    if (socket !== nextSocket) {
+      return;
+    }
+
     const message = readWebSocketMessageData(event.data);
     if (message.kind === "unsupported") {
       return;
     }
     if (message.kind === "too_large") {
-      socket?.close(closeMessageTooBig, "message exceeds limit");
+      nextSocket.close(closeMessageTooBig, "message exceeds limit");
       return;
     }
 
@@ -66,15 +65,30 @@ async function connect(): Promise<void> {
       return;
     }
 
-    handleReloadCommand(decoded, () => chrome.runtime.reload());
+    handleDaemonEnvelope(decoded, handshakeState, {
+      runtimeReload: () => chrome.runtime.reload(),
+      closeSocket: (code?: number, reason?: string) => {
+        nextSocket.close(code, reason);
+      }
+    });
   });
 
-  socket.addEventListener("close", () => {
+  nextSocket.addEventListener("close", () => {
+    if (socket !== nextSocket) {
+      return;
+    }
+
+    socket = null;
+    resetAgentHandshakeState(handshakeState);
     scheduleReconnect();
   });
 
-  socket.addEventListener("error", () => {
-    socket?.close();
+  nextSocket.addEventListener("error", () => {
+    if (socket !== nextSocket) {
+      return;
+    }
+
+    nextSocket.close();
   });
 }
 
