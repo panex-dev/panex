@@ -11,13 +11,17 @@ interface SidebarProps {
 
 export function Sidebar(props: SidebarProps): JSX.Element {
   return (
-    <section class="sidebar-panel">
-      <h2>Connection</h2>
-      <p>
+    <section class="sidebar-panel" aria-labelledby="inspector-connection-heading">
+      <h2 id="inspector-connection-heading">Connection</h2>
+      <p aria-live="polite" aria-atomic="true">
         status: <strong>{props.status()}</strong>
       </p>
       <p class="subtle">{props.socketURL()}</p>
-      {props.lastError() ? <p class="error">{props.lastError()}</p> : null}
+      {props.lastError() ? (
+        <p class="error" role="status" aria-live="polite">
+          {props.lastError()}
+        </p>
+      ) : null}
 
       <div class="sidebar-actions">
         <button class="filter-reset" type="button" disabled>

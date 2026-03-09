@@ -74,15 +74,15 @@ As of 2026-03-09.
 | 73 | Enforce dev-agent `hello.ack` completion before accepting live commands | `docs/build-log/2026-03-09-pr-073-agent-hello-ack-enforcement.md` |
 | 74 | Add daemon websocket read/write deadlines and ping keepalive | `docs/build-log/2026-03-09-pr-074-daemon-websocket-deadlines.md` |
 | 75 | Add optional dev-agent websocket lifecycle diagnostics behind stored config | `docs/build-log/2026-03-09-pr-075-agent-diagnostic-logging.md` |
+| 76 | Polish inspector keyboard focus treatment and ARIA semantics | `docs/build-log/2026-03-09-pr-076-inspector-accessibility-polish.md` |
 
 ## In progress
 - None.
 
 ## Next
-- Implement focus-visible and ARIA polish for inspector controls so keyboard navigation and assistive technology support stop lagging behind the product surface.
+- Publish first-run config/schema documentation for `panex.toml`, including the auth token contract and supported local-development defaults.
 
 ## Queued Follow-Ons
-- Publish first-run config/schema documentation for `panex.toml`, including the auth token contract and supported local-development defaults.
 - Keep longer-horizon release work queued behind those slices: multi-extension support, `$PANEX_AUTH_TOKEN` override, packaging/distribution, timeline scalability, and transactional storage mutation persistence.
 
 ## Notes

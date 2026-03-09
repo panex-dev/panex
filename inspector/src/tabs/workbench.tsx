@@ -112,7 +112,11 @@ export function WorkbenchTab(props: WorkbenchTabProps): JSX.Element {
           >
             {runtimeProbe().label}
           </button>
-          {runtimeMessage() ? <p class="subtle">{runtimeMessage()}</p> : null}
+          {runtimeMessage() ? (
+            <p class="subtle" role="status" aria-live="polite">
+              {runtimeMessage()}
+            </p>
+          ) : null}
           <p class="subtle">
             {runtimeProbe().lastResultText
               ? `Last result: ${runtimeProbe().lastResultText}`
@@ -149,7 +153,11 @@ export function WorkbenchTab(props: WorkbenchTabProps): JSX.Element {
           >
             replay last runtime payload
           </button>
-          {replayMessage() ? <p class="subtle">{replayMessage()}</p> : null}
+          {replayMessage() ? (
+            <p class="subtle" role="status" aria-live="polite">
+              {replayMessage()}
+            </p>
+          ) : null}
         </article>
 
         <article class="workbench-card workbench-card-wide">
@@ -194,9 +202,15 @@ export function WorkbenchTab(props: WorkbenchTabProps): JSX.Element {
             These presets only touch namespaced demo keys and automatically switch between apply,
             update, and remove based on the current storage snapshot.
           </p>
-          {presetMessage() ? <p class="subtle">{presetMessage()}</p> : null}
+          {presetMessage() ? (
+            <p class="subtle" role="status" aria-live="polite">
+              {presetMessage()}
+            </p>
+          ) : null}
           {props.status() === "open" ? null : (
-            <p class="subtle">Presets become available after the daemon websocket opens.</p>
+            <p class="subtle" role="status" aria-live="polite">
+              Presets become available after the daemon websocket opens.
+            </p>
           )}
           <ul class="workbench-preset-list">
             {model().storagePresets.map((preset) => (

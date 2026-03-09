@@ -42,8 +42,7 @@ In every PR description:
 6. Keep branches short-lived and non-stacked; every PR branch starts from latest `origin/main` in its own worktree.
 
 ## Current build check (2026-03-09)
-- Completed log entries: PR1-PR42 and PR45-PR75 (PR20 reserved for numbering reconciliation, PR27 process-only).
-- Next target increment: implement focus-visible and ARIA polish for inspector controls so keyboard navigation and assistive technology support stop lagging behind the product surface.
+- Completed log entries: PR1-PR42 and PR45-PR76 (PR20 reserved for numbering reconciliation, PR27 process-only).
+- Next target increment: publish first-run config/schema documentation for `panex.toml`, including the auth token contract and supported local-development defaults.
 - Queued follow-ons from the preserved 2026-03-07 review:
-  - config/schema documentation for `panex.toml`
   - longer-horizon release work (multi-extension support, auth token override, packaging, timeline scalability, transactional storage persistence)

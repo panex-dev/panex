@@ -189,18 +189,20 @@ export function StorageTab(props: StorageTabProps): JSX.Element {
       </div>
 
       <div class="placeholder-body">
-        <p class="filter-hint">
+        <p id="storage-filter-hint" class="filter-hint">
           Snapshot source: <code>query.storage.result</code> + live diffs from{" "}
           <code>storage.diff</code>
         </p>
 
         {props.status() === "open" ? (
-          <div>
+          <div aria-live="polite" aria-atomic="true">
             {requestError() ? <p class="error">{requestError()}</p> : null}
             {mutationError() ? <p class="error">{mutationError()}</p> : null}
           </div>
         ) : (
-          <p class="subtle">Storage queries run after the daemon websocket is open.</p>
+          <p class="subtle" role="status" aria-live="polite">
+            Storage queries run after the daemon websocket is open.
+          </p>
         )}
 
         <div class="storage-table-wrap">
