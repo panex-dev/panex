@@ -3,8 +3,10 @@ import { createMemo, createSignal, type Accessor, type JSX } from "solid-js";
 
 import type { StorageSnapshot } from "@panex/protocol";
 
+import { summarizeChromeAPIActivity } from "../activity-log";
 import type { ConnectionStatus } from "../connection";
 import type { TimelineEntry } from "../timeline";
+import { formatTime } from "../timeline";
 import { buildWorkbenchModel } from "../workbench";
 
 interface WorkbenchTabProps {
@@ -35,6 +37,7 @@ export function WorkbenchTab(props: WorkbenchTabProps): JSX.Element {
   );
 
   const runtimeProbe = () => model().runtimeProbe;
+  const activity = createMemo(() => summarizeChromeAPIActivity(props.timeline()));
 
   return (
     <section class="panel workbench-panel">
@@ -147,6 +150,41 @@ export function WorkbenchTab(props: WorkbenchTabProps): JSX.Element {
             replay last runtime payload
           </button>
           {replayMessage() ? <p class="subtle">{replayMessage()}</p> : null}
+        </article>
+
+        <article class="workbench-card workbench-card-wide">
+          <p class="workbench-eyebrow">Chrome API activity</p>
+          <strong class="workbench-metric">{`${activity().length} recent entries`}</strong>
+          <p class="subtle">
+            Focused simulator traffic only: paired calls/results plus observed runtime events from
+            the existing timeline history.
+          </p>
+          {activity().length === 0 ? (
+            <p class="subtle">
+              No chrome API activity has been observed yet. Use the runtime probe or other
+              simulator-backed actions to populate this log.
+            </p>
+          ) : (
+            <ul class="workbench-activity-list">
+              {activity().map((entry) => (
+                <li class="workbench-activity-item">
+                  <div class="workbench-activity-copy">
+                    <div class="workbench-preset-heading">
+                      <strong>{entry.title}</strong>
+                      <span class={`workbench-pill workbench-pill-${entry.status}`}>{entry.status}</span>
+                    </div>
+                    <p class="subtle">
+                      {entry.callID ? `Call ${entry.callID}` : "Event observation"} ·{" "}
+                      {formatTime(entry.recordedAtMS)}
+                      {entry.latencyMS === null ? "" : ` · ${entry.latencyMS}ms`}
+                    </p>
+                    <p class="subtle">{entry.detail}</p>
+                    <pre class="replay-payload">{entry.payloadText}</pre>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
         </article>
 
         <article class="workbench-card workbench-card-wide">
