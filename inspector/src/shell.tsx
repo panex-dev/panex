@@ -1,6 +1,7 @@
 import h from "solid-js/h";
 import type { Accessor, JSX } from "solid-js";
 
+import { buildTabAccessibility } from "./accessibility";
 import type { InspectorTab } from "./router";
 
 export interface ShellTabSpec {
@@ -28,25 +29,41 @@ export function Shell(props: ShellProps): JSX.Element {
         <aside class="shell-sidebar">{props.sidebar()}</aside>
 
         <div class="shell-main">
-          <nav class="tab-bar" aria-label="Inspector Tabs">
-            {props.tabs.map((tab) => (
-              <button
-                type="button"
-                class={`tab-button${props.activeTab() === tab.id ? " active" : ""}`}
-                aria-current={props.activeTab() === tab.id ? "page" : "false"}
-                disabled={tab.disabled ?? false}
-                onClick={() => {
-                  if (!tab.disabled) {
-                    props.onTabSelect(tab.id);
-                  }
-                }}
-              >
-                {tab.label}
-              </button>
-            ))}
+          <nav class="tab-bar" role="tablist" aria-label="Inspector Tabs">
+            {props.tabs.map((tab) => {
+              const a11y = buildTabAccessibility(props.activeTab(), tab.id);
+
+              return (
+                <button
+                  id={a11y.tabID}
+                  type="button"
+                  role="tab"
+                  class={`tab-button${a11y.selected ? " active" : ""}`}
+                  aria-selected={a11y.selected ? "true" : "false"}
+                  aria-controls={a11y.panelID}
+                  tabindex={a11y.selected ? 0 : -1}
+                  disabled={tab.disabled ?? false}
+                  onClick={() => {
+                    if (!tab.disabled) {
+                      props.onTabSelect(tab.id);
+                    }
+                  }}
+                >
+                  {tab.label}
+                </button>
+              );
+            })}
           </nav>
 
-          <section class="tab-content">{props.content()}</section>
+          <section
+            id={buildTabAccessibility(props.activeTab(), props.activeTab()).panelID}
+            class="tab-content"
+            role="tabpanel"
+            aria-labelledby={buildTabAccessibility(props.activeTab(), props.activeTab()).tabID}
+            tabindex={0}
+          >
+            {props.content()}
+          </section>
         </div>
       </section>
     </main>

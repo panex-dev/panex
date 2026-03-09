@@ -87,7 +87,9 @@ function renderFallback(error: unknown, reset: () => void) {
     <main class="layout">
       <header class="topbar">
         <h1>Panex Inspector</h1>
-        <p class="error">render failure: {String(error)}</p>
+        <p class="error" role="alert">
+          render failure: {String(error)}
+        </p>
         <button class="filter-reset" type="button" onClick={reset}>
           retry
         </button>

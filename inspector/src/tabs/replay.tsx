@@ -37,8 +37,16 @@ export function ReplayTab(props: ReplayTabProps): JSX.Element {
       <div class="replay-summary">
         <p class="subtle">connection: {props.status()}</p>
         <p class="subtle">{props.socketURL()}</p>
-        {props.lastError() ? <p class="error">{props.lastError()}</p> : null}
-        {feedback() ? <p class="subtle">{feedback()}</p> : null}
+        {props.lastError() ? (
+          <p class="error" role="status" aria-live="polite">
+            {props.lastError()}
+          </p>
+        ) : null}
+        {feedback() ? (
+          <p class="subtle" role="status" aria-live="polite">
+            {feedback()}
+          </p>
+        ) : null}
       </div>
 
       <div class="placeholder-body">

@@ -72,6 +72,7 @@ export function TimelineTab(props: TimelineTabProps): JSX.Element {
             type="search"
             value={search()}
             placeholder="name:command.reload src:daemon build-42"
+            aria-describedby="timeline-filter-hint"
             onInput={(event) => {
               setSearch(event.currentTarget.value);
             }}
@@ -117,7 +118,7 @@ export function TimelineTab(props: TimelineTabProps): JSX.Element {
         </button>
       </div>
 
-      <p class="filter-hint">
+      <p id="timeline-filter-hint" class="filter-hint">
         operators: <code>name:</code> <code>src:</code> <code>type:</code> (combine with free text)
       </p>
 
