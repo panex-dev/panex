@@ -75,15 +75,16 @@ As of 2026-03-09.
 | 74 | Add daemon websocket read/write deadlines and ping keepalive | `docs/build-log/2026-03-09-pr-074-daemon-websocket-deadlines.md` |
 | 75 | Add optional dev-agent websocket lifecycle diagnostics behind stored config | `docs/build-log/2026-03-09-pr-075-agent-diagnostic-logging.md` |
 | 76 | Polish inspector keyboard focus treatment and ARIA semantics | `docs/build-log/2026-03-09-pr-076-inspector-accessibility-polish.md` |
+| 77 | Publish first-run `panex.toml` config/schema documentation and local-dev guidance | `docs/build-log/2026-03-09-pr-077-panex-config-guide.md` |
 
 ## In progress
 - None.
 
 ## Next
-- Publish first-run config/schema documentation for `panex.toml`, including the auth token contract and supported local-development defaults.
+- Support a `$PANEX_AUTH_TOKEN` override so local automation and packaging flows can change daemon auth without rewriting `panex.toml`.
 
 ## Queued Follow-Ons
-- Keep longer-horizon release work queued behind those slices: multi-extension support, `$PANEX_AUTH_TOKEN` override, packaging/distribution, timeline scalability, and transactional storage mutation persistence.
+- Keep longer-horizon release work queued behind those slices: multi-extension support, packaging/distribution, timeline scalability, and transactional storage mutation persistence.
 
 ## Notes
 - PR20 is intentionally reserved as documentation reconciliation so sequence alignment is explicit and auditable.
