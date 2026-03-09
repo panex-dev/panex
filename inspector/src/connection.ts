@@ -5,6 +5,7 @@ import {
   isHelloAck,
   isQueryEventsResult,
   isQueryStorageResult,
+  readWebSocketMessageData,
   type ChromeAPICall,
   type Envelope,
   type Hello,
@@ -46,6 +47,7 @@ export type ConnectionStatus = "connecting" | "open" | "reconnecting" | "closed"
 const defaultDaemonWSURL = "ws://127.0.0.1:4317/ws";
 const defaultDaemonToken = "dev-token";
 const loopbackHosts = new Set(["127.0.0.1", "localhost"]);
+const closeMessageTooBig = 1009;
 
 interface ConnectionContextValue {
   status: Accessor<ConnectionStatus>;
@@ -193,13 +195,19 @@ export function ConnectionProvider(props: ParentProps) {
     });
 
     next.addEventListener("message", (event) => {
-      if (!(event.data instanceof ArrayBuffer)) {
+      const message = readWebSocketMessageData(event.data);
+      if (message.kind === "unsupported") {
+        return;
+      }
+      if (message.kind === "too_large") {
+        setLastError(`daemon message exceeded ${message.size} bytes`);
+        next.close(closeMessageTooBig, "message exceeds limit");
         return;
       }
 
       let decoded: unknown;
       try {
-        decoded = decode(new Uint8Array(event.data));
+        decoded = decode(message.bytes);
       } catch {
         return;
       }

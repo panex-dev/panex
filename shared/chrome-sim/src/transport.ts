@@ -3,6 +3,7 @@ import {
   PROTOCOL_VERSION,
   isEnvelope,
   isHelloAck,
+  readWebSocketMessageData,
   type ChromeAPICall,
   type ChromeAPIEvent,
   type Envelope,
@@ -50,6 +51,7 @@ interface PendingCall {
 const socketOpenState = 1;
 const defaultCallTimeoutMS = 5000;
 const defaultHandshakeTimeoutMS = 5000;
+const closeMessageTooBig = 1009;
 
 export function createChromeSimTransport(options: ChromeSimTransportOptions = {}): ChromeSimTransport {
   const resolvedDaemonBaseURL =
@@ -136,14 +138,18 @@ export function createChromeSimTransport(options: ChromeSimTransportOptions = {}
   };
 
   const handleSocketMessage = (event: any) => {
-    const bytes = messageBytes(event?.data);
-    if (!bytes) {
+    const message = readWebSocketMessageData(event?.data);
+    if (message.kind === "unsupported") {
+      return;
+    }
+    if (message.kind === "too_large") {
+      socket?.close(closeMessageTooBig, "message exceeds limit");
       return;
     }
 
     let decoded: unknown;
     try {
-      decoded = decode(bytes);
+      decoded = decode(message.bytes);
     } catch {
       return;
     }
@@ -212,14 +218,18 @@ export function createChromeSimTransport(options: ChromeSimTransportOptions = {}
       });
 
       nextSocket.addEventListener("message", (event) => {
-        const bytes = messageBytes(event?.data);
-        if (!bytes) {
+        const message = readWebSocketMessageData(event?.data);
+        if (message.kind === "unsupported") {
+          return;
+        }
+        if (message.kind === "too_large") {
+          nextSocket.close(closeMessageTooBig, "message exceeds limit");
           return;
         }
 
         let decoded: unknown;
         try {
-          decoded = decode(bytes);
+          decoded = decode(message.bytes);
         } catch {
           return;
         }
@@ -241,7 +251,7 @@ export function createChromeSimTransport(options: ChromeSimTransportOptions = {}
           return;
         }
 
-        handleSocketMessage({ data: bytes });
+        handleSocketMessage({ data: message.bytes });
       });
 
       nextSocket.addEventListener("error", () => {
@@ -377,19 +387,6 @@ function defaultWebSocketFactory(url: string): TransportSocket {
     throw new Error("global WebSocket is unavailable; provide webSocketFactory");
   }
   return new WebSocket(url);
-}
-
-function messageBytes(raw: unknown): Uint8Array | null {
-  if (raw instanceof Uint8Array) {
-    return raw;
-  }
-  if (raw instanceof ArrayBuffer) {
-    return new Uint8Array(raw);
-  }
-  if (ArrayBuffer.isView(raw)) {
-    return new Uint8Array(raw.buffer, raw.byteOffset, raw.byteLength);
-  }
-  return null;
 }
 
 function isRecord(value: unknown): value is Record<string, any> {

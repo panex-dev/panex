@@ -1,4 +1,5 @@
 export const PROTOCOL_VERSION = 1;
+export const MAX_WEBSOCKET_MESSAGE_BYTES = 1 << 20;
 
 export const envelopeTypes = ["lifecycle", "event", "command"] as const;
 export type EnvelopeType = (typeof envelopeTypes)[number];
@@ -228,6 +229,33 @@ export function isQueryStorageResult(envelope: Envelope): envelope is Envelope<Q
 
 export function isReloadCommand(envelope: Envelope): envelope is Envelope<CommandReload> {
   return envelope.t === "command" && envelope.name === "command.reload";
+}
+
+export type WebSocketMessageDataResult =
+  | { kind: "bytes"; bytes: Uint8Array }
+  | { kind: "too_large"; size: number }
+  | { kind: "unsupported" };
+
+export function readWebSocketMessageData(
+  raw: unknown,
+  maxBytes = MAX_WEBSOCKET_MESSAGE_BYTES
+): WebSocketMessageDataResult {
+  let bytes: Uint8Array | null = null;
+  if (raw instanceof Uint8Array) {
+    bytes = raw;
+  } else if (raw instanceof ArrayBuffer) {
+    bytes = new Uint8Array(raw);
+  } else if (ArrayBuffer.isView(raw)) {
+    bytes = new Uint8Array(raw.buffer, raw.byteOffset, raw.byteLength);
+  }
+
+  if (!bytes) {
+    return { kind: "unsupported" };
+  }
+  if (bytes.byteLength > maxBytes) {
+    return { kind: "too_large", size: bytes.byteLength };
+  }
+  return { kind: "bytes", bytes };
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

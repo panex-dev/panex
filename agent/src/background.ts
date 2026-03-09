@@ -1,11 +1,18 @@
 import { decode, encode } from "@msgpack/msgpack";
-import { PROTOCOL_VERSION, isEnvelope, type Envelope, type Hello } from "@panex/protocol";
+import {
+  PROTOCOL_VERSION,
+  readWebSocketMessageData,
+  type Envelope,
+  type Hello,
+  isEnvelope
+} from "@panex/protocol";
 
 import { buildDaemonURL, loadConfig } from "./config";
 import { handleReloadCommand } from "./reload";
 
 const reconnectFloorMS = 500;
 const reconnectCeilingMS = 5000;
+const closeMessageTooBig = 1009;
 
 let socket: WebSocket | null = null;
 let reconnectAttempts = 0;
@@ -39,13 +46,18 @@ async function connect(): Promise<void> {
   });
 
   socket.addEventListener("message", (event) => {
-    if (!(event.data instanceof ArrayBuffer)) {
+    const message = readWebSocketMessageData(event.data);
+    if (message.kind === "unsupported") {
+      return;
+    }
+    if (message.kind === "too_large") {
+      socket?.close(closeMessageTooBig, "message exceeds limit");
       return;
     }
 
     let decoded: unknown;
     try {
-      decoded = decode(new Uint8Array(event.data));
+      decoded = decode(message.bytes);
     } catch {
       return;
     }
