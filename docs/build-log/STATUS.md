@@ -68,12 +68,13 @@ As of 2026-03-09.
 | 67 | Guard browser websocket clients against oversized inbound frames | `docs/build-log/2026-03-09-pr-067-browser-websocket-message-guard.md` |
 | 68 | Move daemon auth from websocket query params into the hello handshake | `docs/build-log/2026-03-09-pr-068-websocket-hello-auth.md` |
 | 69 | Upgrade Go baseline to 1.25.8 and gate CI with `govulncheck` | `docs/build-log/2026-03-09-pr-069-go-toolchain-govulncheck.md` |
+| 70 | Centralize the replay contract boundary and keep replay scoped to runtime probes | `docs/build-log/2026-03-09-pr-070-replay-contract-boundary.md` |
 
 ## In progress
 - None.
 
 ## Next
-- Decide whether replay should stay constrained to the runtime-probe contract or grow into a broader inspector-side history filter for additional replay-safe message families.
+- Add a focused Workbench chrome API activity log over existing timeline history so operators can inspect runtime probes, tabs queries, and unsupported calls in one place without widening protocol scope.
 
 ## Notes
 - PR20 is intentionally reserved as documentation reconciliation so sequence alignment is explicit and auditable.

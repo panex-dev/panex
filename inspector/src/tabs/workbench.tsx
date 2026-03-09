@@ -215,7 +215,8 @@ export function WorkbenchTab(props: WorkbenchTabProps): JSX.Element {
           {plannedTools.length === 0 ? (
             <p class="subtle">
               Replay controls now span the Workbench quick action and the focused Replay tab.
-              Broader tooling remains intentionally deferred.
+              Broader replay families remain intentionally deferred until they have their own
+              explicit contract.
             </p>
           ) : (
             <ul class="workbench-list">

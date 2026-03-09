@@ -41,6 +41,6 @@ In every PR description:
 5. Record architectural decisions in ADRs at decision time, not later.
 6. Keep branches short-lived and non-stacked; every PR branch starts from latest `origin/main` in its own worktree.
 
-## Current build check (2026-03-07)
-- Completed log entries: PR1-PR42 and PR45-PR60 (PR20 reserved for numbering reconciliation, PR27 process-only).
-- Next target increment: decide whether replay should stay constrained to the runtime-probe contract or grow into a broader inspector-side history filter for additional replay-safe message families.
+## Current build check (2026-03-09)
+- Completed log entries: PR1-PR42 and PR45-PR70 (PR20 reserved for numbering reconciliation, PR27 process-only).
+- Next target increment: add a focused Workbench chrome API activity log over existing timeline history so operators can inspect runtime probes, tabs queries, and unsupported calls in one place without widening protocol scope.
