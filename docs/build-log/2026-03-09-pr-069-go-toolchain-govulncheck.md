@@ -7,6 +7,7 @@
 - Title: upgrade Go baseline to 1.25.8 and add a pinned `govulncheck` CI gate
 - Commit(s):
   - `build(go): upgrade to Go 1.25.8 and gate CI with govulncheck`
+  - `ci: fix govulncheck workflow yaml quoting`
 
 ## Problem
 - The audit still had one open security-process item: `govulncheck` was not in CI because the project baseline was pinned to Go 1.24.0, and a real probe on that baseline reported reachable standard-library vulnerabilities.
@@ -51,6 +52,7 @@
   - `GOCACHE=/tmp/go-build GOLANGCI_LINT_CACHE=/tmp/golangci-lint make lint`
   - `GOCACHE=/tmp/go-build make test`
   - `GOCACHE=/tmp/go-build make build`
+  - `actionlint .github/workflows/ci.yml`
   - `./scripts/pr-ensure-rebased.sh`
 - Additional checks:
   - Baseline probe on Go 1.24.0 reported 17 reachable standard-library vulnerabilities.
