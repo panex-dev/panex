@@ -6,15 +6,17 @@ A development runtime for Chrome extensions. Save and instantly see behavior acr
 
 ## Prerequisites
 
-- Go 1.24+
+- Go 1.25.8+
 - [golangci-lint](https://golangci-lint.run/welcome/install/) v1.64.5
 - [goimports](https://pkg.go.dev/golang.org/x/tools/cmd/goimports)
+- [govulncheck](https://pkg.go.dev/golang.org/x/vuln/cmd/govulncheck) v1.1.4
 
 ## Setup
 
 ```bash
 make init
 go mod verify
+go install golang.org/x/vuln/cmd/govulncheck@v1.1.4
 ```
 
 ## Development
@@ -25,6 +27,7 @@ make lint   # run linters
 make test   # run Go tests with race detector + TypeScript package tests
 make build  # compile ./bin/panex + frontend build outputs
 go mod verify
+govulncheck ./...
 pnpm audit --audit-level high --prod
 ```
 
