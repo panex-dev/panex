@@ -42,7 +42,7 @@ In every PR description:
 6. Keep branches short-lived and non-stacked; every PR branch starts from latest `origin/main` in its own worktree.
 
 ## Current build check (2026-03-10)
-- Completed log entries: PR1-PR42 and PR45-PR81 (PR20 reserved for numbering reconciliation, PR27 process-only).
-- Next target increment: document download verification against published release checksums.
+- Completed log entries: PR1-PR42 and PR45-PR82 (PR20 reserved for numbering reconciliation, PR27 process-only).
+- Next target increment: select the next post-release milestone from the queued follow-ons.
 - Queued follow-ons from the preserved 2026-03-07 review:
   - longer-horizon release work (multi-extension support, timeline scalability, transactional storage persistence)
