@@ -19,6 +19,44 @@ go mod verify
 go install golang.org/x/vuln/cmd/govulncheck@v1.1.4
 ```
 
+## First-Run Config
+
+`panex dev` reads `./panex.toml` by default. Override the location with `panex dev --config path/to/panex.toml`.
+
+Start with this local-development config:
+
+```toml
+[extension]
+source_dir = "examples/hello-extension"
+out_dir = ".panex/dist"
+
+[server]
+port = 4317
+auth_token = "replace-this-dev-token"
+event_store_path = ".panex/events.db"
+```
+
+Config contract:
+
+- `[extension].source_dir`: required path to the unpacked extension source tree that Panex watches and rebuilds.
+- `[extension].out_dir`: required build output directory. It must not overlap `source_dir`.
+- `[server].port`: required TCP port for the local daemon. Use any value from `1` to `65535`.
+- `[server].auth_token`: required shared secret for local websocket clients. The daemon stays on `ws://127.0.0.1:<port>/ws`, and clients authenticate with this token during the `hello` handshake rather than in the URL.
+- `[server].event_store_path`: optional SQLite path for the event log. If omitted, Panex defaults it to `.panex/events.db`.
+
+Validation rules:
+
+- Unknown config keys are rejected.
+- Empty required values are rejected.
+- `source_dir` and `out_dir` cannot be the same directory or nested inside each other.
+
+On startup, `panex dev` prints the loopback websocket URL for browser tooling:
+
+```text
+panex dev
+ws_url=ws://127.0.0.1:4317/ws
+```
+
 ## Development
 ```bash
 make check  # type-check TypeScript packages
