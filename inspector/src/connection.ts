@@ -36,9 +36,10 @@ import {
 } from "./storage";
 import {
   defaultTimelineLimit,
+  defaultTimelineWorkingSetLimit,
   fromLiveEnvelope,
   fromSnapshot,
-  mergeEntries,
+  mergeEntriesWithOverflow,
   oldestPersistedTimelineID,
   type TimelineEntry
 } from "./timeline";
@@ -55,12 +56,16 @@ interface ConnectionContextValue {
   timeline: Accessor<TimelineEntry[]>;
   canLoadOlderTimeline: Accessor<boolean>;
   loadingOlderTimeline: Accessor<boolean>;
+  loadingLatestTimeline: Accessor<boolean>;
+  trimmedOlderTimelineCount: Accessor<number>;
+  trimmedNewerTimelineCount: Accessor<number>;
   storage: Accessor<StorageSnapshot[]>;
   storageHighlights: Accessor<Set<string>>;
   lastError: Accessor<string | null>;
   socketURL: Accessor<string>;
   send: (envelope: Envelope) => boolean;
   loadOlderTimeline: () => boolean;
+  jumpToLatestTimeline: () => boolean;
   refreshStorage: (area?: QueryStorage["area"]) => boolean;
   setStorageItem: (area: string, key: string, value: unknown) => boolean;
   removeStorageItem: (area: string, key: string) => boolean;
@@ -76,6 +81,9 @@ export function ConnectionProvider(props: ParentProps) {
   const [timeline, setTimeline] = createSignal<TimelineEntry[]>([]);
   const [canLoadOlderTimeline, setCanLoadOlderTimeline] = createSignal(false);
   const [loadingOlderTimeline, setLoadingOlderTimeline] = createSignal(false);
+  const [loadingLatestTimeline, setLoadingLatestTimeline] = createSignal(false);
+  const [trimmedOlderTimelineCount, setTrimmedOlderTimelineCount] = createSignal(0);
+  const [trimmedNewerTimelineCount, setTrimmedNewerTimelineCount] = createSignal(0);
   const [storage, setStorage] = createSignal<StorageSnapshot[]>([]);
   const [storageHighlights, setStorageHighlights] = createSignal(new Set<string>());
   const [lastError, setLastError] = createSignal<string | null>(null);
@@ -87,8 +95,9 @@ export function ConnectionProvider(props: ParentProps) {
   let reconnectAttempt = 0;
   let stopped = false;
   let chromeCallSeq = 0;
-  let timelineCapacity = defaultTimelineLimit;
   let pendingOlderTimelineBeforeID: number | null = null;
+  let pendingLatestTimelineReset = false;
+  let bufferedLatestTimelineLiveEntries: TimelineEntry[] = [];
 
   const send = (envelope: Envelope): boolean => {
     if (!socket || socket.readyState !== WebSocket.OPEN) {
@@ -100,7 +109,12 @@ export function ConnectionProvider(props: ParentProps) {
   };
 
   const loadOlderTimeline = (): boolean => {
-    if (!socket || socket.readyState !== WebSocket.OPEN || loadingOlderTimeline()) {
+    if (
+      !socket ||
+      socket.readyState !== WebSocket.OPEN ||
+      loadingOlderTimeline() ||
+      loadingLatestTimeline()
+    ) {
       return false;
     }
 
@@ -109,10 +123,28 @@ export function ConnectionProvider(props: ParentProps) {
       return false;
     }
 
-    timelineCapacity += defaultTimelineLimit;
     pendingOlderTimelineBeforeID = beforeID;
     setLoadingOlderTimeline(true);
     socket.send(encode(buildTimelineQuery(defaultTimelineLimit, beforeID)));
+    return true;
+  };
+
+  const jumpToLatestTimeline = (): boolean => {
+    if (
+      !socket ||
+      socket.readyState !== WebSocket.OPEN ||
+      loadingOlderTimeline() ||
+      loadingLatestTimeline() ||
+      trimmedNewerTimelineCount() === 0
+    ) {
+      return false;
+    }
+
+    pendingOlderTimelineBeforeID = null;
+    pendingLatestTimelineReset = true;
+    bufferedLatestTimelineLiveEntries = [];
+    setLoadingLatestTimeline(true);
+    socket.send(encode(buildTimelineQuery(defaultTimelineLimit)));
     return true;
   };
 
@@ -193,9 +225,13 @@ export function ConnectionProvider(props: ParentProps) {
       reconnectAttempt = 0;
       setLastError(null);
       pendingOlderTimelineBeforeID = null;
+      pendingLatestTimelineReset = false;
+      bufferedLatestTimelineLiveEntries = [];
       setLoadingOlderTimeline(false);
+      setLoadingLatestTimeline(false);
       setCanLoadOlderTimeline(false);
-      timelineCapacity = defaultTimelineLimit;
+      setTrimmedOlderTimelineCount(0);
+      setTrimmedNewerTimelineCount(0);
       setTimeline([]);
       setStorage([]);
       setStorageHighlights(new Set<string>());
@@ -263,10 +299,32 @@ export function ConnectionProvider(props: ParentProps) {
       }
 
       if (isQueryEventsResult(decoded)) {
+        if (pendingLatestTimelineReset) {
+          pendingLatestTimelineReset = false;
+          setLoadingLatestTimeline(false);
+          applyLatestQueryResult(
+            decoded.data,
+            bufferedLatestTimelineLiveEntries,
+            setTimeline,
+            setTrimmedOlderTimelineCount,
+            setTrimmedNewerTimelineCount
+          );
+          bufferedLatestTimelineLiveEntries = [];
+          setCanLoadOlderTimeline(decoded.data.has_more === true);
+          return;
+        }
+
         const mergePosition = pendingOlderTimelineBeforeID === null ? "append" : "prepend";
         pendingOlderTimelineBeforeID = null;
         setLoadingOlderTimeline(false);
-        applyQueryResult(decoded.data, setTimeline, timelineCapacity, mergePosition);
+        applyQueryResult(
+          decoded.data,
+          setTimeline,
+          setTrimmedOlderTimelineCount,
+          setTrimmedNewerTimelineCount,
+          defaultTimelineWorkingSetLimit,
+          mergePosition
+        );
         setCanLoadOlderTimeline(decoded.data.has_more === true);
         return;
       }
@@ -283,9 +341,29 @@ export function ConnectionProvider(props: ParentProps) {
         return;
       }
 
-      setTimeline((existing) =>
-        mergeEntries(existing, [fromLiveEnvelope(decoded)], timelineCapacity)
-      );
+      const liveEntry = fromLiveEnvelope(decoded);
+      if (pendingLatestTimelineReset) {
+        bufferedLatestTimelineLiveEntries = mergeEntriesWithOverflow(
+          bufferedLatestTimelineLiveEntries,
+          [liveEntry],
+          defaultTimelineWorkingSetLimit
+        ).entries;
+        return;
+      }
+
+      let droppedOldest = 0;
+      setTimeline((existing) => {
+        const merged = mergeEntriesWithOverflow(
+          existing,
+          [liveEntry],
+          defaultTimelineWorkingSetLimit
+        );
+        droppedOldest = merged.droppedOldest;
+        return merged.entries;
+      });
+      if (droppedOldest > 0) {
+        setTrimmedOlderTimelineCount((count) => count + droppedOldest);
+      }
     });
 
     next.addEventListener("close", () => {
@@ -299,7 +377,10 @@ export function ConnectionProvider(props: ParentProps) {
 
       setStatus("reconnecting");
       pendingOlderTimelineBeforeID = null;
+      pendingLatestTimelineReset = false;
+      bufferedLatestTimelineLiveEntries = [];
       setLoadingOlderTimeline(false);
+      setLoadingLatestTimeline(false);
       setCanLoadOlderTimeline(false);
       const delay = reconnectDelay(reconnectAttempt);
       reconnectAttempt += 1;
@@ -337,12 +418,16 @@ export function ConnectionProvider(props: ParentProps) {
       timeline,
       canLoadOlderTimeline,
       loadingOlderTimeline,
+      loadingLatestTimeline,
+      trimmedOlderTimelineCount,
+      trimmedNewerTimelineCount,
       storage,
       storageHighlights,
       lastError,
       socketURL: () => daemonURL,
       send,
       loadOlderTimeline,
+      jumpToLatestTimeline,
       refreshStorage,
       setStorageItem,
       removeStorageItem,
@@ -366,14 +451,57 @@ export function useConnection(): ConnectionContextValue {
 function applyQueryResult(
   payload: QueryEventsResult,
   setTimeline: (updater: (existing: TimelineEntry[]) => TimelineEntry[]) => void,
+  setTrimmedOlderTimelineCount: (updater: (count: number) => number) => void,
+  setTrimmedNewerTimelineCount: (updater: (count: number) => number) => void,
   maxEntries: number,
   mergePosition: "append" | "prepend"
 ): void {
+  const snapshots = normalizeQuerySnapshots(payload);
+  let droppedOldest = 0;
+  let droppedNewest = 0;
+  setTimeline((existing) => {
+    const merged = mergeEntriesWithOverflow(
+      existing,
+      snapshots.map((snapshot) => fromSnapshot(snapshot)),
+      maxEntries,
+      mergePosition
+    );
+    droppedOldest = merged.droppedOldest;
+    droppedNewest = merged.droppedNewest;
+    return merged.entries;
+  });
+  if (droppedOldest > 0) {
+    setTrimmedOlderTimelineCount((count) => count + droppedOldest);
+  }
+  if (droppedNewest > 0) {
+    setTrimmedNewerTimelineCount((count) => count + droppedNewest);
+  }
+}
+
+function applyLatestQueryResult(
+  payload: QueryEventsResult,
+  liveEntries: TimelineEntry[],
+  setTimeline: (next: TimelineEntry[]) => void,
+  setTrimmedOlderTimelineCount: (next: number) => void,
+  setTrimmedNewerTimelineCount: (next: number) => void
+): void {
+  const snapshots = normalizeQuerySnapshots(payload).map((snapshot) => fromSnapshot(snapshot));
+  const merged = mergeEntriesWithOverflow(
+    snapshots,
+    liveEntries,
+    defaultTimelineWorkingSetLimit
+  );
+  setTimeline(merged.entries);
+  setTrimmedOlderTimelineCount(merged.droppedOldest);
+  setTrimmedNewerTimelineCount(0);
+}
+
+function normalizeQuerySnapshots(payload: QueryEventsResult): QueryEventsResult["events"] {
   if (!Array.isArray(payload.events)) {
-    return;
+    return [];
   }
 
-  const snapshots = payload.events.filter((event): event is QueryEventsResult["events"][number] => {
+  return payload.events.filter((event): event is QueryEventsResult["events"][number] => {
     return (
       typeof event === "object" &&
       event !== null &&
@@ -382,15 +510,6 @@ function applyQueryResult(
       isEnvelope(event.envelope)
     );
   });
-
-  setTimeline((existing) =>
-    mergeEntries(
-      existing,
-      snapshots.map((snapshot) => fromSnapshot(snapshot)),
-      maxEntries,
-      mergePosition
-    )
-  );
 }
 
 export function buildTimelineQuery(limit = defaultTimelineLimit, beforeID?: number): Envelope<QueryEvents> {
