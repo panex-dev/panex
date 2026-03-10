@@ -1,29 +1,38 @@
 # Panex
 
-A development runtime for Chrome extensions. Save and instantly see behavior across contexts with state inspection and replay.
+Panex is a development runtime for Chrome extensions. It watches an unpacked extension source tree, rebuilds it into a separate output directory, serves a local daemon for browser tooling, and captures runtime activity for inspection and replay.
 
 > **Status:** Early development. Not usable yet.
 
-## Prerequisites
+## What It Is
 
-- Go 1.25.8+
-- [golangci-lint](https://golangci-lint.run/welcome/install/) v1.64.5
-- [goimports](https://pkg.go.dev/golang.org/x/tools/cmd/goimports)
-- [govulncheck](https://pkg.go.dev/golang.org/x/vuln/cmd/govulncheck) v1.1.4
+- A local CLI runtime, not a desktop GUI app.
+- A build-and-watch loop for Chrome extension source code.
+- A loopback daemon that browser tooling connects to over WebSocket.
+- A foundation for inspecting extension events, storage activity, and replayable runtime probes.
 
-## Setup
+## Install Or Download
 
-```bash
-make init
-go mod verify
-go install golang.org/x/vuln/cmd/govulncheck@v1.1.4
+Download the latest prerelease from the GitHub releases page or build from source with the contributor workflow in [CONTRIBUTING.md](./CONTRIBUTING.md).
+
+The CLI surface today is:
+
+```text
+panex version
+panex dev [--config path/to/panex.toml]
 ```
 
-## First-Run Config
+On Windows, run `panex.exe` from PowerShell or Command Prompt. Double-clicking it will not open a GUI.
 
-`panex dev` reads `./panex.toml` by default. Override the location with `panex dev --config path/to/panex.toml`.
+## Quick Start
 
-Start with this local-development config:
+1. Put `panex` on your machine and open a terminal in the folder where you want to run it.
+2. Create a `panex.toml` file.
+3. Point `source_dir` at your unpacked extension source tree.
+4. Run `panex dev`.
+5. Load the generated `out_dir` in `chrome://extensions` as an unpacked extension.
+
+Starter config:
 
 ```toml
 [extension]
@@ -36,17 +45,55 @@ auth_token = "replace-this-dev-token"
 event_store_path = ".panex/events.db"
 ```
 
-Config contract:
+When Panex starts successfully, it stays running and prints the local daemon URL:
+
+```text
+panex dev
+ws_url=ws://127.0.0.1:4317/ws
+```
+
+## How To Use It
+
+### 1. Point Panex at an extension source tree
+
+`[extension].source_dir` must point at an unpacked Chrome extension directory. Panex watches that tree, bundles extension entrypoints, rewrites HTML surfaces, and copies non-bundled assets such as `manifest.json` into `[extension].out_dir`.
+
+### 2. Start the local runtime
+
+Run:
+
+```bash
+panex dev
+```
+
+Or point at a different config file:
+
+```bash
+panex dev --config path/to/panex.toml
+```
+
+### 3. Load the built extension in Chrome
+
+Open `chrome://extensions`, enable Developer Mode, choose `Load unpacked`, and select the `out_dir` from your config.
+
+### 4. Verify basic behavior
+
+- `panex version` prints the installed version.
+- `panex dev` keeps running instead of exiting.
+- The configured `out_dir` contains your built extension output, including `manifest.json`.
+- The daemon prints `ws_url=...` so browser tooling can connect locally.
+
+## Config Reference
 
 - `[extension].source_dir`: required path to the unpacked extension source tree that Panex watches and rebuilds.
 - `[extension].out_dir`: required build output directory. It must not overlap `source_dir`.
 - `[server].port`: required TCP port for the local daemon. Use any value from `1` to `65535`.
-- `[server].auth_token`: required shared secret for local websocket clients. The daemon stays on `ws://127.0.0.1:<port>/ws`, and clients authenticate with this token during the `hello` handshake rather than in the URL.
+- `[server].auth_token`: required shared secret for local WebSocket clients. Clients send this token during the `hello` handshake.
 - `[server].event_store_path`: optional SQLite path for the event log. If omitted, Panex defaults it to `.panex/events.db`.
 
 Runtime override:
 
-- Set `PANEX_AUTH_TOKEN` before `panex dev` to override `server.auth_token` for local automation or packaging flows without editing `panex.toml`.
+- Set `PANEX_AUTH_TOKEN` before `panex dev` to override `server.auth_token` without editing `panex.toml`.
 - If `PANEX_AUTH_TOKEN` is set, it must be non-empty after trimming whitespace.
 
 Validation rules:
@@ -54,61 +101,6 @@ Validation rules:
 - Unknown config keys are rejected.
 - Empty required values are rejected.
 - `source_dir` and `out_dir` cannot be the same directory or nested inside each other.
-
-On startup, `panex dev` prints the loopback websocket URL for browser tooling:
-
-```text
-panex dev
-ws_url=ws://127.0.0.1:4317/ws
-```
-
-## Development
-```bash
-make check  # type-check TypeScript packages
-make fmt    # format code
-make lint   # run linters
-make test   # run Go tests with race detector + TypeScript package tests
-make build  # compile ./bin/panex + frontend build outputs
-go mod verify
-govulncheck ./...
-pnpm audit --audit-level high --prod
-```
-
-## Release Packaging
-
-Package reproducible CLI release archives with:
-
-```bash
-make release VERSION=v0.1.0
-```
-
-This writes versioned archives to `dist/release/` for the default target matrix:
-
-- `darwin/amd64`
-- `darwin/arm64`
-- `linux/amd64`
-- `linux/arm64`
-- `windows/amd64`
-- `windows/arm64`
-
-Limit the build to a smaller target set with `TARGETS=`:
-
-```bash
-make release VERSION=v0.1.0 TARGETS=linux/amd64,darwin/arm64
-```
-
-Each archive includes the versioned `panex` binary (`panex.exe` on Windows) plus the repo `README.md`, and the packager uses deterministic archive metadata plus `go build -trimpath -buildvcs=false -ldflags="-buildid= -X main.version=<version>"` so repeated runs for the same target and version produce identical archive bytes. It also writes `panex_<version>_SHA256SUMS` beside the archives so published releases carry one sorted checksum manifest for verification.
-
-## Tagged Releases
-
-Publish release archives from CI by pushing a version tag that points at a commit already on `main`:
-
-```bash
-git tag v0.1.0
-git push origin v0.1.0
-```
-
-The `Release` workflow reruns dependency verification, lint, tests, and builds before calling `make release VERSION=<tag>`. If those checks stay green, it uploads the generated `dist/release/*` archives and `panex_<version>_SHA256SUMS` both as workflow artifacts and as assets on the matching GitHub release. Tags with a hyphen, such as `v0.2.0-rc.1`, publish as prereleases.
 
 ## Release Verification
 
@@ -135,53 +127,12 @@ if ($actual -ne $expected) { throw "checksum mismatch" }
 Write-Host "checksum ok"
 ```
 
-Replace the version and filename with the asset you actually downloaded. A successful verification prints `OK` on Linux/macOS or `checksum ok` in PowerShell.
+Replace the version and filename with the asset you actually downloaded.
 
-## Branch Workflow
+## More Docs
 
-Repository-wide agent operating rules live in [`AGENTS.md`](./AGENTS.md). Coding agents are expected to follow that protocol in addition to the branch workflow below.
-
-Start every new PR from latest `origin/main` in a dedicated worktree:
-
-```bash
-./scripts/pr-start.sh feat/my-change
-```
-
-Install pre-push hooks once per clone to block stale branch pushes:
-
-```bash
-make init
-```
-
-Before push (and in CI), verify branch base:
-
-```bash
-./scripts/pr-ensure-rebased.sh
-```
-
-After a PR is merged, delete branch/worktree and return to `main`:
-
-```bash
-./scripts/pr-finish.sh feat/my-change
-```
-
-## Frontend Packages
-
-- `agent/`: Chrome Dev Agent extension (`pnpm run check|test|build`)
-- `inspector/`: SolidJS timeline inspector (`pnpm run check|test|build`)
-- `shared/protocol/`: shared TypeScript protocol contract consumed by both clients
-- `shared/chrome-sim/`: browser shim that routes `chrome.*` simulator calls over daemon WebSocket
-
-## Agent Diagnostics
-
-To enable temporary Chrome Dev Agent websocket lifecycle and command-handling diagnostics, set `chrome.storage.local.panex.diagnosticLogging = true`. The flag is off by default and emits structured service-worker console logs only when explicitly enabled.
-
-Install TypeScript dependencies once from the repo root before using the root TypeScript targets:
-
-```bash
-pnpm install --frozen-lockfile
-```
-
-## Architecture Decisions
-
-See [docs/adr/](docs/adr/) for all architecture decision records.
+- Contributors: [CONTRIBUTING.md](./CONTRIBUTING.md)
+- Repo map: [docs/repo-map.md](./docs/repo-map.md)
+- Coding agents: [AGENTS.md](./AGENTS.md)
+- ADRs: [docs/adr/](./docs/adr/)
+- Build history: [docs/build-log/](./docs/build-log/)
