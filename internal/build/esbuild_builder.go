@@ -137,6 +137,10 @@ func (b *EsbuildBuilder) Build(ctx context.Context, changedPaths []string) (Resu
 	if err != nil {
 		return Result{}, err
 	}
+	staticAssets, err := discoverStaticAssets(b.sourceDir)
+	if err != nil {
+		return Result{}, err
+	}
 	if len(entryPoints) == 0 && len(htmlAssets) == 0 {
 		return Result{}, fmt.Errorf("no entry points found in %s", b.sourceDir)
 	}
@@ -171,6 +175,9 @@ func (b *EsbuildBuilder) Build(ctx context.Context, changedPaths []string) (Resu
 	}
 
 	if err := b.processHTMLAssets(htmlAssets); err != nil {
+		return Result{}, err
+	}
+	if err := b.processStaticAssets(staticAssets); err != nil {
 		return Result{}, err
 	}
 

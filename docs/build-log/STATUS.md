@@ -83,6 +83,7 @@ As of 2026-03-10.
 | 82 | Document download verification against published release checksums | `docs/build-log/2026-03-10-pr-082-release-download-verification.md` |
 | 83 | Add paginated `query.events` loading and a Timeline “load older” flow | `docs/build-log/2026-03-10-pr-083-query-events-pagination.md` |
 | 84 | Cap default Timeline rendering to a live tail window with explicit older-history reveal controls | `docs/build-log/2026-03-10-pr-084-timeline-render-windowing.md` |
+| 85 | Copy manifest and other non-bundled extension assets into the build output | `docs/build-log/2026-03-10-pr-085-extension-static-asset-copy.md` |
 
 ## In progress
 - None.
