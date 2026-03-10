@@ -39,6 +39,7 @@ import {
   fromLiveEnvelope,
   fromSnapshot,
   mergeEntries,
+  oldestPersistedTimelineID,
   type TimelineEntry
 } from "./timeline";
 
@@ -52,11 +53,14 @@ const closeMessageTooBig = 1009;
 interface ConnectionContextValue {
   status: Accessor<ConnectionStatus>;
   timeline: Accessor<TimelineEntry[]>;
+  canLoadOlderTimeline: Accessor<boolean>;
+  loadingOlderTimeline: Accessor<boolean>;
   storage: Accessor<StorageSnapshot[]>;
   storageHighlights: Accessor<Set<string>>;
   lastError: Accessor<string | null>;
   socketURL: Accessor<string>;
   send: (envelope: Envelope) => boolean;
+  loadOlderTimeline: () => boolean;
   refreshStorage: (area?: QueryStorage["area"]) => boolean;
   setStorageItem: (area: string, key: string, value: unknown) => boolean;
   removeStorageItem: (area: string, key: string) => boolean;
@@ -70,6 +74,8 @@ const inspectorID = `inspector-${safeClientID()}`;
 export function ConnectionProvider(props: ParentProps) {
   const [status, setStatus] = createSignal<ConnectionStatus>("connecting");
   const [timeline, setTimeline] = createSignal<TimelineEntry[]>([]);
+  const [canLoadOlderTimeline, setCanLoadOlderTimeline] = createSignal(false);
+  const [loadingOlderTimeline, setLoadingOlderTimeline] = createSignal(false);
   const [storage, setStorage] = createSignal<StorageSnapshot[]>([]);
   const [storageHighlights, setStorageHighlights] = createSignal(new Set<string>());
   const [lastError, setLastError] = createSignal<string | null>(null);
@@ -81,6 +87,8 @@ export function ConnectionProvider(props: ParentProps) {
   let reconnectAttempt = 0;
   let stopped = false;
   let chromeCallSeq = 0;
+  let timelineCapacity = defaultTimelineLimit;
+  let pendingOlderTimelineBeforeID: number | null = null;
 
   const send = (envelope: Envelope): boolean => {
     if (!socket || socket.readyState !== WebSocket.OPEN) {
@@ -88,6 +96,23 @@ export function ConnectionProvider(props: ParentProps) {
     }
 
     socket.send(encode(envelope));
+    return true;
+  };
+
+  const loadOlderTimeline = (): boolean => {
+    if (!socket || socket.readyState !== WebSocket.OPEN || loadingOlderTimeline()) {
+      return false;
+    }
+
+    const beforeID = oldestPersistedTimelineID(timeline());
+    if (beforeID === null || !canLoadOlderTimeline()) {
+      return false;
+    }
+
+    timelineCapacity += defaultTimelineLimit;
+    pendingOlderTimelineBeforeID = beforeID;
+    setLoadingOlderTimeline(true);
+    socket.send(encode(buildTimelineQuery(defaultTimelineLimit, beforeID)));
     return true;
   };
 
@@ -167,6 +192,13 @@ export function ConnectionProvider(props: ParentProps) {
 
       reconnectAttempt = 0;
       setLastError(null);
+      pendingOlderTimelineBeforeID = null;
+      setLoadingOlderTimeline(false);
+      setCanLoadOlderTimeline(false);
+      timelineCapacity = defaultTimelineLimit;
+      setTimeline([]);
+      setStorage([]);
+      setStorageHighlights(new Set<string>());
 
       const hello: Envelope<Hello> = {
         v: PROTOCOL_VERSION,
@@ -225,21 +257,17 @@ export function ConnectionProvider(props: ParentProps) {
 
         setStatus("open");
         setLastError(null);
-
-        const query: Envelope<QueryEvents> = {
-          v: PROTOCOL_VERSION,
-          t: "command",
-          name: "query.events",
-          src: { role: "inspector", id: inspectorID },
-          data: { limit: defaultTimelineLimit }
-        };
-        next.send(encode(query));
+        next.send(encode(buildTimelineQuery(defaultTimelineLimit)));
         next.send(encode(buildStorageQuery()));
         return;
       }
 
       if (isQueryEventsResult(decoded)) {
-        applyQueryResult(decoded.data, setTimeline);
+        const mergePosition = pendingOlderTimelineBeforeID === null ? "append" : "prepend";
+        pendingOlderTimelineBeforeID = null;
+        setLoadingOlderTimeline(false);
+        applyQueryResult(decoded.data, setTimeline, timelineCapacity, mergePosition);
+        setCanLoadOlderTimeline(decoded.data.has_more === true);
         return;
       }
 
@@ -256,7 +284,7 @@ export function ConnectionProvider(props: ParentProps) {
       }
 
       setTimeline((existing) =>
-        mergeEntries(existing, [fromLiveEnvelope(decoded)], defaultTimelineLimit)
+        mergeEntries(existing, [fromLiveEnvelope(decoded)], timelineCapacity)
       );
     });
 
@@ -270,6 +298,9 @@ export function ConnectionProvider(props: ParentProps) {
       }
 
       setStatus("reconnecting");
+      pendingOlderTimelineBeforeID = null;
+      setLoadingOlderTimeline(false);
+      setCanLoadOlderTimeline(false);
       const delay = reconnectDelay(reconnectAttempt);
       reconnectAttempt += 1;
 
@@ -304,11 +335,14 @@ export function ConnectionProvider(props: ParentProps) {
     value: {
       status,
       timeline,
+      canLoadOlderTimeline,
+      loadingOlderTimeline,
       storage,
       storageHighlights,
       lastError,
       socketURL: () => daemonURL,
       send,
+      loadOlderTimeline,
       refreshStorage,
       setStorageItem,
       removeStorageItem,
@@ -331,7 +365,9 @@ export function useConnection(): ConnectionContextValue {
 
 function applyQueryResult(
   payload: QueryEventsResult,
-  setTimeline: (updater: (existing: TimelineEntry[]) => TimelineEntry[]) => void
+  setTimeline: (updater: (existing: TimelineEntry[]) => TimelineEntry[]) => void,
+  maxEntries: number,
+  mergePosition: "append" | "prepend"
 ): void {
   if (!Array.isArray(payload.events)) {
     return;
@@ -351,9 +387,20 @@ function applyQueryResult(
     mergeEntries(
       existing,
       snapshots.map((snapshot) => fromSnapshot(snapshot)),
-      defaultTimelineLimit
+      maxEntries,
+      mergePosition
     )
   );
+}
+
+export function buildTimelineQuery(limit = defaultTimelineLimit, beforeID?: number): Envelope<QueryEvents> {
+  return {
+    v: PROTOCOL_VERSION,
+    t: "command",
+    name: "query.events",
+    src: { role: "inspector", id: inspectorID },
+    data: typeof beforeID === "number" ? { limit, before_id: beforeID } : { limit }
+  };
 }
 
 function applyStorageQueryResult(
@@ -362,7 +409,7 @@ function applyStorageQueryResult(
   setStorageHighlights: (next: Set<string>) => void
 ): void {
   setStorage(normalizeStorageSnapshots(payload));
-  setStorageHighlights(new Set());
+  setStorageHighlights(new Set<string>());
 }
 
 function applyStorageDiffEnvelope(

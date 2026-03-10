@@ -57,7 +57,7 @@ type WebSocketConfig struct {
 
 type eventStore interface {
 	Append(ctx context.Context, envelope protocol.Envelope) error
-	Recent(ctx context.Context, limit int) ([]store.Record, error)
+	Recent(ctx context.Context, limit int, beforeID int64) ([]store.Record, bool, error)
 	Close() error
 }
 
@@ -470,7 +470,7 @@ func (s *WebSocketServer) handleClientMessage(ctx context.Context, sessionID str
 			return fmt.Errorf("decode query.events payload: %w", err)
 		}
 
-		records, err := s.eventStore.Recent(ctx, query.Limit)
+		records, hasMore, err := s.eventStore.Recent(ctx, query.Limit, query.BeforeID)
 		if err != nil {
 			return fmt.Errorf("query recent events: %w", err)
 		}
@@ -490,7 +490,8 @@ func (s *WebSocketServer) handleClientMessage(ctx context.Context, sessionID str
 				ID:   s.cfg.DaemonID,
 			},
 			protocol.QueryEventsResult{
-				Events: events,
+				Events:  events,
+				HasMore: hasMore,
 			},
 		)
 

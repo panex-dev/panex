@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
-import { resolveConnectionParamsFromSearch } from "../src/connection";
+import { buildTimelineQuery, resolveConnectionParamsFromSearch } from "../src/connection";
 
 describe("resolveConnectionParamsFromSearch", () => {
   it("uses loopback defaults when no overrides are present", () => {
@@ -46,5 +46,27 @@ describe("resolveConnectionParamsFromSearch", () => {
         token: "dev-token"
       }
     );
+  });
+});
+
+describe("buildTimelineQuery", () => {
+  it("builds the initial recent-history request without a cursor", () => {
+    const query = buildTimelineQuery(500);
+    assert.deepEqual(query, {
+      v: 1,
+      t: "command",
+      name: "query.events",
+      src: {
+        role: "inspector",
+        id: query.src.id
+      },
+      data: { limit: 500 }
+    });
+  });
+
+  it("adds before_id when loading older history", () => {
+    const query = buildTimelineQuery(250, 42);
+    assert.equal(query.data.limit, 250);
+    assert.equal(query.data.before_id, 42);
   });
 });

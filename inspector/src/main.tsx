@@ -33,7 +33,12 @@ function InspectorApp(): JSX.Element {
     const activeTab = router.activeTab();
     switch (activeTab) {
       case "timeline":
-        return TimelineTab({ timeline: connection.timeline });
+        return TimelineTab({
+          timeline: connection.timeline,
+          canLoadOlderTimeline: connection.canLoadOlderTimeline,
+          loadingOlderTimeline: connection.loadingOlderTimeline,
+          loadOlderTimeline: connection.loadOlderTimeline
+        });
       case "storage":
         return StorageTab({
           status: connection.status,
@@ -64,7 +69,12 @@ function InspectorApp(): JSX.Element {
           sendRuntimeMessage: connection.sendRuntimeMessage
         });
       default:
-        return TimelineTab({ timeline: connection.timeline });
+        return TimelineTab({
+          timeline: connection.timeline,
+          canLoadOlderTimeline: connection.canLoadOlderTimeline,
+          loadingOlderTimeline: connection.loadingOlderTimeline,
+          loadOlderTimeline: connection.loadOlderTimeline
+        });
     }
   };
 

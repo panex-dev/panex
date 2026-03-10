@@ -127,7 +127,8 @@ type CommandReload struct {
 }
 
 type QueryEvents struct {
-	Limit int `msgpack:"limit,omitempty"`
+	Limit    int   `msgpack:"limit,omitempty"`
+	BeforeID int64 `msgpack:"before_id,omitempty"`
 }
 
 type EventSnapshot struct {
@@ -137,7 +138,8 @@ type EventSnapshot struct {
 }
 
 type QueryEventsResult struct {
-	Events []EventSnapshot `msgpack:"events"`
+	Events  []EventSnapshot `msgpack:"events"`
+	HasMore bool            `msgpack:"has_more"`
 }
 
 type QueryStorage struct {

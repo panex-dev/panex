@@ -98,6 +98,7 @@ export interface CommandReload {
 
 export interface QueryEvents {
   limit?: number;
+  before_id?: number;
 }
 
 export interface EventSnapshot {
@@ -108,6 +109,7 @@ export interface EventSnapshot {
 
 export interface QueryEventsResult {
   events: EventSnapshot[];
+  has_more: boolean;
 }
 
 export interface QueryStorage {

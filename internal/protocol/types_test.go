@@ -230,7 +230,7 @@ func TestConstructors(t *testing.T) {
 		},
 		{
 			name:         "query.events",
-			got:          NewQueryEvents(src, QueryEvents{Limit: 10}),
+			got:          NewQueryEvents(src, QueryEvents{Limit: 10, BeforeID: 99}),
 			wantType:     TypeCommand,
 			wantName:     MessageQueryEvents,
 			wantDataType: QueryEvents{},
@@ -238,6 +238,7 @@ func TestConstructors(t *testing.T) {
 		{
 			name: "query.events.result",
 			got: NewQueryEventsResult(src, QueryEventsResult{
+				HasMore: true,
 				Events: []EventSnapshot{
 					{
 						ID:           1,

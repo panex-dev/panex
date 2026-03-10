@@ -18,6 +18,8 @@ export interface TimelineFilter {
   sourceRole: Source["role"] | "all";
 }
 
+export type TimelineMergePosition = "append" | "prepend";
+
 export interface QueryClause {
   key: "text" | "name" | "src" | "type";
   value: string;
@@ -53,7 +55,8 @@ export function fromLiveEnvelope(envelope: Envelope, recordedAtMS = Date.now()):
 export function mergeEntries(
   existing: TimelineEntry[],
   incoming: TimelineEntry[],
-  maxEntries = defaultTimelineLimit
+  maxEntries = defaultTimelineLimit,
+  position: TimelineMergePosition = "append"
 ): TimelineEntry[] {
   if (incoming.length === 0) {
     return existing;
@@ -66,7 +69,7 @@ export function mergeEntries(
     }
   }
 
-  const merged = [...existing];
+  const nextIncoming: TimelineEntry[] = [];
   for (const entry of incoming) {
     if (typeof entry.id === "number" && byID.has(entry.id)) {
       continue;
@@ -74,14 +77,27 @@ export function mergeEntries(
     if (typeof entry.id === "number") {
       byID.add(entry.id);
     }
-    merged.push(entry);
+    nextIncoming.push(entry);
   }
+
+  const merged =
+    position === "prepend" ? [...nextIncoming, ...existing] : [...existing, ...nextIncoming];
 
   if (merged.length <= maxEntries) {
     return merged;
   }
 
   return merged.slice(merged.length - maxEntries);
+}
+
+export function oldestPersistedTimelineID(entries: TimelineEntry[]): number | null {
+  for (const entry of entries) {
+    if (typeof entry.id === "number") {
+      return entry.id;
+    }
+  }
+
+  return null;
 }
 
 export function summarizeEnvelope(envelope: Envelope): string {
