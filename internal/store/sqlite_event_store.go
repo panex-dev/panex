@@ -93,22 +93,27 @@ func (s *SQLiteEventStore) Append(ctx context.Context, envelope protocol.Envelop
 	return nil
 }
 
-func (s *SQLiteEventStore) Recent(ctx context.Context, limit int) ([]Record, error) {
+func (s *SQLiteEventStore) Recent(ctx context.Context, limit int, beforeID int64) ([]Record, bool, error) {
 	boundedLimit := boundLimit(limit)
 
-	rows, err := s.db.QueryContext(
-		ctx,
-		`SELECT id, recorded_at_ms, envelope FROM protocol_events ORDER BY id DESC LIMIT ?;`,
-		boundedLimit,
-	)
+	query := `SELECT id, recorded_at_ms, envelope FROM protocol_events`
+	args := []any{}
+	if beforeID > 0 {
+		query += ` WHERE id < ?`
+		args = append(args, beforeID)
+	}
+	query += ` ORDER BY id DESC LIMIT ?;`
+	args = append(args, boundedLimit+1)
+
+	rows, err := s.db.QueryContext(ctx, query, args...)
 	if err != nil {
-		return nil, fmt.Errorf("query recent events: %w", err)
+		return nil, false, fmt.Errorf("query recent events: %w", err)
 	}
 	defer func() {
 		_ = rows.Close()
 	}()
 
-	records := make([]Record, 0, boundedLimit)
+	records := make([]Record, 0, boundedLimit+1)
 	for rows.Next() {
 		var (
 			record      Record
@@ -116,18 +121,24 @@ func (s *SQLiteEventStore) Recent(ctx context.Context, limit int) ([]Record, err
 		)
 
 		if err := rows.Scan(&record.ID, &record.RecordedAtMS, &rawEnvelope); err != nil {
-			return nil, fmt.Errorf("scan recent event row: %w", err)
+			return nil, false, fmt.Errorf("scan recent event row: %w", err)
 		}
 
 		record.Envelope, err = protocol.DecodeEnvelope(rawEnvelope)
 		if err != nil {
-			return nil, fmt.Errorf("decode recent event envelope: %w", err)
+			return nil, false, fmt.Errorf("decode recent event envelope: %w", err)
 		}
 
 		records = append(records, record)
 	}
 	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("iterate recent event rows: %w", err)
+		return nil, false, fmt.Errorf("iterate recent event rows: %w", err)
+	}
+
+	hasMore := false
+	if len(records) > boundedLimit {
+		hasMore = true
+		records = records[:boundedLimit]
 	}
 
 	// Query uses DESC for index locality; reverse so consumers get chronological order.
@@ -135,7 +146,7 @@ func (s *SQLiteEventStore) Recent(ctx context.Context, limit int) ([]Record, err
 		records[left], records[right] = records[right], records[left]
 	}
 
-	return records, nil
+	return records, hasMore, nil
 }
 
 func (s *SQLiteEventStore) Close() error {

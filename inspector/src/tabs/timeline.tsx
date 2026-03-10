@@ -11,6 +11,9 @@ import {
 
 interface TimelineTabProps {
   timeline: Accessor<TimelineEntry[]>;
+  canLoadOlderTimeline: Accessor<boolean>;
+  loadingOlderTimeline: Accessor<boolean>;
+  loadOlderTimeline: () => boolean;
 }
 
 const filterStorageKey = "panex.inspector.filters.v1";
@@ -62,7 +65,21 @@ export function TimelineTab(props: TimelineTabProps): JSX.Element {
     <section class="panel">
       <div class="panel-header">
         <h2>Event Timeline</h2>
-        <p>{`${filteredTimeline().length}/${props.timeline().length} events`}</p>
+        <div>
+          <p>{`${filteredTimeline().length}/${props.timeline().length} events`}</p>
+          {props.canLoadOlderTimeline() ? (
+            <button
+              class="filter-reset"
+              type="button"
+              disabled={props.loadingOlderTimeline()}
+              onClick={() => {
+                props.loadOlderTimeline();
+              }}
+            >
+              {props.loadingOlderTimeline() ? "loading older..." : "load older"}
+            </button>
+          ) : null}
+        </div>
       </div>
 
       <div class="filters">

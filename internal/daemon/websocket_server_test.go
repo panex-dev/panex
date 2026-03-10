@@ -490,6 +490,9 @@ func TestWebSocketQueryEventsReturnsRecentStoredMessages(t *testing.T) {
 	if err := protocol.DecodePayload(response.Data, &payload); err != nil {
 		t.Fatalf("DecodePayload(query.events.result) returned error: %v", err)
 	}
+	if !payload.HasMore {
+		t.Fatal("expected has_more=true when older handshake history remains")
+	}
 	if len(payload.Events) != 2 {
 		t.Fatalf("unexpected event count: got %d, want %d", len(payload.Events), 2)
 	}
@@ -498,6 +501,132 @@ func TestWebSocketQueryEventsReturnsRecentStoredMessages(t *testing.T) {
 	}
 	if payload.Events[1].Envelope.Name != protocol.MessageCommandReload {
 		t.Fatalf("unexpected second event: got %q, want %q", payload.Events[1].Envelope.Name, protocol.MessageCommandReload)
+	}
+}
+
+func TestWebSocketQueryEventsSupportsBeforeIDPagination(t *testing.T) {
+	server := newTestServer(t)
+	defer server.httpServer.Close()
+
+	conn := dialAuthorizedConnection(t, server.wsURL, server.token)
+	t.Cleanup(func() {
+		_ = conn.Close()
+	})
+
+	_ = mustHandshake(t, conn)
+	waitForConnectionCount(t, server.ws, 1)
+
+	source := protocol.Source{Role: protocol.SourceDaemon, ID: "daemon-test"}
+	for _, durationMS := range []int64{10, 20, 30} {
+		if err := server.ws.Broadcast(context.Background(), protocol.NewBuildComplete(source, protocol.BuildComplete{
+			BuildID:    "build-pagination",
+			Success:    true,
+			DurationMS: durationMS,
+		})); err != nil {
+			t.Fatalf("Broadcast(build.complete %d) returned error: %v", durationMS, err)
+		}
+		_ = mustReadEnvelope(t, conn)
+	}
+
+	firstQuery := protocol.NewQueryEvents(
+		protocol.Source{Role: protocol.SourceInspector, ID: "inspector-1"},
+		protocol.QueryEvents{Limit: 2},
+	)
+	rawFirstQuery, err := protocol.Encode(firstQuery)
+	if err != nil {
+		t.Fatalf("Encode(first query.events) returned error: %v", err)
+	}
+	if err := conn.WriteMessage(websocket.BinaryMessage, rawFirstQuery); err != nil {
+		t.Fatalf("WriteMessage(first query.events) returned error: %v", err)
+	}
+
+	firstResponse := mustReadEnvelope(t, conn)
+	var firstPayload protocol.QueryEventsResult
+	if err := protocol.DecodePayload(firstResponse.Data, &firstPayload); err != nil {
+		t.Fatalf("DecodePayload(first query.events.result) returned error: %v", err)
+	}
+	if !firstPayload.HasMore {
+		t.Fatal("expected has_more=true on first page")
+	}
+	if len(firstPayload.Events) != 2 {
+		t.Fatalf("unexpected first page event count: got %d, want %d", len(firstPayload.Events), 2)
+	}
+
+	secondQuery := protocol.NewQueryEvents(
+		protocol.Source{Role: protocol.SourceInspector, ID: "inspector-1"},
+		protocol.QueryEvents{Limit: 2, BeforeID: firstPayload.Events[0].ID},
+	)
+	rawSecondQuery, err := protocol.Encode(secondQuery)
+	if err != nil {
+		t.Fatalf("Encode(second query.events) returned error: %v", err)
+	}
+	if err := conn.WriteMessage(websocket.BinaryMessage, rawSecondQuery); err != nil {
+		t.Fatalf("WriteMessage(second query.events) returned error: %v", err)
+	}
+
+	secondResponse := mustReadEnvelope(t, conn)
+	var secondPayload protocol.QueryEventsResult
+	if err := protocol.DecodePayload(secondResponse.Data, &secondPayload); err != nil {
+		t.Fatalf("DecodePayload(second query.events.result) returned error: %v", err)
+	}
+	if !secondPayload.HasMore {
+		t.Fatal("expected has_more=true on intermediate page")
+	}
+	if len(secondPayload.Events) != 2 {
+		t.Fatalf("unexpected second page event count: got %d, want %d", len(secondPayload.Events), 2)
+	}
+	for _, event := range secondPayload.Events {
+		if event.ID >= firstPayload.Events[0].ID {
+			t.Fatalf("expected older event id than %d, got %d", firstPayload.Events[0].ID, event.ID)
+		}
+	}
+	if secondPayload.Events[0].ID == secondPayload.Events[1].ID {
+		t.Fatalf("expected distinct ids on second page, got %d twice", secondPayload.Events[0].ID)
+	}
+
+	foundOlderBuild := false
+	for _, event := range secondPayload.Events {
+		if event.Envelope.Name != protocol.MessageBuildComplete {
+			continue
+		}
+
+		var payload protocol.BuildComplete
+		if err := protocol.DecodePayload(event.Envelope.Data, &payload); err != nil {
+			t.Fatalf("DecodePayload(older build.complete) returned error: %v", err)
+		}
+		if payload.DurationMS == 10 {
+			foundOlderBuild = true
+		}
+	}
+	if !foundOlderBuild {
+		t.Fatal("expected intermediate page to include the oldest build.complete event")
+	}
+
+	thirdQuery := protocol.NewQueryEvents(
+		protocol.Source{Role: protocol.SourceInspector, ID: "inspector-1"},
+		protocol.QueryEvents{Limit: 2, BeforeID: secondPayload.Events[0].ID},
+	)
+	rawThirdQuery, err := protocol.Encode(thirdQuery)
+	if err != nil {
+		t.Fatalf("Encode(third query.events) returned error: %v", err)
+	}
+	if err := conn.WriteMessage(websocket.BinaryMessage, rawThirdQuery); err != nil {
+		t.Fatalf("WriteMessage(third query.events) returned error: %v", err)
+	}
+
+	thirdResponse := mustReadEnvelope(t, conn)
+	var thirdPayload protocol.QueryEventsResult
+	if err := protocol.DecodePayload(thirdResponse.Data, &thirdPayload); err != nil {
+		t.Fatalf("DecodePayload(third query.events.result) returned error: %v", err)
+	}
+	if thirdPayload.HasMore {
+		t.Fatal("expected has_more=false on final page")
+	}
+	if len(thirdPayload.Events) != 1 {
+		t.Fatalf("unexpected third page event count: got %d, want %d", len(thirdPayload.Events), 1)
+	}
+	if thirdPayload.Events[0].ID >= secondPayload.Events[0].ID {
+		t.Fatalf("expected final page id older than %d, got %d", secondPayload.Events[0].ID, thirdPayload.Events[0].ID)
 	}
 }
 
@@ -1840,11 +1969,11 @@ func (s *blockingRecentEventStore) Append(context.Context, protocol.Envelope) er
 	return nil
 }
 
-func (s *blockingRecentEventStore) Recent(ctx context.Context, _ int) ([]store.Record, error) {
+func (s *blockingRecentEventStore) Recent(ctx context.Context, _ int, _ int64) ([]store.Record, bool, error) {
 	close(s.recentStarted)
 	<-ctx.Done()
 	close(s.recentCanceled)
-	return nil, ctx.Err()
+	return nil, false, ctx.Err()
 }
 
 func (s *blockingRecentEventStore) Close() error {

@@ -7,6 +7,7 @@ import {
   fromLiveEnvelope,
   fromSnapshot,
   mergeEntries,
+  oldestPersistedTimelineID,
   parseSearchQuery,
   summarizeEnvelope
 } from "../src/timeline";
@@ -62,6 +63,23 @@ describe("timeline merge behavior", () => {
     assert.equal(merged.length, 2);
     assert.equal(merged[0].recordedAtMS, 2);
     assert.equal(merged[1].recordedAtMS, 3);
+  });
+
+  it("prepends older snapshots ahead of existing history", () => {
+    const existing = [
+      fromSnapshot({ id: 3, recorded_at_ms: 3, envelope: envelope("build.complete") }),
+      fromSnapshot({ id: 4, recorded_at_ms: 4, envelope: envelope("command.reload") })
+    ];
+    const older = [
+      fromSnapshot({ id: 1, recorded_at_ms: 1, envelope: envelope("build.complete") }),
+      fromSnapshot({ id: 2, recorded_at_ms: 2, envelope: envelope("command.reload") })
+    ];
+
+    const merged = mergeEntries(existing, older, 10, "prepend");
+    assert.deepEqual(
+      merged.map((entry) => entry.id),
+      [1, 2, 3, 4]
+    );
   });
 });
 
@@ -181,5 +199,21 @@ describe("search parser", () => {
   it("treats unknown prefixes as text clauses", () => {
     const clauses = parseSearchQuery("foo:bar");
     assert.deepEqual(clauses, [{ key: "text", value: "foo:bar" }]);
+  });
+});
+
+describe("timeline cursor helpers", () => {
+  it("finds the oldest persisted id in mixed history", () => {
+    const entries = [
+      fromSnapshot({ id: 8, recorded_at_ms: 8, envelope: envelope("build.complete") }),
+      fromSnapshot({ id: 9, recorded_at_ms: 9, envelope: envelope("command.reload") }),
+      fromLiveEnvelope(envelope("build.complete"), 10)
+    ];
+
+    assert.equal(oldestPersistedTimelineID(entries), 8);
+  });
+
+  it("returns null when only live entries exist", () => {
+    assert.equal(oldestPersistedTimelineID([fromLiveEnvelope(envelope("build.complete"), 10)]), null);
   });
 });

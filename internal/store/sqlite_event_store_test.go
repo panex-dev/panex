@@ -46,9 +46,12 @@ func TestSQLiteEventStoreAppendAndRecent(t *testing.T) {
 		t.Fatalf("Append(second) returned error: %v", err)
 	}
 
-	records, err := store.Recent(ctx, 10)
+	records, hasMore, err := store.Recent(ctx, 10, 0)
 	if err != nil {
 		t.Fatalf("Recent() returned error: %v", err)
+	}
+	if hasMore {
+		t.Fatal("expected hasMore=false for full result set")
 	}
 	if len(records) != 2 {
 		t.Fatalf("unexpected record count: got %d, want %d", len(records), 2)
@@ -85,9 +88,12 @@ func TestSQLiteEventStoreRecentLimit(t *testing.T) {
 		}
 	}
 
-	records, err := store.Recent(ctx, 1)
+	records, hasMore, err := store.Recent(ctx, 1, 0)
 	if err != nil {
 		t.Fatalf("Recent(limit=1) returned error: %v", err)
+	}
+	if !hasMore {
+		t.Fatal("expected hasMore=true when newer history remains")
 	}
 	if len(records) != 1 {
 		t.Fatalf("unexpected record count: got %d, want %d", len(records), 1)
@@ -98,6 +104,47 @@ func TestSQLiteEventStoreRecentLimit(t *testing.T) {
 	}
 	if payload.DurationMS != 3 {
 		t.Fatalf("expected newest payload for limit=1, got duration_ms=%d", payload.DurationMS)
+	}
+}
+
+func TestSQLiteEventStoreRecentBeforeID(t *testing.T) {
+	store := mustNewStore(t)
+	defer func() {
+		_ = store.Close()
+	}()
+
+	ctx := context.Background()
+	source := protocol.Source{Role: protocol.SourceDaemon, ID: "daemon-1"}
+
+	var ids []int64
+	for i := 0; i < 4; i++ {
+		if err := store.Append(ctx, protocol.NewBuildComplete(source, protocol.BuildComplete{
+			BuildID:    "build-before",
+			Success:    true,
+			DurationMS: int64(i + 1),
+		})); err != nil {
+			t.Fatalf("Append(%d) returned error: %v", i, err)
+		}
+
+		records, _, err := store.Recent(ctx, 1, 0)
+		if err != nil {
+			t.Fatalf("Recent(latest) after append %d returned error: %v", i, err)
+		}
+		ids = append(ids, records[0].ID)
+	}
+
+	records, hasMore, err := store.Recent(ctx, 2, ids[3])
+	if err != nil {
+		t.Fatalf("Recent(before_id) returned error: %v", err)
+	}
+	if !hasMore {
+		t.Fatal("expected hasMore=true when older history remains before cursor")
+	}
+	if len(records) != 2 {
+		t.Fatalf("unexpected record count: got %d, want %d", len(records), 2)
+	}
+	if records[0].ID != ids[1] || records[1].ID != ids[2] {
+		t.Fatalf("unexpected record ids before cursor: got [%d %d], want [%d %d]", records[0].ID, records[1].ID, ids[1], ids[2])
 	}
 }
 
