@@ -37,7 +37,11 @@ function InspectorApp(): JSX.Element {
           timeline: connection.timeline,
           canLoadOlderTimeline: connection.canLoadOlderTimeline,
           loadingOlderTimeline: connection.loadingOlderTimeline,
-          loadOlderTimeline: connection.loadOlderTimeline
+          loadingLatestTimeline: connection.loadingLatestTimeline,
+          trimmedOlderTimelineCount: connection.trimmedOlderTimelineCount,
+          trimmedNewerTimelineCount: connection.trimmedNewerTimelineCount,
+          loadOlderTimeline: connection.loadOlderTimeline,
+          jumpToLatestTimeline: connection.jumpToLatestTimeline
         });
       case "storage":
         return StorageTab({
@@ -73,7 +77,11 @@ function InspectorApp(): JSX.Element {
           timeline: connection.timeline,
           canLoadOlderTimeline: connection.canLoadOlderTimeline,
           loadingOlderTimeline: connection.loadingOlderTimeline,
-          loadOlderTimeline: connection.loadOlderTimeline
+          loadingLatestTimeline: connection.loadingLatestTimeline,
+          trimmedOlderTimelineCount: connection.trimmedOlderTimelineCount,
+          trimmedNewerTimelineCount: connection.trimmedNewerTimelineCount,
+          loadOlderTimeline: connection.loadOlderTimeline,
+          jumpToLatestTimeline: connection.jumpToLatestTimeline
         });
     }
   };

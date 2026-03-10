@@ -17,7 +17,11 @@ interface TimelineTabProps {
   timeline: Accessor<TimelineEntry[]>;
   canLoadOlderTimeline: Accessor<boolean>;
   loadingOlderTimeline: Accessor<boolean>;
+  loadingLatestTimeline: Accessor<boolean>;
+  trimmedOlderTimelineCount: Accessor<number>;
+  trimmedNewerTimelineCount: Accessor<number>;
   loadOlderTimeline: () => boolean;
+  jumpToLatestTimeline: () => boolean;
 }
 
 const filterStorageKey = "panex.inspector.filters.v1";
@@ -84,6 +88,7 @@ export function TimelineTab(props: TimelineTabProps): JSX.Element {
   const jumpToNewest = () => {
     setVisibleCount(defaultTimelineRenderWindow);
     setFollowLatest(true);
+    props.jumpToLatestTimeline();
   };
 
   const resetFilters = () => {
@@ -98,7 +103,15 @@ export function TimelineTab(props: TimelineTabProps): JSX.Element {
       <div class="panel-header">
         <h2>Event Timeline</h2>
         <div class="panel-actions">
-          <p>{`${renderedTimeline().length}/${filteredTimeline().length} shown · ${props.timeline().length} loaded`}</p>
+          <p>
+            {`${renderedTimeline().length}/${filteredTimeline().length} shown · ${props.timeline().length} active window`}
+            {props.trimmedOlderTimelineCount() > 0
+              ? ` · older trimmed ${props.trimmedOlderTimelineCount()}`
+              : ""}
+            {props.trimmedNewerTimelineCount() > 0
+              ? ` · newer available ${props.trimmedNewerTimelineCount()}`
+              : ""}
+          </p>
           {hiddenOlderCount() > 0 ? (
             <button
               class="filter-reset"
@@ -118,9 +131,14 @@ export function TimelineTab(props: TimelineTabProps): JSX.Element {
               {props.loadingOlderTimeline() ? "loading older..." : "load older"}
             </button>
           ) : null}
-          {!followLatest() ? (
-            <button class="filter-reset" type="button" onClick={jumpToNewest}>
-              jump to newest
+          {!followLatest() || props.trimmedNewerTimelineCount() > 0 ? (
+            <button
+              class="filter-reset"
+              type="button"
+              disabled={props.loadingLatestTimeline()}
+              onClick={jumpToNewest}
+            >
+              {props.loadingLatestTimeline() ? "loading newest..." : "jump to newest"}
             </button>
           ) : null}
         </div>

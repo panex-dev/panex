@@ -25,8 +25,15 @@ export interface QueryClause {
   value: string;
 }
 
+export interface MergeEntriesResult {
+  entries: TimelineEntry[];
+  droppedOldest: number;
+  droppedNewest: number;
+}
+
 export const defaultTimelineLimit = 500;
 export const defaultTimelineRenderWindow = 200;
+export const defaultTimelineWorkingSetLimit = defaultTimelineLimit * 4;
 export const defaultTimelineFilter: TimelineFilter = {
   search: "",
   messageType: "all",
@@ -59,8 +66,21 @@ export function mergeEntries(
   maxEntries = defaultTimelineLimit,
   position: TimelineMergePosition = "append"
 ): TimelineEntry[] {
+  return mergeEntriesWithOverflow(existing, incoming, maxEntries, position).entries;
+}
+
+export function mergeEntriesWithOverflow(
+  existing: TimelineEntry[],
+  incoming: TimelineEntry[],
+  maxEntries = defaultTimelineLimit,
+  position: TimelineMergePosition = "append"
+): MergeEntriesResult {
   if (incoming.length === 0) {
-    return existing;
+    return {
+      entries: existing,
+      droppedOldest: 0,
+      droppedNewest: 0
+    };
   }
 
   const byID = new Set<number>();
@@ -85,10 +105,27 @@ export function mergeEntries(
     position === "prepend" ? [...nextIncoming, ...existing] : [...existing, ...nextIncoming];
 
   if (merged.length <= maxEntries) {
-    return merged;
+    return {
+      entries: merged,
+      droppedOldest: 0,
+      droppedNewest: 0
+    };
   }
 
-  return merged.slice(merged.length - maxEntries);
+  const overflow = merged.length - maxEntries;
+  if (position === "prepend") {
+    return {
+      entries: merged.slice(0, maxEntries),
+      droppedOldest: 0,
+      droppedNewest: overflow
+    };
+  }
+
+  return {
+    entries: merged.slice(overflow),
+    droppedOldest: overflow,
+    droppedNewest: 0
+  };
 }
 
 export function oldestPersistedTimelineID(entries: TimelineEntry[]): number | null {

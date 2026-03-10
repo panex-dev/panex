@@ -9,6 +9,7 @@ import {
   fromSnapshot,
   hiddenOlderTimelineCount,
   mergeEntries,
+  mergeEntriesWithOverflow,
   oldestPersistedTimelineID,
   parseSearchQuery,
   renderTimelineWindow,
@@ -83,6 +84,39 @@ describe("timeline merge behavior", () => {
       merged.map((entry) => entry.id),
       [1, 2, 3, 4]
     );
+  });
+
+  it("reports when appends trim the oldest retained entries", () => {
+    const one = fromSnapshot({ id: 1, recorded_at_ms: 1, envelope: envelope("build.complete") });
+    const two = fromSnapshot({ id: 2, recorded_at_ms: 2, envelope: envelope("command.reload") });
+    const three = fromSnapshot({ id: 3, recorded_at_ms: 3, envelope: envelope("build.complete") });
+
+    const merged = mergeEntriesWithOverflow([one, two], [three], 2);
+    assert.deepEqual(
+      merged.entries.map((entry) => entry.id),
+      [2, 3]
+    );
+    assert.equal(merged.droppedOldest, 1);
+    assert.equal(merged.droppedNewest, 0);
+  });
+
+  it("reports when older-page prepends trim newer retained entries", () => {
+    const existing = [
+      fromSnapshot({ id: 3, recorded_at_ms: 3, envelope: envelope("build.complete") }),
+      fromSnapshot({ id: 4, recorded_at_ms: 4, envelope: envelope("command.reload") })
+    ];
+    const older = [
+      fromSnapshot({ id: 1, recorded_at_ms: 1, envelope: envelope("build.complete") }),
+      fromSnapshot({ id: 2, recorded_at_ms: 2, envelope: envelope("command.reload") })
+    ];
+
+    const merged = mergeEntriesWithOverflow(existing, older, 3, "prepend");
+    assert.deepEqual(
+      merged.entries.map((entry) => entry.id),
+      [1, 2, 3]
+    );
+    assert.equal(merged.droppedOldest, 0);
+    assert.equal(merged.droppedNewest, 1);
   });
 });
 

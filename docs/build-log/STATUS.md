@@ -86,15 +86,16 @@ As of 2026-03-11.
 | 85 | Copy manifest and other non-bundled extension assets into the build output | `docs/build-log/2026-03-10-pr-085-extension-static-asset-copy.md` |
 | 86 | Split product, contributor, and agent documentation entry points | `docs/build-log/2026-03-10-pr-086-docs-split-readme-audiences.md` |
 | 87 | Persist storage mutations transactionally across daemon restarts | `docs/build-log/2026-03-11-pr-087-storage-mutation-persistence.md` |
+| 88 | Bound the inspector Timeline to a reloadable working set so older browsing does not grow client memory without limit | `docs/build-log/2026-03-11-pr-088-timeline-history-scalability.md` |
 
 ## In progress
 - None.
 
 ## Next
-- Deepen Timeline scalability beyond the current render-window cap.
+- Add multi-extension support.
 
 ## Queued Follow-Ons
-- Keep the remaining longer-horizon follow-ons queued behind this slice: multi-extension support.
+- None.
 
 ## Notes
 - PR20 is intentionally reserved as documentation reconciliation so sequence alignment is explicit and auditable.
