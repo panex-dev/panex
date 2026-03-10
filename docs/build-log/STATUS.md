@@ -81,15 +81,16 @@ As of 2026-03-10.
 | 80 | Publish tagged CI release artifacts on top of the local release packager | `docs/build-log/2026-03-10-pr-080-release-publish-ci.md` |
 | 81 | Publish SHA256 checksums alongside tagged release assets | `docs/build-log/2026-03-10-pr-081-release-checksums.md` |
 | 82 | Document download verification against published release checksums | `docs/build-log/2026-03-10-pr-082-release-download-verification.md` |
+| 83 | Add paginated `query.events` loading and a Timeline “load older” flow | `docs/build-log/2026-03-10-pr-083-query-events-pagination.md` |
 
 ## In progress
 - None.
 
 ## Next
-- Select the next post-release milestone from the queued follow-ons.
+- Select the next post-release milestone from the remaining queued follow-ons.
 
 ## Queued Follow-Ons
-- Keep longer-horizon release work queued behind those slices: multi-extension support, timeline scalability, and transactional storage mutation persistence.
+- Keep the remaining longer-horizon follow-ons queued behind this slice: multi-extension support, deeper timeline scalability, and transactional storage mutation persistence.
 
 ## Notes
 - PR20 is intentionally reserved as documentation reconciliation so sequence alignment is explicit and auditable.
