@@ -1,6 +1,6 @@
 # Build Status Tracker
 
-As of 2026-03-10.
+As of 2026-03-11.
 
 ## Completed
 | PR | Scope | Evidence |
@@ -85,15 +85,16 @@ As of 2026-03-10.
 | 84 | Cap default Timeline rendering to a live tail window with explicit older-history reveal controls | `docs/build-log/2026-03-10-pr-084-timeline-render-windowing.md` |
 | 85 | Copy manifest and other non-bundled extension assets into the build output | `docs/build-log/2026-03-10-pr-085-extension-static-asset-copy.md` |
 | 86 | Split product, contributor, and agent documentation entry points | `docs/build-log/2026-03-10-pr-086-docs-split-readme-audiences.md` |
+| 87 | Persist storage mutations transactionally across daemon restarts | `docs/build-log/2026-03-11-pr-087-storage-mutation-persistence.md` |
 
 ## In progress
 - None.
 
 ## Next
-- Select the next post-release milestone from the remaining queued follow-ons.
+- Deepen Timeline scalability beyond the current render-window cap.
 
 ## Queued Follow-Ons
-- Keep the remaining longer-horizon follow-ons queued behind this slice: multi-extension support, deeper timeline scalability beyond the current render-window cap, and transactional storage mutation persistence.
+- Keep the remaining longer-horizon follow-ons queued behind this slice: multi-extension support.
 
 ## Notes
 - PR20 is intentionally reserved as documentation reconciliation so sequence alignment is explicit and auditable.

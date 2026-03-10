@@ -227,6 +227,127 @@ func TestIntegrationDaemonLifecycle(t *testing.T) {
 	waitForConnectionCount(t, ws, 0)
 }
 
+func TestIntegrationStoragePersistsAcrossDaemonRestart(t *testing.T) {
+	const token = "restart-token"
+
+	storePath := filepath.Join(t.TempDir(), "events.db")
+	first, err := NewWebSocketServer(WebSocketConfig{
+		Port:           18081,
+		AuthToken:      token,
+		EventStorePath: storePath,
+		ServerVersion:  "integration-test",
+		DaemonID:       "daemon-restart-1",
+	})
+	if err != nil {
+		t.Fatalf("NewWebSocketServer(first) returned error: %v", err)
+	}
+
+	if err := first.SetStorageItem(context.Background(), "local", "theme", "dark"); err != nil {
+		t.Fatalf("first.SetStorageItem(local theme) returned error: %v", err)
+	}
+	if err := first.SetStorageItem(context.Background(), "session", "counter", int64(7)); err != nil {
+		t.Fatalf("first.SetStorageItem(session counter) returned error: %v", err)
+	}
+	if err := first.Close(); err != nil {
+		t.Fatalf("first.Close() returned error: %v", err)
+	}
+
+	second, err := NewWebSocketServer(WebSocketConfig{
+		Port:           18082,
+		AuthToken:      token,
+		EventStorePath: storePath,
+		ServerVersion:  "integration-test",
+		DaemonID:       "daemon-restart-2",
+	})
+	if err != nil {
+		t.Fatalf("NewWebSocketServer(second) returned error: %v", err)
+	}
+	t.Cleanup(func() { _ = second.Close() })
+
+	httpServer := httptest.NewServer(second.Handler())
+	defer httpServer.Close()
+	wsURL := "ws" + strings.TrimPrefix(httpServer.URL, "http")
+
+	inspectorConn := dial(t, wsURL)
+	t.Cleanup(func() { _ = inspectorConn.Close() })
+
+	inspectorHelloAck := handshake(t, inspectorConn, protocol.Source{
+		Role: protocol.SourceInspector,
+		ID:   "inspector-restart",
+	}, protocol.Hello{
+		ProtocolVersion:       protocol.CurrentVersion,
+		AuthToken:             token,
+		ClientKind:            "inspector",
+		ClientVersion:         "test",
+		CapabilitiesRequested: []string{"query.storage", "query.events"},
+	})
+	if !inspectorHelloAck.AuthOK {
+		t.Fatal("inspector hello.ack after restart: expected auth_ok=true")
+	}
+
+	storageQuery := protocol.NewQueryStorage(
+		protocol.Source{Role: protocol.SourceInspector, ID: "inspector-restart"},
+		protocol.QueryStorage{},
+	)
+	rawStorageQuery, err := protocol.Encode(storageQuery)
+	if err != nil {
+		t.Fatalf("Encode(query.storage) returned error: %v", err)
+	}
+	if err := inspectorConn.WriteMessage(websocket.BinaryMessage, rawStorageQuery); err != nil {
+		t.Fatalf("WriteMessage(query.storage) returned error: %v", err)
+	}
+
+	storageResult := readEnvelope(t, inspectorConn)
+	if storageResult.Name != protocol.MessageStorageResult {
+		t.Fatalf("expected query.storage.result after restart, got %q", storageResult.Name)
+	}
+
+	var storagePayload protocol.QueryStorageResult
+	if err := protocol.DecodePayload(storageResult.Data, &storagePayload); err != nil {
+		t.Fatalf("DecodePayload(query.storage.result) after restart returned error: %v", err)
+	}
+	if len(storagePayload.Snapshots) != 3 {
+		t.Fatalf("expected 3 storage snapshots after restart, got %d", len(storagePayload.Snapshots))
+	}
+	if got := storagePayload.Snapshots[0].Items["theme"]; got != "dark" {
+		t.Fatalf("unexpected persisted local theme after restart: %#v", got)
+	}
+	if got := storagePayload.Snapshots[2].Items["counter"]; got != int64(7) {
+		t.Fatalf("unexpected persisted session counter after restart: %#v", got)
+	}
+
+	eventsQuery := protocol.NewQueryEvents(
+		protocol.Source{Role: protocol.SourceInspector, ID: "inspector-restart"},
+		protocol.QueryEvents{Limit: 10},
+	)
+	rawEventsQuery, err := protocol.Encode(eventsQuery)
+	if err != nil {
+		t.Fatalf("Encode(query.events) after restart returned error: %v", err)
+	}
+	if err := inspectorConn.WriteMessage(websocket.BinaryMessage, rawEventsQuery); err != nil {
+		t.Fatalf("WriteMessage(query.events) after restart returned error: %v", err)
+	}
+
+	eventsResult := readEnvelope(t, inspectorConn)
+	if eventsResult.Name != protocol.MessageQueryResult {
+		t.Fatalf("expected query.events.result after restart, got %q", eventsResult.Name)
+	}
+
+	var eventsPayload protocol.QueryEventsResult
+	if err := protocol.DecodePayload(eventsResult.Data, &eventsPayload); err != nil {
+		t.Fatalf("DecodePayload(query.events.result) after restart returned error: %v", err)
+	}
+	storageDiffCount := 0
+	for _, event := range eventsPayload.Events {
+		if event.Envelope.Name == protocol.MessageStorageDiff {
+			storageDiffCount++
+		}
+	}
+	if storageDiffCount < 2 {
+		t.Fatalf("expected persisted storage.diff history after restart, got %d matching events", storageDiffCount)
+	}
+}
+
 // --- Integration test helpers ---
 
 func dial(t *testing.T, wsURL string) *websocket.Conn {

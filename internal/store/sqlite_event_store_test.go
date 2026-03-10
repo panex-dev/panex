@@ -148,6 +148,122 @@ func TestSQLiteEventStoreRecentBeforeID(t *testing.T) {
 	}
 }
 
+func TestSQLiteEventStoreStorageSnapshotsPersistAcrossReopen(t *testing.T) {
+	ctx := context.Background()
+	storePath := filepath.Join(t.TempDir(), "events.db")
+
+	store, err := NewSQLiteEventStore(storePath)
+	if err != nil {
+		t.Fatalf("NewSQLiteEventStore() returned error: %v", err)
+	}
+
+	source := protocol.Source{Role: protocol.SourceDaemon, ID: "daemon-1"}
+	if _, err := store.SetStorageItem(ctx, source, "local", "theme", "dark"); err != nil {
+		t.Fatalf("SetStorageItem(local theme) returned error: %v", err)
+	}
+	if _, err := store.SetStorageItem(ctx, source, "sync", "enabled", true); err != nil {
+		t.Fatalf("SetStorageItem(sync enabled) returned error: %v", err)
+	}
+	if _, changed, err := store.RemoveStorageItem(ctx, source, "sync", "enabled"); err != nil {
+		t.Fatalf("RemoveStorageItem(sync enabled) returned error: %v", err)
+	} else if !changed {
+		t.Fatal("expected RemoveStorageItem(sync enabled) to report a change")
+	}
+	if _, err := store.SetStorageItem(ctx, source, "session", "temp", int64(42)); err != nil {
+		t.Fatalf("SetStorageItem(session temp) returned error: %v", err)
+	}
+	if err := store.Close(); err != nil {
+		t.Fatalf("Close() returned error: %v", err)
+	}
+
+	reopened, err := NewSQLiteEventStore(storePath)
+	if err != nil {
+		t.Fatalf("NewSQLiteEventStore(reopen) returned error: %v", err)
+	}
+	defer func() {
+		_ = reopened.Close()
+	}()
+
+	snapshots, err := reopened.StorageSnapshots(ctx, "")
+	if err != nil {
+		t.Fatalf("StorageSnapshots() returned error: %v", err)
+	}
+	if len(snapshots) != 3 {
+		t.Fatalf("unexpected snapshot count: got %d, want %d", len(snapshots), 3)
+	}
+	if got := snapshots[0].Items["theme"]; got != "dark" {
+		t.Fatalf("unexpected persisted local theme value: %#v", got)
+	}
+	if len(snapshots[1].Items) != 0 {
+		t.Fatalf("expected sync area to be empty after remove, got %#v", snapshots[1].Items)
+	}
+	if got := snapshots[2].Items["temp"]; got != int64(42) {
+		t.Fatalf("unexpected persisted session temp value: %#v", got)
+	}
+
+	records, hasMore, err := reopened.Recent(ctx, 10, 0)
+	if err != nil {
+		t.Fatalf("Recent() after reopen returned error: %v", err)
+	}
+	if hasMore {
+		t.Fatal("expected hasMore=false for small persisted mutation history")
+	}
+	if len(records) != 4 {
+		t.Fatalf("unexpected persisted event count: got %d, want %d", len(records), 4)
+	}
+	for _, record := range records {
+		if record.Envelope.Name != protocol.MessageStorageDiff {
+			t.Fatalf("expected only storage.diff events, got %q", record.Envelope.Name)
+		}
+	}
+}
+
+func TestSQLiteEventStoreClearStorageAreaPersistsEmptySnapshot(t *testing.T) {
+	ctx := context.Background()
+	store := mustNewStore(t)
+	defer func() {
+		_ = store.Close()
+	}()
+
+	source := protocol.Source{Role: protocol.SourceDaemon, ID: "daemon-1"}
+	if _, err := store.SetStorageItem(ctx, source, "local", "one", int64(1)); err != nil {
+		t.Fatalf("SetStorageItem(local one) returned error: %v", err)
+	}
+	if _, err := store.SetStorageItem(ctx, source, "local", "two", int64(2)); err != nil {
+		t.Fatalf("SetStorageItem(local two) returned error: %v", err)
+	}
+
+	diff, changed, err := store.ClearStorageArea(ctx, source, "local")
+	if err != nil {
+		t.Fatalf("ClearStorageArea(local) returned error: %v", err)
+	}
+	if !changed {
+		t.Fatal("expected ClearStorageArea(local) to report a change")
+	}
+
+	var payload protocol.StorageDiff
+	if err := protocol.DecodePayload(diff.Data, &payload); err != nil {
+		t.Fatalf("DecodePayload(storage.diff clear) returned error: %v", err)
+	}
+	if len(payload.Changes) != 2 {
+		t.Fatalf("unexpected clear diff size: got %d, want %d", len(payload.Changes), 2)
+	}
+	if payload.Changes[0].Key != "one" || payload.Changes[1].Key != "two" {
+		t.Fatalf("unexpected clear diff order: %+v", payload.Changes)
+	}
+
+	snapshots, err := store.StorageSnapshots(ctx, "local")
+	if err != nil {
+		t.Fatalf("StorageSnapshots(local) returned error: %v", err)
+	}
+	if len(snapshots) != 1 {
+		t.Fatalf("unexpected local snapshot count: got %d, want %d", len(snapshots), 1)
+	}
+	if len(snapshots[0].Items) != 0 {
+		t.Fatalf("expected cleared local area to be empty, got %#v", snapshots[0].Items)
+	}
+}
+
 func mustNewStore(t *testing.T) *SQLiteEventStore {
 	t.Helper()
 

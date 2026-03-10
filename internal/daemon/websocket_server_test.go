@@ -1976,6 +1976,37 @@ func (s *blockingRecentEventStore) Recent(ctx context.Context, _ int, _ int64) (
 	return nil, false, ctx.Err()
 }
 
+func (s *blockingRecentEventStore) StorageSnapshots(context.Context, string) ([]protocol.StorageSnapshot, error) {
+	return []protocol.StorageSnapshot{{Area: "local", Items: map[string]any{}}}, nil
+}
+
+func (s *blockingRecentEventStore) SetStorageItem(
+	context.Context,
+	protocol.Source,
+	string,
+	string,
+	any,
+) (protocol.Envelope, error) {
+	return protocol.Envelope{}, nil
+}
+
+func (s *blockingRecentEventStore) RemoveStorageItem(
+	context.Context,
+	protocol.Source,
+	string,
+	string,
+) (protocol.Envelope, bool, error) {
+	return protocol.Envelope{}, false, nil
+}
+
+func (s *blockingRecentEventStore) ClearStorageArea(
+	context.Context,
+	protocol.Source,
+	string,
+) (protocol.Envelope, bool, error) {
+	return protocol.Envelope{}, false, nil
+}
+
 func (s *blockingRecentEventStore) Close() error {
 	return nil
 }
