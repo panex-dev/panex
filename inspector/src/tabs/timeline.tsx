@@ -3,8 +3,12 @@ import { createEffect, createMemo, createSignal, type Accessor, type JSX } from 
 
 import {
   defaultTimelineFilter,
+  defaultTimelineLimit,
+  defaultTimelineRenderWindow,
   filterEntries,
   formatTime,
+  hiddenOlderTimelineCount,
+  renderTimelineWindow,
   summarizeEnvelope,
   type TimelineEntry
 } from "../timeline";
@@ -23,6 +27,8 @@ export function TimelineTab(props: TimelineTabProps): JSX.Element {
   const [search, setSearch] = createSignal(initialFilter.search);
   const [messageType, setMessageType] = createSignal(initialFilter.messageType);
   const [sourceRole, setSourceRole] = createSignal(initialFilter.sourceRole);
+  const [visibleCount, setVisibleCount] = createSignal(defaultTimelineRenderWindow);
+  const [followLatest, setFollowLatest] = createSignal(true);
 
   let listRef: HTMLDivElement | undefined;
 
@@ -33,15 +39,21 @@ export function TimelineTab(props: TimelineTabProps): JSX.Element {
       sourceRole: sourceRole()
     })
   );
+  const renderedTimeline = createMemo(() =>
+    renderTimelineWindow(filteredTimeline(), visibleCount())
+  );
+  const hiddenOlderCount = createMemo(() =>
+    hiddenOlderTimelineCount(filteredTimeline(), visibleCount())
+  );
 
   createEffect(() => {
-    if (!listRef) {
+    if (!listRef || !followLatest()) {
       return;
     }
 
-    filteredTimeline().length;
+    renderedTimeline().length;
     queueMicrotask(() => {
-      if (listRef) {
+      if (listRef && followLatest()) {
         listRef.scrollTop = listRef.scrollHeight;
       }
     });
@@ -55,28 +67,60 @@ export function TimelineTab(props: TimelineTabProps): JSX.Element {
     });
   });
 
+  const showOlderLoaded = () => {
+    setFollowLatest(false);
+    setVisibleCount((current) => Math.min(filteredTimeline().length, current + defaultTimelineRenderWindow));
+  };
+
+  const loadOlderTimeline = () => {
+    if (!props.loadOlderTimeline()) {
+      return;
+    }
+
+    setFollowLatest(false);
+    setVisibleCount((current) => current + defaultTimelineLimit);
+  };
+
+  const jumpToNewest = () => {
+    setVisibleCount(defaultTimelineRenderWindow);
+    setFollowLatest(true);
+  };
+
   const resetFilters = () => {
     setSearch(defaultTimelineFilter.search);
     setMessageType(defaultTimelineFilter.messageType);
     setSourceRole(defaultTimelineFilter.sourceRole);
+    jumpToNewest();
   };
 
   return (
     <section class="panel">
       <div class="panel-header">
         <h2>Event Timeline</h2>
-        <div>
-          <p>{`${filteredTimeline().length}/${props.timeline().length} events`}</p>
+        <div class="panel-actions">
+          <p>{`${renderedTimeline().length}/${filteredTimeline().length} shown · ${props.timeline().length} loaded`}</p>
+          {hiddenOlderCount() > 0 ? (
+            <button
+              class="filter-reset"
+              type="button"
+              onClick={showOlderLoaded}
+            >
+              {`show older loaded (${hiddenOlderCount()})`}
+            </button>
+          ) : null}
           {props.canLoadOlderTimeline() ? (
             <button
               class="filter-reset"
               type="button"
               disabled={props.loadingOlderTimeline()}
-              onClick={() => {
-                props.loadOlderTimeline();
-              }}
+              onClick={loadOlderTimeline}
             >
               {props.loadingOlderTimeline() ? "loading older..." : "load older"}
+            </button>
+          ) : null}
+          {!followLatest() ? (
+            <button class="filter-reset" type="button" onClick={jumpToNewest}>
+              jump to newest
             </button>
           ) : null}
         </div>
@@ -145,7 +189,7 @@ export function TimelineTab(props: TimelineTabProps): JSX.Element {
           listRef = element;
         }}
       >
-        {filteredTimeline().map((entry) => (
+        {renderedTimeline().map((entry) => (
           <article class="event-card">
             <div class="event-meta">
               <span>{formatTime(entry.recordedAtMS)}</span>

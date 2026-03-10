@@ -26,6 +26,7 @@ export interface QueryClause {
 }
 
 export const defaultTimelineLimit = 500;
+export const defaultTimelineRenderWindow = 200;
 export const defaultTimelineFilter: TimelineFilter = {
   search: "",
   messageType: "all",
@@ -98,6 +99,25 @@ export function oldestPersistedTimelineID(entries: TimelineEntry[]): number | nu
   }
 
   return null;
+}
+
+export function renderTimelineWindow(
+  entries: TimelineEntry[],
+  visibleCount = defaultTimelineRenderWindow
+): TimelineEntry[] {
+  const boundedVisibleCount = boundVisibleCount(visibleCount);
+  if (entries.length <= boundedVisibleCount) {
+    return entries;
+  }
+
+  return entries.slice(entries.length - boundedVisibleCount);
+}
+
+export function hiddenOlderTimelineCount(
+  entries: TimelineEntry[],
+  visibleCount = defaultTimelineRenderWindow
+): number {
+  return Math.max(0, entries.length - boundVisibleCount(visibleCount));
 }
 
 export function summarizeEnvelope(envelope: Envelope): string {
@@ -206,4 +226,12 @@ export function parseSearchQuery(search: string): QueryClause[] {
   }
 
   return clauses;
+}
+
+function boundVisibleCount(visibleCount: number): number {
+  if (!Number.isFinite(visibleCount) || visibleCount <= 0) {
+    return defaultTimelineRenderWindow;
+  }
+
+  return Math.floor(visibleCount);
 }

@@ -2,13 +2,16 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
 import {
+  defaultTimelineRenderWindow,
   filterEntries,
   formatTime,
   fromLiveEnvelope,
   fromSnapshot,
+  hiddenOlderTimelineCount,
   mergeEntries,
   oldestPersistedTimelineID,
   parseSearchQuery,
+  renderTimelineWindow,
   summarizeEnvelope
 } from "../src/timeline";
 import type { Envelope, EventSnapshot } from "@panex/protocol";
@@ -80,6 +83,47 @@ describe("timeline merge behavior", () => {
       merged.map((entry) => entry.id),
       [1, 2, 3, 4]
     );
+  });
+});
+
+describe("timeline render window", () => {
+  it("renders only the newest bounded slice of loaded history", () => {
+    const entries = [
+      fromSnapshot({ id: 1, recorded_at_ms: 1, envelope: envelope("build.complete") }),
+      fromSnapshot({ id: 2, recorded_at_ms: 2, envelope: envelope("command.reload") }),
+      fromSnapshot({ id: 3, recorded_at_ms: 3, envelope: envelope("build.complete") })
+    ];
+
+    const rendered = renderTimelineWindow(entries, 2);
+    assert.deepEqual(
+      rendered.map((entry) => entry.id),
+      [2, 3]
+    );
+  });
+
+  it("falls back to the default window when the requested size is invalid", () => {
+    const entries = Array.from({ length: defaultTimelineRenderWindow + 2 }, (_, index) =>
+      fromSnapshot({
+        id: index + 1,
+        recorded_at_ms: index + 1,
+        envelope: envelope("build.complete")
+      })
+    );
+
+    const rendered = renderTimelineWindow(entries, 0);
+    assert.equal(rendered.length, defaultTimelineRenderWindow);
+    assert.equal(rendered[0].id, 3);
+  });
+
+  it("reports how many older loaded entries remain hidden", () => {
+    const entries = [
+      fromSnapshot({ id: 1, recorded_at_ms: 1, envelope: envelope("build.complete") }),
+      fromSnapshot({ id: 2, recorded_at_ms: 2, envelope: envelope("command.reload") }),
+      fromSnapshot({ id: 3, recorded_at_ms: 3, envelope: envelope("build.complete") })
+    ];
+
+    assert.equal(hiddenOlderTimelineCount(entries, 2), 1);
+    assert.equal(hiddenOlderTimelineCount(entries, 5), 0);
   });
 });
 
