@@ -180,6 +180,69 @@ func TestBuildCopiesHTMLAndInjectsChromeSim(t *testing.T) {
 	}
 }
 
+func TestBuildCopiesStaticExtensionAssets(t *testing.T) {
+	sourceDir := filepath.Join(t.TempDir(), "src")
+	outDir := filepath.Join(t.TempDir(), "dist")
+	if err := os.MkdirAll(filepath.Join(sourceDir, "icons"), 0o755); err != nil {
+		t.Fatalf("create source directory: %v", err)
+	}
+	if err := os.MkdirAll(filepath.Join(sourceDir, "styles"), 0o755); err != nil {
+		t.Fatalf("create source directory: %v", err)
+	}
+
+	writeFixture(t, filepath.Join(sourceDir, "background.ts"), `console.log("background");`)
+	writeFixture(t, filepath.Join(sourceDir, "popup.ts"), `console.log("popup");`)
+	writeFixture(t, filepath.Join(sourceDir, "popup.html"), `<!doctype html><html><head><link rel="stylesheet" href="./styles/popup.css"></head><body><script type="module" src="./popup.ts"></script></body></html>`)
+	writeFixture(t, filepath.Join(sourceDir, "styles", "popup.css"), `body { color: #102033; }`)
+	writeFixture(t, filepath.Join(sourceDir, "icons", "icon-16.png"), "png-bits")
+	writeFixture(t, filepath.Join(sourceDir, "manifest.json"), `{
+  "manifest_version": 3,
+  "name": "Panex Test Extension",
+  "version": "0.0.1",
+  "background": {
+    "service_worker": "background.js"
+  },
+  "action": {
+    "default_popup": "popup.html"
+  },
+  "icons": {
+    "16": "icons/icon-16.png"
+  }
+}`)
+
+	builder, err := NewEsbuildBuilder(sourceDir, outDir)
+	if err != nil {
+		t.Fatalf("NewEsbuildBuilder() returned error: %v", err)
+	}
+
+	result, err := builder.Build(context.Background(), []string{"manifest.json", "icons/icon-16.png"})
+	if err != nil {
+		t.Fatalf("Build() returned error: %v", err)
+	}
+	if !result.Success {
+		t.Fatalf("expected successful build, got errors: %v", result.Errors)
+	}
+
+	if got := readFixture(t, filepath.Join(outDir, "manifest.json")); !strings.Contains(got, `"service_worker": "background.js"`) {
+		t.Fatalf("expected copied manifest.json in output, got %q", got)
+	}
+	if got := readFixture(t, filepath.Join(outDir, "styles", "popup.css")); got != `body { color: #102033; }` {
+		t.Fatalf("expected copied popup.css, got %q", got)
+	}
+	if got := readFixture(t, filepath.Join(outDir, "icons", "icon-16.png")); got != "png-bits" {
+		t.Fatalf("expected copied icon asset, got %q", got)
+	}
+	if _, err := os.Stat(filepath.Join(outDir, "background.js")); err != nil {
+		t.Fatalf("expected bundled background.js output file: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(outDir, "popup.js")); err != nil {
+		t.Fatalf("expected bundled popup.js output file: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(outDir, "background.ts")); !os.IsNotExist(err) {
+		t.Fatalf("expected source background.ts not to be copied, got err=%v", err)
+	}
+}
+
 func TestBuildDoesNotDuplicateExistingChromeSimInjection(t *testing.T) {
 	sourceDir := filepath.Join(t.TempDir(), "src")
 	outDir := filepath.Join(t.TempDir(), "dist")

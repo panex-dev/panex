@@ -28,7 +28,7 @@ func discoverHTMLAssets(sourceDir string) ([]string, error) {
 		if walkErr != nil {
 			return walkErr
 		}
-		if entry.IsDir() || strings.ToLower(filepath.Ext(filePath)) != ".html" {
+		if entry.IsDir() || !isHTMLAsset(filePath) {
 			return nil
 		}
 
