@@ -70,6 +70,16 @@ func (s *SQLiteEventStore) initialize() error {
 	`); err != nil {
 		return fmt.Errorf("create sqlite schema: %w", err)
 	}
+	if _, err := s.db.Exec(`
+		CREATE TABLE IF NOT EXISTS storage_items (
+			area TEXT NOT NULL,
+			key TEXT NOT NULL,
+			value BLOB NOT NULL,
+			PRIMARY KEY(area, key)
+		);
+	`); err != nil {
+		return fmt.Errorf("create sqlite storage schema: %w", err)
+	}
 
 	return nil
 }
