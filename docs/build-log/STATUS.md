@@ -84,6 +84,7 @@ As of 2026-03-10.
 | 83 | Add paginated `query.events` loading and a Timeline “load older” flow | `docs/build-log/2026-03-10-pr-083-query-events-pagination.md` |
 | 84 | Cap default Timeline rendering to a live tail window with explicit older-history reveal controls | `docs/build-log/2026-03-10-pr-084-timeline-render-windowing.md` |
 | 85 | Copy manifest and other non-bundled extension assets into the build output | `docs/build-log/2026-03-10-pr-085-extension-static-asset-copy.md` |
+| 86 | Split product, contributor, and agent documentation entry points | `docs/build-log/2026-03-10-pr-086-docs-split-readme-audiences.md` |
 
 ## In progress
 - None.
