@@ -19,6 +19,7 @@ The CLI surface today is:
 
 ```text
 panex version
+panex init [--force]
 panex dev [--config path/to/panex.toml]
 ```
 
@@ -26,22 +27,45 @@ On Windows, run `panex.exe` from PowerShell or Command Prompt. Double-clicking i
 
 ## Quick Start
 
-1. Put `panex` on your machine and open a terminal in the folder where you want to run it.
-2. Create a `panex.toml` file.
-3. Point `source_dir` at your unpacked extension source tree, or use `[[extensions]]` for more than one target.
-4. Run `panex dev`.
-5. Load the generated `out_dir` in `chrome://extensions` as an unpacked extension.
+1. Put `panex` on your machine and open a terminal in an empty working folder.
+2. Run:
 
-Starter config:
+```bash
+panex init
+```
+
+3. Start the runtime:
+
+```bash
+panex dev
+```
+
+4. Open `chrome://extensions`, enable Developer Mode, choose `Load unpacked`, and select:
+
+```text
+.panex/dist
+```
+
+5. Click the loaded starter extension to confirm the generated popup works.
+
+`panex init` writes:
+
+- `panex.toml`
+- `panex-extension/manifest.json`
+- `panex-extension/background.js`
+- `panex-extension/popup.html`
+- `panex-extension/popup.js`
+
+Starter config created by `panex init`:
 
 ```toml
 [extension]
-source_dir = "examples/hello-extension"
+source_dir = "panex-extension"
 out_dir = ".panex/dist"
 
 [server]
 port = 4317
-auth_token = "replace-this-dev-token"
+auth_token = "dev-token"
 event_store_path = ".panex/events.db"
 ```
 
@@ -75,7 +99,9 @@ ws_url=ws://127.0.0.1:4317/ws
 
 ### 1. Point Panex at an extension source tree
 
-`[extension].source_dir` must point at an unpacked Chrome extension directory. Panex watches that tree, bundles extension entrypoints, rewrites HTML surfaces, and copies non-bundled assets such as `manifest.json` into `[extension].out_dir`.
+`panex init` is the fastest path for a first run. It scaffolds a visible starter extension and the default `panex.toml` in the current directory.
+
+If you already have an extension project, `[extension].source_dir` must point at that unpacked Chrome extension directory. Panex watches that tree, bundles extension entrypoints, rewrites HTML surfaces, and copies non-bundled assets such as `manifest.json` into `[extension].out_dir`.
 
 For more than one extension target, switch to `[[extensions]]` and give each entry a unique `id`. Panex then runs one build/watch loop per configured target and tags `build.complete` and `command.reload` events with that `id`.
 
@@ -91,6 +117,12 @@ Or point at a different config file:
 
 ```bash
 panex dev --config path/to/panex.toml
+```
+
+If you want Panex to regenerate the default starter files, rerun:
+
+```bash
+panex init --force
 ```
 
 ### 3. Load the built extension in Chrome
@@ -114,7 +146,7 @@ For multi-extension configs:
 
 ## Config Reference
 
-- `[extension].source_dir`: required path to the unpacked extension source tree that Panex watches and rebuilds. This legacy single-extension form still works.
+- `[extension].source_dir`: required path to the unpacked extension source tree that Panex watches and rebuilds. `panex init` creates `panex-extension` for the default single-extension path.
 - `[extension].out_dir`: required build output directory. It must not overlap `source_dir`.
 - `[[extensions]].id`: required unique identifier for a multi-extension target.
 - `[[extensions]].source_dir`: required source directory for that target.

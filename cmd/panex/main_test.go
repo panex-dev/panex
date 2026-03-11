@@ -59,6 +59,146 @@ func TestRunHelpAliases(t *testing.T) {
 	}
 }
 
+func TestRunInitScaffoldsStarterProject(t *testing.T) {
+	tempDir := t.TempDir()
+	var out bytes.Buffer
+
+	err := withWorkingDir(tempDir, func() error {
+		return run([]string{"init"}, &out)
+	})
+	if err != nil {
+		t.Fatalf("run(init) returned error: %v", err)
+	}
+
+	if !strings.Contains(out.String(), "panex init\n") {
+		t.Fatalf("unexpected init output: %q", out.String())
+	}
+	if !strings.Contains(out.String(), "out_dir=.panex/dist") {
+		t.Fatalf("missing out_dir hint in init output: %q", out.String())
+	}
+
+	configPath := filepath.Join(tempDir, "panex.toml")
+	configValue, err := os.ReadFile(configPath)
+	if err != nil {
+		t.Fatalf("read panex.toml: %v", err)
+	}
+	if !strings.Contains(string(configValue), `source_dir = "panex-extension"`) {
+		t.Fatalf("unexpected config contents: %q", string(configValue))
+	}
+
+	manifestPath := filepath.Join(tempDir, "panex-extension", "manifest.json")
+	manifestValue, err := os.ReadFile(manifestPath)
+	if err != nil {
+		t.Fatalf("read manifest.json: %v", err)
+	}
+	if !strings.Contains(string(manifestValue), `"default_popup": "popup.html"`) {
+		t.Fatalf("unexpected manifest contents: %q", string(manifestValue))
+	}
+
+	popupHTMLPath := filepath.Join(tempDir, "panex-extension", "popup.html")
+	popupHTMLValue, err := os.ReadFile(popupHTMLPath)
+	if err != nil {
+		t.Fatalf("read popup.html: %v", err)
+	}
+	if !strings.Contains(string(popupHTMLValue), `src="./popup.js"`) {
+		t.Fatalf("unexpected popup html contents: %q", string(popupHTMLValue))
+	}
+}
+
+func TestRunInitRejectsExistingScaffoldWithoutForce(t *testing.T) {
+	tempDir := t.TempDir()
+	writePanexConfig(t, filepath.Join(tempDir, "panex.toml"), `
+[extension]
+source_dir = "./src"
+out_dir = "./dist"
+
+[server]
+port = 4317
+auth_token = "token-123"
+`)
+
+	var out bytes.Buffer
+	err := withWorkingDir(tempDir, func() error {
+		return run([]string{"init"}, &out)
+	})
+	cliErr := requireCLIError(t, err)
+
+	if cliErr.code != 2 {
+		t.Fatalf("unexpected error code: got %d, want 2", cliErr.code)
+	}
+	if !strings.Contains(cliErr.msg, "refusing to overwrite existing scaffold path") {
+		t.Fatalf("unexpected init overwrite error: %q", cliErr.msg)
+	}
+}
+
+func TestRunInitForceOverwritesScaffoldFiles(t *testing.T) {
+	tempDir := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(tempDir, "panex-extension"), 0o755); err != nil {
+		t.Fatalf("create scaffold dir: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(tempDir, "panex.toml"), []byte("old-config\n"), 0o600); err != nil {
+		t.Fatalf("write old config: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(tempDir, "panex-extension", "manifest.json"), []byte("old-manifest\n"), 0o644); err != nil {
+		t.Fatalf("write old manifest: %v", err)
+	}
+
+	var out bytes.Buffer
+	err := withWorkingDir(tempDir, func() error {
+		return run([]string{"init", "--force"}, &out)
+	})
+	if err != nil {
+		t.Fatalf("run(init --force) returned error: %v", err)
+	}
+
+	configValue, err := os.ReadFile(filepath.Join(tempDir, "panex.toml"))
+	if err != nil {
+		t.Fatalf("read overwritten config: %v", err)
+	}
+	if strings.Contains(string(configValue), "old-config") {
+		t.Fatalf("expected config overwrite, got %q", string(configValue))
+	}
+}
+
+func TestRunInitThenDevUsesScaffoldedConfig(t *testing.T) {
+	tempDir := t.TempDir()
+	var captured panexconfig.Config
+	withStubbedStartDev(t, func(cfg panexconfig.Config, stdout io.Writer) error {
+		captured = cfg
+		_, err := io.WriteString(stdout, "dev started\n")
+		return err
+	})
+
+	err := withWorkingDir(tempDir, func() error {
+		var initOut bytes.Buffer
+		if err := run([]string{"init"}, &initOut); err != nil {
+			return err
+		}
+
+		var devOut bytes.Buffer
+		if err := run([]string{"dev"}, &devOut); err != nil {
+			return err
+		}
+		if devOut.String() != "dev started\n" {
+			t.Fatalf("unexpected dev output: %q", devOut.String())
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatalf("init->dev flow returned error: %v", err)
+	}
+
+	if captured.Extension.SourceDir != "panex-extension" {
+		t.Fatalf("unexpected scaffold source dir: got %q", captured.Extension.SourceDir)
+	}
+	if captured.Extension.OutDir != ".panex/dist" {
+		t.Fatalf("unexpected scaffold out dir: got %q", captured.Extension.OutDir)
+	}
+	if captured.Server.AuthToken != "dev-token" {
+		t.Fatalf("unexpected scaffold auth token: got %q", captured.Server.AuthToken)
+	}
+}
+
 func TestRunNoArgsReturnsUsageError(t *testing.T) {
 	var out bytes.Buffer
 
@@ -292,6 +432,26 @@ func TestRunDevMissingConfig(t *testing.T) {
 	}
 	if !strings.Contains(cliErr.msg, "config file not found") {
 		t.Fatalf("missing file-not-found detail: %q", cliErr.msg)
+	}
+	if strings.Contains(cliErr.msg, "panex init") {
+		t.Fatalf("did not expect init hint for custom config path: %q", cliErr.msg)
+	}
+}
+
+func TestRunDevMissingDefaultConfigSuggestsInit(t *testing.T) {
+	tempDir := t.TempDir()
+	var out bytes.Buffer
+
+	err := withWorkingDir(tempDir, func() error {
+		return run([]string{"dev"}, &out)
+	})
+	cliErr := requireCLIError(t, err)
+
+	if cliErr.code != 2 {
+		t.Fatalf("unexpected error code: got %d, want 2", cliErr.code)
+	}
+	if !strings.Contains(cliErr.msg, "Run `panex init`") {
+		t.Fatalf("missing init guidance for default config path: %q", cliErr.msg)
 	}
 }
 

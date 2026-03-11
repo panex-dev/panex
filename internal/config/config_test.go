@@ -1,6 +1,7 @@
 package config
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -329,6 +330,9 @@ func TestLoadMissingFile(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "config file not found") {
 		t.Fatalf("unexpected error: %v", err)
+	}
+	if !errors.Is(err, ErrConfigFileNotFound) {
+		t.Fatalf("expected ErrConfigFileNotFound, got %v", err)
 	}
 }
 

@@ -11,6 +11,8 @@ import (
 	"github.com/BurntSushi/toml"
 )
 
+var ErrConfigFileNotFound = errors.New("config file not found")
+
 const (
 	DefaultPath           = "panex.toml"
 	DefaultEventStorePath = ".panex/events.db"
@@ -45,7 +47,7 @@ func Load(path string) (Config, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
-			return Config{}, fmt.Errorf("config file not found: %s", path)
+			return Config{}, fmt.Errorf("%w: %s", ErrConfigFileNotFound, path)
 		}
 		return Config{}, fmt.Errorf("read config file %q: %w", path, err)
 	}

@@ -23,6 +23,7 @@ const usageText = `panex - development runtime for Chrome extensions
 
 Usage:
   panex version
+  panex init [--force]
   panex dev [--config path/to/panex.toml]
 `
 
@@ -105,6 +106,8 @@ func run(args []string, stdout io.Writer) error {
 	switch args[0] {
 	case "version":
 		return writef(stdout, "panex %s\n", version)
+	case "init":
+		return runInit(args[1:], stdout)
 	case "dev":
 		return runDev(args[1:], stdout)
 	case "help", "-h", "--help":
@@ -139,6 +142,12 @@ func runDev(args []string, stdout io.Writer) error {
 
 	cfg, err := panexconfig.Load(*configPath)
 	if err != nil {
+		if errors.Is(err, panexconfig.ErrConfigFileNotFound) && *configPath == panexconfig.DefaultPath {
+			return &cliError{
+				code: 2,
+				msg:  fmt.Sprintf("failed to load config %q: %v\n\nRun `panex init` in the current directory to scaffold a starter config and extension.", *configPath, err),
+			}
+		}
 		return &cliError{
 			code: 2,
 			msg:  fmt.Sprintf("failed to load config %q: %v", *configPath, err),
