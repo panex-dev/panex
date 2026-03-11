@@ -397,11 +397,11 @@ func TestStartDevServerCoordinatesStartupLifecycle(t *testing.T) {
 	if serverCfg.EventStorePath != cfg.Server.EventStorePath {
 		t.Fatalf("unexpected event store path: got %q, want %q", serverCfg.EventStorePath, cfg.Server.EventStorePath)
 	}
-	if builderSourceDir != cfg.Extension.SourceDir {
-		t.Fatalf("unexpected builder source dir: got %q, want %q", builderSourceDir, cfg.Extension.SourceDir)
+	if builderSourceDir != cfg.Extensions[0].SourceDir {
+		t.Fatalf("unexpected builder source dir: got %q, want %q", builderSourceDir, cfg.Extensions[0].SourceDir)
 	}
-	if builderOutDir != cfg.Extension.OutDir {
-		t.Fatalf("unexpected builder out dir: got %q, want %q", builderOutDir, cfg.Extension.OutDir)
+	if builderOutDir != cfg.Extensions[0].OutDir {
+		t.Fatalf("unexpected builder out dir: got %q, want %q", builderOutDir, cfg.Extensions[0].OutDir)
 	}
 	if builderOptionCount != 0 {
 		t.Fatalf("expected no build options for empty source dir, got %d", builderOptionCount)
@@ -412,8 +412,8 @@ func TestStartDevServerCoordinatesStartupLifecycle(t *testing.T) {
 	if len(buildCalls[0]) != 0 {
 		t.Fatalf("expected startup build with no changed paths, got %v", buildCalls[0])
 	}
-	if watchRoot != cfg.Extension.SourceDir {
-		t.Fatalf("unexpected watch root: got %q, want %q", watchRoot, cfg.Extension.SourceDir)
+	if watchRoot != cfg.Extensions[0].SourceDir {
+		t.Fatalf("unexpected watch root: got %q, want %q", watchRoot, cfg.Extensions[0].SourceDir)
 	}
 	if watchDebounce != daemon.DefaultWatchDebounce {
 		t.Fatalf("unexpected watch debounce: got %s, want %s", watchDebounce, daemon.DefaultWatchDebounce)
@@ -426,9 +426,23 @@ func TestStartDevServerCoordinatesStartupLifecycle(t *testing.T) {
 	if startupBuildEvent.Name != protocol.MessageBuildComplete {
 		t.Fatalf("unexpected startup message name: got %q, want %q", startupBuildEvent.Name, protocol.MessageBuildComplete)
 	}
+	startupBuildPayload, ok := startupBuildEvent.Data.(protocol.BuildComplete)
+	if !ok {
+		t.Fatalf("unexpected startup payload type: got %T", startupBuildEvent.Data)
+	}
+	if startupBuildPayload.ExtensionID != panexconfig.DefaultExtensionID {
+		t.Fatalf("unexpected startup extension id: got %q, want %q", startupBuildPayload.ExtensionID, panexconfig.DefaultExtensionID)
+	}
 	startupReloadEvent := waitForBroadcast(t, fakeServer.fakeBroadcaster, 2*time.Second)
 	if startupReloadEvent.Name != protocol.MessageCommandReload {
 		t.Fatalf("unexpected startup reload name: got %q, want %q", startupReloadEvent.Name, protocol.MessageCommandReload)
+	}
+	startupReloadPayload, ok := startupReloadEvent.Data.(protocol.CommandReload)
+	if !ok {
+		t.Fatalf("unexpected startup reload payload type: got %T", startupReloadEvent.Data)
+	}
+	if startupReloadPayload.ExtensionID != panexconfig.DefaultExtensionID {
+		t.Fatalf("unexpected startup reload extension id: got %q, want %q", startupReloadPayload.ExtensionID, panexconfig.DefaultExtensionID)
 	}
 }
 
@@ -447,8 +461,113 @@ func TestStartDevServerReturnsBuilderConfigurationError(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected builder configuration error, got nil")
 	}
-	if !strings.Contains(err.Error(), `configure esbuild: builder boom`) {
+	if !strings.Contains(err.Error(), `configure esbuild for extension "default": builder boom`) {
 		t.Fatalf("unexpected builder error: %v", err)
+	}
+}
+
+func TestStartDevServerStartsOneBuilderAndWatcherPerExtension(t *testing.T) {
+	cfg := newCLIConfigFixture(t)
+	secondSourceDir := filepath.Join(t.TempDir(), "admin-src")
+	secondOutDir := filepath.Join(t.TempDir(), "admin-dist")
+	if err := os.MkdirAll(secondSourceDir, 0o755); err != nil {
+		t.Fatalf("create second source dir: %v", err)
+	}
+	if err := os.MkdirAll(secondOutDir, 0o755); err != nil {
+		t.Fatalf("create second out dir: %v", err)
+	}
+	cfg.Extensions = append(cfg.Extensions, panexconfig.Extension{
+		ID:        "admin",
+		SourceDir: secondSourceDir,
+		OutDir:    secondOutDir,
+	})
+
+	signalCtx, signalCancel := context.WithCancel(context.Background())
+	t.Cleanup(signalCancel)
+
+	fakeServer := &fakeDevServer{
+		fakeBroadcaster: &fakeBroadcaster{},
+		run: func(ctx context.Context) error {
+			<-ctx.Done()
+			return nil
+		},
+	}
+	withStubbedNewWebSocketServer(t, func(cfg daemon.WebSocketConfig) (devRuntimeServer, error) {
+		return fakeServer, nil
+	})
+
+	var (
+		builderCalls []string
+		watchRoots   []string
+	)
+	var buildMu sync.Mutex
+	withStubbedNewEsbuildBuilder(t, func(sourceDir, outDir string, opts ...build.Option) (buildRunner, error) {
+		buildMu.Lock()
+		builderCalls = append(builderCalls, sourceDir+"->"+outDir)
+		buildMu.Unlock()
+
+		extensionID := panexconfig.DefaultExtensionID
+		if sourceDir == secondSourceDir {
+			extensionID = "admin"
+		}
+
+		return fakeBuildRunner{
+			build: func(_ context.Context, changedPaths []string) (build.Result, error) {
+				if extensionID == "admin" {
+					signalCancel()
+				}
+				return build.Result{
+					BuildID:      "build-" + extensionID,
+					Success:      true,
+					DurationMS:   9,
+					ChangedFiles: changedPaths,
+				}, nil
+			},
+		}, nil
+	})
+
+	withStubbedNewFileWatcher(t, func(
+		root string,
+		debounce time.Duration,
+		emit func(daemon.FileChangeEvent),
+	) (runtimeRunner, error) {
+		buildMu.Lock()
+		watchRoots = append(watchRoots, root)
+		buildMu.Unlock()
+		return fakeRunComponent{
+			run: func(ctx context.Context) error {
+				<-ctx.Done()
+				return nil
+			},
+		}, nil
+	})
+	withStubbedSignalContext(t, func() (context.Context, context.CancelFunc) {
+		return signalCtx, signalCancel
+	})
+
+	if err := startDevServer(cfg, io.Discard); err != nil {
+		t.Fatalf("startDevServer() returned error: %v", err)
+	}
+
+	if len(builderCalls) != 2 {
+		t.Fatalf("expected 2 builder configurations, got %d (%v)", len(builderCalls), builderCalls)
+	}
+	if len(watchRoots) != 2 {
+		t.Fatalf("expected 2 watcher roots, got %d (%v)", len(watchRoots), watchRoots)
+	}
+
+	seenExtensionIDs := map[string]bool{}
+	for i := 0; i < 4; i++ {
+		event := waitForBroadcast(t, fakeServer.fakeBroadcaster, 2*time.Second)
+		switch payload := event.Data.(type) {
+		case protocol.BuildComplete:
+			seenExtensionIDs[payload.ExtensionID] = true
+		case protocol.CommandReload:
+			seenExtensionIDs[payload.ExtensionID] = true
+		}
+	}
+	if !seenExtensionIDs["default"] || !seenExtensionIDs["admin"] {
+		t.Fatalf("expected broadcasts for both extensions, got %+v", seenExtensionIDs)
 	}
 }
 
@@ -473,7 +592,7 @@ func TestRunBuildLoopBroadcastsBuildComplete(t *testing.T) {
 
 	done := make(chan error, 1)
 	go func() {
-		done <- runBuildLoop(ctx, builder, broadcaster, changes)
+		done <- runBuildLoop(ctx, extensionTarget{ID: "default"}, builder, broadcaster, changes)
 	}()
 
 	startupBuildEvent := waitForBroadcast(t, broadcaster, 2*time.Second)
@@ -528,6 +647,9 @@ func TestRunBuildLoopBroadcastsBuildComplete(t *testing.T) {
 	if len(payload.ChangedFiles) != 1 || payload.ChangedFiles[0] != "src/index.ts" {
 		t.Fatalf("unexpected changed files: %v", payload.ChangedFiles)
 	}
+	if payload.ExtensionID != "default" {
+		t.Fatalf("unexpected extension id: got %q, want %q", payload.ExtensionID, "default")
+	}
 
 	reloadEvent := waitForBroadcast(t, broadcaster, 2*time.Second)
 	if reloadEvent.Name != protocol.MessageCommandReload {
@@ -543,6 +665,9 @@ func TestRunBuildLoopBroadcastsBuildComplete(t *testing.T) {
 	}
 	if reloadPayload.BuildID != "build-123-2" {
 		t.Fatalf("unexpected reload build id: got %q, want %q", reloadPayload.BuildID, "build-123-2")
+	}
+	if reloadPayload.ExtensionID != "default" {
+		t.Fatalf("unexpected reload extension id: got %q, want %q", reloadPayload.ExtensionID, "default")
 	}
 
 	cancel()
@@ -580,7 +705,7 @@ func TestRunBuildLoopBuilderErrorStillBroadcastsFailure(t *testing.T) {
 
 	done := make(chan error, 1)
 	go func() {
-		done <- runBuildLoop(ctx, builder, broadcaster, changes)
+		done <- runBuildLoop(ctx, extensionTarget{ID: "default"}, builder, broadcaster, changes)
 	}()
 
 	startupBuildEvent := waitForBroadcast(t, broadcaster, 2*time.Second)
@@ -611,6 +736,9 @@ func TestRunBuildLoopBuilderErrorStillBroadcastsFailure(t *testing.T) {
 	}
 	if len(payload.ChangedFiles) != 1 || payload.ChangedFiles[0] != "src/invalid.ts" {
 		t.Fatalf("unexpected changed files: %v", payload.ChangedFiles)
+	}
+	if payload.ExtensionID != "default" {
+		t.Fatalf("unexpected failure extension id: got %q, want %q", payload.ExtensionID, "default")
 	}
 	if countBroadcastsByName(broadcaster, protocol.MessageCommandReload) != 0 {
 		t.Fatal("did not expect command.reload broadcast for failed build")
@@ -757,9 +885,15 @@ func newCLIConfigFixture(t *testing.T) panexconfig.Config {
 
 	return panexconfig.Config{
 		Extension: panexconfig.Extension{
+			ID:        panexconfig.DefaultExtensionID,
 			SourceDir: sourceDir,
 			OutDir:    outDir,
 		},
+		Extensions: []panexconfig.Extension{{
+			ID:        panexconfig.DefaultExtensionID,
+			SourceDir: sourceDir,
+			OutDir:    outDir,
+		}},
 		Server: panexconfig.Server{
 			Port:           4317,
 			AuthToken:      "dev-token",

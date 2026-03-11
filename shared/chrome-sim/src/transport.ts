@@ -10,6 +10,7 @@ import {
   type Hello
 } from "@panex/protocol";
 import { reconnectCeilingMS, reconnectDelay, reconnectFloorMS } from "./reconnect";
+import { resolveDefaultExtensionID } from "./runtime";
 
 export type TransportStatus = "connecting" | "open" | "reconnecting" | "closed";
 
@@ -33,6 +34,7 @@ export type WebSocketFactory = (url: string) => TransportSocket;
 export interface ChromeSimTransportOptions {
   daemonURL?: string;
   authToken?: string;
+  extensionID?: string;
   callTimeoutMS?: number;
   handshakeTimeoutMS?: number;
   reconnectFloorMS?: number;
@@ -57,6 +59,7 @@ export function createChromeSimTransport(options: ChromeSimTransportOptions = {}
   const resolvedDaemonBaseURL =
     nonEmpty(options.daemonURL, resolveDefaultDaemonURL()) ?? resolveDefaultDaemonURL();
   const authToken = nonEmpty(options.authToken, resolveDefaultAuthToken());
+  const extensionID = nonEmpty(options.extensionID, resolveDefaultExtensionID());
   const daemonURL = buildDaemonURL(resolvedDaemonBaseURL);
   const callTimeoutMS = normalizeTimeout(options.callTimeoutMS, defaultCallTimeoutMS);
   const handshakeTimeoutMS = normalizeTimeout(options.handshakeTimeoutMS, defaultHandshakeTimeoutMS);
@@ -209,6 +212,7 @@ export function createChromeSimTransport(options: ChromeSimTransportOptions = {}
             auth_token: authToken,
             client_kind: "chrome-sim",
             client_version: "dev",
+            extension_id: extensionID,
             capabilities_requested: ["chrome.api.call", "chrome.api.result", "chrome.api.event"]
           }
         };

@@ -87,12 +87,13 @@ As of 2026-03-11.
 | 86 | Split product, contributor, and agent documentation entry points | `docs/build-log/2026-03-10-pr-086-docs-split-readme-audiences.md` |
 | 87 | Persist storage mutations transactionally across daemon restarts | `docs/build-log/2026-03-11-pr-087-storage-mutation-persistence.md` |
 | 88 | Bound the inspector Timeline to a reloadable working set so older browsing does not grow client memory without limit | `docs/build-log/2026-03-11-pr-088-timeline-history-scalability.md` |
+| 89 | Add multi-extension config/build/watch support with targeted reload routing | `docs/build-log/2026-03-11-pr-089-multi-extension-support.md` |
 
 ## In progress
 - None.
 
 ## Next
-- Add multi-extension support.
+- None. Select the next milestone from product feedback or new roadmap work.
 
 ## Queued Follow-Ons
 - None.

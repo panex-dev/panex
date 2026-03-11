@@ -7,6 +7,7 @@ import {
   buildHelloEnvelope,
   createAgentHandshakeState,
   handleDaemonEnvelope,
+  resetAgentHandshakeState,
   requestedCapabilities
 } from "../src/handshake";
 
@@ -14,6 +15,7 @@ const config: AgentConfig = {
   wsUrl: "ws://127.0.0.1:4317/ws",
   token: "dev-token",
   agentId: "agent-1",
+  extensionId: "default",
   diagnosticLogging: false
 };
 
@@ -25,6 +27,7 @@ describe("buildHelloEnvelope", () => {
     assert.equal(envelope.t, "lifecycle");
     assert.equal(envelope.src.role, "dev-agent");
     assert.equal(envelope.src.id, "agent-1");
+    assert.equal(envelope.data.extension_id, "default");
     assert.deepEqual(envelope.data.capabilities_requested, [...requestedCapabilities]);
   });
 });
@@ -52,6 +55,7 @@ describe("handleDaemonEnvelope", () => {
 
   it("marks the session ready after a successful hello.ack", () => {
     const state = createAgentHandshakeState();
+    resetAgentHandshakeState(state, "popup");
 
     const result = handleDaemonEnvelope(helloAckEnvelope({ auth_ok: true }), state, {
       runtimeReload: () => {
@@ -64,6 +68,7 @@ describe("handleDaemonEnvelope", () => {
 
     assert.equal(result, "hello_ack");
     assert.equal(state.complete, true);
+    assert.equal(state.extensionID, "popup");
     assert.equal(state.capabilitiesSupported.has("command.reload"), true);
   });
 
@@ -109,6 +114,7 @@ describe("handleDaemonEnvelope", () => {
 
   it("reloads only after a successful hello.ack", () => {
     const state = createAgentHandshakeState();
+    resetAgentHandshakeState(state, "popup");
     let reloaded = 0;
 
     handleDaemonEnvelope(helloAckEnvelope({ auth_ok: true }), state, {
@@ -120,7 +126,7 @@ describe("handleDaemonEnvelope", () => {
       }
     });
 
-    const result = handleDaemonEnvelope(reloadEnvelope(), state, {
+    const result = handleDaemonEnvelope(reloadEnvelope("popup"), state, {
       runtimeReload: () => {
         reloaded += 1;
       },
@@ -131,6 +137,33 @@ describe("handleDaemonEnvelope", () => {
 
     assert.equal(result, "reload");
     assert.equal(reloaded, 1);
+  });
+
+  it("ignores reloads targeted at a different extension id", () => {
+    const state = createAgentHandshakeState();
+    resetAgentHandshakeState(state, "popup");
+    let reloaded = 0;
+
+    handleDaemonEnvelope(helloAckEnvelope({ auth_ok: true }), state, {
+      runtimeReload: () => {
+        reloaded += 1;
+      },
+      closeSocket: () => {
+        throw new Error("unexpected close");
+      }
+    });
+
+    const result = handleDaemonEnvelope(reloadEnvelope("admin"), state, {
+      runtimeReload: () => {
+        reloaded += 1;
+      },
+      closeSocket: () => {
+        throw new Error("unexpected close");
+      }
+    });
+
+    assert.equal(result, "ignored");
+    assert.equal(reloaded, 0);
   });
 
   it("ignores unrelated envelopes after the handshake completes", () => {
@@ -179,13 +212,13 @@ function helloAckEnvelope(
   };
 }
 
-function reloadEnvelope(): Envelope {
+function reloadEnvelope(extensionID?: string): Envelope {
   return {
     v: 1,
     t: "command",
     name: "command.reload",
     src: { role: "daemon", id: "daemon-1" },
-    data: { reason: "build complete" }
+    data: extensionID ? { reason: "build complete", extension_id: extensionID } : { reason: "build complete" }
   };
 }
 

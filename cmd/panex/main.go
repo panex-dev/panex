@@ -57,6 +57,12 @@ type runtimeRunner interface {
 	Run(ctx context.Context) error
 }
 
+type extensionTarget struct {
+	ID        string
+	SourceDir string
+	OutDir    string
+}
+
 type envelopeBroadcaster interface {
 	Broadcast(ctx context.Context, message protocol.Envelope) error
 }
@@ -190,50 +196,79 @@ func startDevServer(cfg panexconfig.Config, stdout io.Writer) error {
 		return err
 	}
 
-	builderOptions := []build.Option{}
-	if injection, ok := build.AutoDetectChromeSimInjection(
-		cfg.Extension.SourceDir,
-		fmt.Sprintf("ws://127.0.0.1:%d/ws", cfg.Server.Port),
-		cfg.Server.AuthToken,
-		"",
-	); ok {
-		builderOptions = append(builderOptions, build.WithChromeSimInjection(injection))
-	}
-
-	builder, err := newEsbuildBuilder(cfg.Extension.SourceDir, cfg.Extension.OutDir, builderOptions...)
-	if err != nil {
-		return fmt.Errorf("configure esbuild: %w", err)
-	}
-
-	changeEvents := make(chan daemon.FileChangeEvent, 64)
-	watcher, err := newFileWatcher(
-		cfg.Extension.SourceDir,
-		daemon.DefaultWatchDebounce,
-		func(event daemon.FileChangeEvent) {
-			select {
-			case changeEvents <- event:
-			default:
-			}
-		},
-	)
-	if err != nil {
-		return fmt.Errorf("configure file watcher: %w", err)
-	}
-
 	ctx, stop := newSignalContext()
 	defer stop()
 
-	runErrCh := make(chan error, 3)
+	targets := make([]extensionTarget, 0, len(cfg.Extensions))
+	for _, extension := range cfg.Extensions {
+		targets = append(targets, extensionTarget{
+			ID:        extension.ID,
+			SourceDir: extension.SourceDir,
+			OutDir:    extension.OutDir,
+		})
+	}
+
+	type extensionRuntime struct {
+		target       extensionTarget
+		builder      buildRunner
+		watcher      runtimeRunner
+		changeEvents chan daemon.FileChangeEvent
+	}
+
+	runtimes := make([]extensionRuntime, 0, len(targets))
+	daemonURL := fmt.Sprintf("ws://127.0.0.1:%d/ws", cfg.Server.Port)
+	for _, target := range targets {
+		builderOptions := []build.Option{}
+		if injection, ok := build.AutoDetectChromeSimInjection(
+			target.SourceDir,
+			daemonURL,
+			cfg.Server.AuthToken,
+			target.ID,
+		); ok {
+			builderOptions = append(builderOptions, build.WithChromeSimInjection(injection))
+		}
+
+		builder, err := newEsbuildBuilder(target.SourceDir, target.OutDir, builderOptions...)
+		if err != nil {
+			return fmt.Errorf("configure esbuild for extension %q: %w", target.ID, err)
+		}
+
+		changeEvents := make(chan daemon.FileChangeEvent, 64)
+		watcher, err := newFileWatcher(
+			target.SourceDir,
+			daemon.DefaultWatchDebounce,
+			func(event daemon.FileChangeEvent) {
+				select {
+				case changeEvents <- event:
+				default:
+				}
+			},
+		)
+		if err != nil {
+			return fmt.Errorf("configure file watcher for extension %q: %w", target.ID, err)
+		}
+
+		runtimes = append(runtimes, extensionRuntime{
+			target:       target,
+			builder:      builder,
+			watcher:      watcher,
+			changeEvents: changeEvents,
+		})
+	}
+
+	runErrCh := make(chan error, 1+(len(runtimes)*2))
 
 	go func() {
 		runErrCh <- server.Run(ctx)
 	}()
-	go func() {
-		runErrCh <- watcher.Run(ctx)
-	}()
-	go func() {
-		runErrCh <- runBuildLoop(ctx, builder, server, changeEvents)
-	}()
+	for _, runtime := range runtimes {
+		go func(runtime extensionRuntime) {
+			runErrCh <- runtime.watcher.Run(ctx)
+		}(runtime)
+		go func(runtime extensionRuntime) {
+			runErrCh <- runBuildLoop(ctx, runtime.target, runtime.builder, server, runtime.changeEvents)
+		}(runtime)
+	}
 
 	for {
 		select {
@@ -252,6 +287,7 @@ func startDevServer(cfg panexconfig.Config, stdout io.Writer) error {
 
 func runBuildLoop(
 	ctx context.Context,
+	target extensionTarget,
 	builder buildRunner,
 	server envelopeBroadcaster,
 	changeEvents <-chan daemon.FileChangeEvent,
@@ -278,6 +314,7 @@ func runBuildLoop(
 					BuildID:      result.BuildID,
 					Success:      result.Success,
 					DurationMS:   result.DurationMS,
+					ExtensionID:  target.ID,
 					ChangedFiles: result.ChangedFiles,
 				},
 			),
@@ -296,8 +333,9 @@ func runBuildLoop(
 						ID:   "daemon-1",
 					},
 					protocol.CommandReload{
-						Reason:  reloadReason,
-						BuildID: result.BuildID,
+						Reason:      reloadReason,
+						BuildID:     result.BuildID,
+						ExtensionID: target.ID,
 					},
 				),
 			); broadcastErr != nil && !errors.Is(ctx.Err(), context.Canceled) {

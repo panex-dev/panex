@@ -209,7 +209,7 @@ func TestConstructors(t *testing.T) {
 		},
 		{
 			name:         "build.complete",
-			got:          NewBuildComplete(src, BuildComplete{BuildID: "b1", Success: true, DurationMS: 10}),
+			got:          NewBuildComplete(src, BuildComplete{BuildID: "b1", Success: true, DurationMS: 10, ExtensionID: "default"}),
 			wantType:     TypeEvent,
 			wantName:     MessageBuildComplete,
 			wantDataType: BuildComplete{},
@@ -223,7 +223,7 @@ func TestConstructors(t *testing.T) {
 		},
 		{
 			name:         "command.reload",
-			got:          NewCommandReload(src, CommandReload{Reason: "build complete"}),
+			got:          NewCommandReload(src, CommandReload{Reason: "build complete", ExtensionID: "default"}),
 			wantType:     TypeCommand,
 			wantName:     MessageCommandReload,
 			wantDataType: CommandReload{},

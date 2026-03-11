@@ -28,10 +28,13 @@ describe("reload command detection", () => {
 
 describe("reload command handler", () => {
   it("calls runtime reload for command.reload", () => {
-    const envelope = baseEnvelope("command.reload", "command");
+    const envelope = {
+      ...baseEnvelope("command.reload", "command"),
+      data: { extension_id: "default" }
+    };
 
     let called = 0;
-    const handled = handleReloadCommand(envelope, () => {
+    const handled = handleReloadCommand(envelope, "default", () => {
       called += 1;
     });
 
@@ -43,7 +46,22 @@ describe("reload command handler", () => {
     const envelope = baseEnvelope("context.log", "event");
 
     let called = 0;
-    const handled = handleReloadCommand(envelope, () => {
+    const handled = handleReloadCommand(envelope, "default", () => {
+      called += 1;
+    });
+
+    assert.equal(handled, false);
+    assert.equal(called, 0);
+  });
+
+  it("ignores reloads targeted at a different extension id", () => {
+    const envelope = {
+      ...baseEnvelope("command.reload", "command"),
+      data: { extension_id: "other" }
+    };
+
+    let called = 0;
+    const handled = handleReloadCommand(envelope, "default", () => {
       called += 1;
     });
 

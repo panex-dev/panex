@@ -47,10 +47,11 @@ describe("chrome-sim transport", () => {
 
     await waitFor(() => socket.sent.length >= 1);
     const hello = decodeEnvelope(socket.sent[0]);
-    const helloData = hello.data as { auth_token?: string };
+    const helloData = hello.data as { auth_token?: string; extension_id?: string };
     assert.equal(hello.name, "hello");
     assert.equal(hello.t, "lifecycle");
     assert.equal(helloData.auth_token, "dev-token");
+    assert.equal(helloData.extension_id, "panex.simulated.extension");
 
     socket.messageEnvelope(buildHelloAckEnvelope("sess-1"));
     await waitFor(() => socket.sent.length >= 2);
@@ -222,10 +223,39 @@ describe("chrome-sim transport", () => {
     await waitFor(() => socket.sent.length >= 1);
 
     const hello = decodeEnvelope(socket.sent[0]);
-    const helloData = hello.data as { auth_token?: string };
+    const helloData = hello.data as { auth_token?: string; extension_id?: string };
     assert.equal(helloData.auth_token, "secret-token");
+    assert.equal(helloData.extension_id, "panex.simulated.extension");
 
     socket.messageEnvelope(buildHelloAckEnvelope("sess-auth"));
+    await waitFor(() => socket.sent.length >= 2);
+    socket.messageEnvelope(buildChromeAPIResultEnvelope("call-1", true, {}));
+    await pending;
+    transport.close();
+  });
+
+  it("includes the configured extension id in the hello payload", async () => {
+    const sockets: FakeSocket[] = [];
+    const transport = createChromeSimTransport({
+      daemonURL: "ws://127.0.0.1:4317/ws",
+      extensionID: "popup",
+      webSocketFactory: (url) => {
+        const socket = new FakeSocket(url);
+        sockets.push(socket);
+        return socket;
+      }
+    });
+
+    const pending = transport.call("storage.local", "get");
+    const socket = sockets[0];
+    socket.open();
+    await waitFor(() => socket.sent.length >= 1);
+
+    const hello = decodeEnvelope(socket.sent[0]);
+    const helloData = hello.data as { extension_id?: string };
+    assert.equal(helloData.extension_id, "popup");
+
+    socket.messageEnvelope(buildHelloAckEnvelope("sess-popup"));
     await waitFor(() => socket.sent.length >= 2);
     socket.messageEnvelope(buildChromeAPIResultEnvelope("call-1", true, {}));
     await pending;

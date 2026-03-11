@@ -249,7 +249,7 @@ func TestWebSocketBroadcastUnregistersClosedSession(t *testing.T) {
 	waitForConnectionCount(t, server.ws, 0)
 
 	const staleSessionID = "stale-session"
-	server.ws.register(staleSessionID, session)
+	server.ws.register(staleSessionID, session, sessionMetadata{})
 	waitForConnectionCount(t, server.ws, 1)
 
 	buildComplete := protocol.NewBuildComplete(

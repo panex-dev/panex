@@ -31,6 +31,7 @@ export function installChromeSim(options: InstallChromeSimOptions = {}): ChromeS
     createChromeSimTransport({
       daemonURL: resolved.daemonURL,
       authToken: resolved.authToken,
+      extensionID: resolved.extensionID,
       callTimeoutMS: resolved.callTimeoutMS,
       handshakeTimeoutMS: resolved.handshakeTimeoutMS,
       reconnectFloorMS: resolved.reconnectFloorMS,
