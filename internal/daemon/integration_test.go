@@ -382,6 +382,7 @@ func TestIntegrationTargetedReloadRoutesByExtensionID(t *testing.T) {
 		ExtensionID:           "popup",
 		CapabilitiesRequested: []string{"command.reload"},
 	})
+	waitForConnectionCount(t, ws, 1)
 
 	adminAgent := dial(t, wsURL)
 	t.Cleanup(func() { _ = adminAgent.Close() })
@@ -396,6 +397,7 @@ func TestIntegrationTargetedReloadRoutesByExtensionID(t *testing.T) {
 		ExtensionID:           "admin",
 		CapabilitiesRequested: []string{"command.reload"},
 	})
+	waitForConnectionCount(t, ws, 2)
 
 	inspectorConn := dial(t, wsURL)
 	t.Cleanup(func() { _ = inspectorConn.Close() })
@@ -409,7 +411,6 @@ func TestIntegrationTargetedReloadRoutesByExtensionID(t *testing.T) {
 		ClientVersion:         "test",
 		CapabilitiesRequested: []string{"query.events"},
 	})
-
 	waitForConnectionCount(t, ws, 3)
 
 	buildComplete := protocol.NewBuildComplete(

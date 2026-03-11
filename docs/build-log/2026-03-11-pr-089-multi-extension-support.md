@@ -33,7 +33,7 @@
   - Where: `shared/chrome-sim/src/transport.ts:204-257`
 - Change 4:
   - Why: lock the behavior with config, daemon integration, CLI orchestration, and TypeScript package tests so the first multi-extension slice stays honest.
-  - Where: `internal/daemon/integration_test.go:353-454`
+  - Where: `internal/daemon/integration_test.go:353-455`
   - Where: `agent/tests/handshake.test.ts:14-223`
   - Where: `shared/chrome-sim/tests/transport.test.ts:30-74`
   - Where: `shared/chrome-sim/tests/transport.test.ts:207-260`
@@ -50,6 +50,7 @@
 - Commands run:
   - `GOCACHE=/tmp/go-build go test ./internal/config ./internal/protocol ./cmd/panex -count=1`
   - `GOCACHE=/tmp/go-build go test ./internal/daemon -count=1 -run 'TestIntegrationTargetedReloadRoutesByExtensionID|TestIntegrationDaemonLifecycle|TestIntegrationStoragePersistsAcrossDaemonRestart'`
+  - `GOCACHE=/tmp/go-build go test -race -count=20 ./internal/daemon -run TestIntegrationTargetedReloadRoutesByExtensionID`
   - `CI=1 pnpm install --frozen-lockfile`
   - `pnpm --dir agent test`
   - `pnpm --dir agent check`
@@ -67,6 +68,7 @@
   - `./scripts/pr-ensure-rebased.sh`
 - Additional checks:
   - `go test ./internal/daemon ...` was rerun outside the sandbox because the integration suite needs loopback `httptest` binding.
+  - The targeted reload integration test was repeated with `-race -count=20` after CI exposed a session-registration timing race in the test.
 
 ## Teach-back (engineering lessons)
 - Design lesson: a stable target identifier is the minimum viable boundary for multi-extension support; broader isolation can be layered later without guessing hidden coupling first.
