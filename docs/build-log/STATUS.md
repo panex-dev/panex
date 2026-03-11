@@ -88,12 +88,13 @@ As of 2026-03-11.
 | 87 | Persist storage mutations transactionally across daemon restarts | `docs/build-log/2026-03-11-pr-087-storage-mutation-persistence.md` |
 | 88 | Bound the inspector Timeline to a reloadable working set so older browsing does not grow client memory without limit | `docs/build-log/2026-03-11-pr-088-timeline-history-scalability.md` |
 | 89 | Add multi-extension config/build/watch support with targeted reload routing | `docs/build-log/2026-03-11-pr-089-multi-extension-support.md` |
+| 90 | Add `panex init` first-run scaffolding and default missing-config recovery guidance | `docs/build-log/2026-03-11-pr-090-first-run-init.md` |
 
 ## In progress
 - None.
 
 ## Next
-- None. Select the next milestone from product feedback or new roadmap work.
+- None. Review the remaining browser-install friction before selecting another release-readiness slice.
 
 ## Queued Follow-Ons
 - None.
