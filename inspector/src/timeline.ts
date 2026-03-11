@@ -159,12 +159,20 @@ export function hiddenOlderTimelineCount(
 
 export function summarizeEnvelope(envelope: Envelope): string {
   if (envelope.name === "build.complete" && typeof envelope.data === "object" && envelope.data !== null) {
-    const payload = envelope.data as { build_id?: string; success?: boolean };
-    return `build=${payload.build_id ?? "unknown"} success=${String(payload.success ?? false)}`;
+    const payload = envelope.data as { build_id?: string; success?: boolean; extension_id?: string };
+    const summary = `build=${payload.build_id ?? "unknown"} success=${String(payload.success ?? false)}`;
+    if (typeof payload.extension_id === "string" && payload.extension_id.trim().length > 0) {
+      return `${summary} ext=${payload.extension_id}`;
+    }
+    return summary;
   }
   if (envelope.name === "command.reload" && typeof envelope.data === "object" && envelope.data !== null) {
-    const payload = envelope.data as { reason?: string; build_id?: string };
-    return `reason=${payload.reason ?? "unknown"} build=${payload.build_id ?? "n/a"}`;
+    const payload = envelope.data as { reason?: string; build_id?: string; extension_id?: string };
+    const summary = `reason=${payload.reason ?? "unknown"} build=${payload.build_id ?? "n/a"}`;
+    if (typeof payload.extension_id === "string" && payload.extension_id.trim().length > 0) {
+      return `${summary} ext=${payload.extension_id}`;
+    }
+    return summary;
   }
   if (envelope.name === "query.events.result" && typeof envelope.data === "object" && envelope.data !== null) {
     const payload = envelope.data as { events?: unknown[] };

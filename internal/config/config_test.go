@@ -24,6 +24,12 @@ auth_token = "test-token"
 		t.Fatalf("Load() returned error: %v", err)
 	}
 
+	if len(cfg.Extensions) != 1 {
+		t.Fatalf("unexpected extensions count: got %d, want 1", len(cfg.Extensions))
+	}
+	if cfg.Extensions[0].ID != DefaultExtensionID {
+		t.Fatalf("unexpected default extension id: got %q, want %q", cfg.Extensions[0].ID, DefaultExtensionID)
+	}
 	if cfg.Extension.SourceDir != "./extension-src" {
 		t.Fatalf("unexpected source_dir: got %q", cfg.Extension.SourceDir)
 	}
@@ -38,6 +44,40 @@ auth_token = "test-token"
 	}
 	if cfg.Server.EventStorePath != DefaultEventStorePath {
 		t.Fatalf("unexpected default event_store_path: got %q, want %q", cfg.Server.EventStorePath, DefaultEventStorePath)
+	}
+}
+
+func TestLoadMultipleExtensions(t *testing.T) {
+	configPath := filepath.Join(t.TempDir(), "panex.toml")
+	writeConfig(t, configPath, `
+[[extensions]]
+id = "popup"
+source_dir = "./extensions/popup"
+out_dir = "./dist/popup"
+
+[[extensions]]
+id = "admin"
+source_dir = "./extensions/admin"
+out_dir = "./dist/admin"
+
+[server]
+port = 4317
+auth_token = "test-token"
+`)
+
+	cfg, err := Load(configPath)
+	if err != nil {
+		t.Fatalf("Load() returned error: %v", err)
+	}
+
+	if len(cfg.Extensions) != 2 {
+		t.Fatalf("unexpected extensions count: got %d, want 2", len(cfg.Extensions))
+	}
+	if cfg.Extensions[0].ID != "popup" || cfg.Extensions[1].ID != "admin" {
+		t.Fatalf("unexpected extension ids: %+v", cfg.Extensions)
+	}
+	if cfg.Extension.ID != "popup" {
+		t.Fatalf("expected legacy extension alias to point at the first extension, got %q", cfg.Extension.ID)
 	}
 }
 
@@ -194,6 +234,75 @@ port = 4317
 auth_token = "test-token"
 `,
 			wantError: "extension.source_dir and extension.out_dir must not overlap",
+		},
+		{
+			name: "cannot mix legacy and multi-extension config",
+			tomlData: `
+[extension]
+source_dir = "./legacy"
+out_dir = "./legacy-dist"
+
+[[extensions]]
+id = "popup"
+source_dir = "./popup"
+out_dir = "./popup-dist"
+
+[server]
+port = 4317
+auth_token = "test-token"
+`,
+			wantError: "use either [extension] or [[extensions]], not both",
+		},
+		{
+			name: "multi-extension config requires ids",
+			tomlData: `
+[[extensions]]
+source_dir = "./popup"
+out_dir = "./popup-dist"
+
+[server]
+port = 4317
+auth_token = "test-token"
+`,
+			wantError: `extensions[0].id is required`,
+		},
+		{
+			name: "extension ids must be unique",
+			tomlData: `
+[[extensions]]
+id = "popup"
+source_dir = "./popup"
+out_dir = "./popup-dist"
+
+[[extensions]]
+id = "popup"
+source_dir = "./admin"
+out_dir = "./admin-dist"
+
+[server]
+port = 4317
+auth_token = "test-token"
+`,
+			wantError: `extension ids must be unique: "popup"`,
+		},
+		{
+			name: "extensions must not overlap each other",
+			tomlData: `
+[[extensions]]
+id = "popup"
+source_dir = "./extensions/shared"
+out_dir = "./dist/popup"
+
+[[extensions]]
+id = "admin"
+source_dir = "./extensions/shared/admin"
+out_dir = "./dist/admin"
+
+[server]
+port = 4317
+auth_token = "test-token"
+`,
+			wantError: `extensions "popup" and "admin" must not share overlapping source_dir or out_dir paths`,
 		},
 	}
 

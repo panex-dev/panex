@@ -19,6 +19,7 @@ Browser-side shim for routing `chrome.*` calls to the Panex daemon over WebSocke
 - Script-tag bootstrap dataset support (`data-panex-ws`, `data-panex-token`, `data-panex-extension-id`)
 - Auth token delivery via the initial `hello` payload instead of the websocket URL query string
 - Entrypoint injection helper via `@panex/chrome-sim/bootstrap`
+- Extension-aware hello handshake and reload targeting via `extension_id`
 
 ## Local checks
 

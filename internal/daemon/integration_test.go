@@ -2,7 +2,9 @@ package daemon
 
 import (
 	"context"
+	"errors"
 	"net/http/httptest"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -348,6 +350,110 @@ func TestIntegrationStoragePersistsAcrossDaemonRestart(t *testing.T) {
 	}
 }
 
+func TestIntegrationTargetedReloadRoutesByExtensionID(t *testing.T) {
+	const token = "routing-token"
+
+	ws, err := NewWebSocketServer(WebSocketConfig{
+		Port:           18083,
+		AuthToken:      token,
+		EventStorePath: filepath.Join(t.TempDir(), "events.db"),
+		ServerVersion:  "integration-test",
+		DaemonID:       "daemon-routing",
+	})
+	if err != nil {
+		t.Fatalf("NewWebSocketServer() returned error: %v", err)
+	}
+	t.Cleanup(func() { _ = ws.Close() })
+
+	httpServer := httptest.NewServer(ws.Handler())
+	defer httpServer.Close()
+	wsURL := "ws" + strings.TrimPrefix(httpServer.URL, "http")
+
+	popupAgent := dial(t, wsURL)
+	t.Cleanup(func() { _ = popupAgent.Close() })
+	handshake(t, popupAgent, protocol.Source{
+		Role: protocol.SourceDevAgent,
+		ID:   "agent-popup",
+	}, protocol.Hello{
+		ProtocolVersion:       protocol.CurrentVersion,
+		AuthToken:             token,
+		ClientKind:            "dev-agent",
+		ClientVersion:         "test",
+		ExtensionID:           "popup",
+		CapabilitiesRequested: []string{"command.reload"},
+	})
+	waitForConnectionCount(t, ws, 1)
+
+	adminAgent := dial(t, wsURL)
+	t.Cleanup(func() { _ = adminAgent.Close() })
+	handshake(t, adminAgent, protocol.Source{
+		Role: protocol.SourceDevAgent,
+		ID:   "agent-admin",
+	}, protocol.Hello{
+		ProtocolVersion:       protocol.CurrentVersion,
+		AuthToken:             token,
+		ClientKind:            "dev-agent",
+		ClientVersion:         "test",
+		ExtensionID:           "admin",
+		CapabilitiesRequested: []string{"command.reload"},
+	})
+	waitForConnectionCount(t, ws, 2)
+
+	inspectorConn := dial(t, wsURL)
+	t.Cleanup(func() { _ = inspectorConn.Close() })
+	handshake(t, inspectorConn, protocol.Source{
+		Role: protocol.SourceInspector,
+		ID:   "inspector-routing",
+	}, protocol.Hello{
+		ProtocolVersion:       protocol.CurrentVersion,
+		AuthToken:             token,
+		ClientKind:            "inspector",
+		ClientVersion:         "test",
+		CapabilitiesRequested: []string{"query.events"},
+	})
+	waitForConnectionCount(t, ws, 3)
+
+	buildComplete := protocol.NewBuildComplete(
+		protocol.Source{Role: protocol.SourceDaemon, ID: "daemon-routing"},
+		protocol.BuildComplete{
+			BuildID:     "build-popup-1",
+			Success:     true,
+			DurationMS:  12,
+			ExtensionID: "popup",
+		},
+	)
+	if err := ws.Broadcast(context.Background(), buildComplete); err != nil {
+		t.Fatalf("Broadcast(build.complete) returned error: %v", err)
+	}
+
+	reload := protocol.NewCommandReload(
+		protocol.Source{Role: protocol.SourceDaemon, ID: "daemon-routing"},
+		protocol.CommandReload{
+			Reason:      "build.complete",
+			BuildID:     "build-popup-1",
+			ExtensionID: "popup",
+		},
+	)
+	if err := ws.Broadcast(context.Background(), reload); err != nil {
+		t.Fatalf("Broadcast(command.reload) returned error: %v", err)
+	}
+
+	if env := readEnvelope(t, popupAgent); env.Name != protocol.MessageBuildComplete {
+		t.Fatalf("popup agent: expected build.complete, got %q", env.Name)
+	}
+	if env := readEnvelope(t, popupAgent); env.Name != protocol.MessageCommandReload {
+		t.Fatalf("popup agent: expected command.reload, got %q", env.Name)
+	}
+	if env := readEnvelope(t, inspectorConn); env.Name != protocol.MessageBuildComplete {
+		t.Fatalf("inspector: expected build.complete, got %q", env.Name)
+	}
+	if env := readEnvelope(t, inspectorConn); env.Name != protocol.MessageCommandReload {
+		t.Fatalf("inspector: expected command.reload, got %q", env.Name)
+	}
+
+	assertNoEnvelope(t, adminAgent)
+}
+
 // --- Integration test helpers ---
 
 func dial(t *testing.T, wsURL string) *websocket.Conn {
@@ -397,4 +503,17 @@ func readEnvelope(t *testing.T, conn *websocket.Conn) protocol.Envelope {
 		t.Fatalf("DecodeEnvelope() returned error: %v", err)
 	}
 	return env
+}
+
+func assertNoEnvelope(t *testing.T, conn *websocket.Conn) {
+	t.Helper()
+	_ = conn.SetReadDeadline(time.Now().Add(150 * time.Millisecond))
+	_, _, err := conn.ReadMessage()
+	_ = conn.SetReadDeadline(time.Time{})
+	if err == nil {
+		t.Fatal("expected no message, but a websocket frame was received")
+	}
+	if !errors.Is(err, os.ErrDeadlineExceeded) && !strings.Contains(err.Error(), "i/o timeout") {
+		t.Fatalf("expected read timeout, got %v", err)
+	}
 }

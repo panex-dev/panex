@@ -94,6 +94,7 @@ type Hello struct {
 	AuthToken             string   `msgpack:"auth_token,omitempty"`
 	ClientKind            string   `msgpack:"client_kind,omitempty"`
 	ClientVersion         string   `msgpack:"client_version,omitempty"`
+	ExtensionID           string   `msgpack:"extension_id,omitempty"`
 	CapabilitiesRequested []string `msgpack:"capabilities_requested,omitempty"`
 	// Capabilities is retained for backward compatibility with early clients.
 	Capabilities []string `msgpack:"capabilities,omitempty"`
@@ -111,6 +112,7 @@ type BuildComplete struct {
 	BuildID      string   `msgpack:"build_id"`
 	Success      bool     `msgpack:"success"`
 	DurationMS   int64    `msgpack:"duration_ms"`
+	ExtensionID  string   `msgpack:"extension_id,omitempty"`
 	ChangedFiles []string `msgpack:"changed_files,omitempty"`
 }
 
@@ -122,8 +124,9 @@ type ContextLog struct {
 }
 
 type CommandReload struct {
-	Reason  string `msgpack:"reason"`
-	BuildID string `msgpack:"build_id,omitempty"`
+	Reason      string `msgpack:"reason"`
+	BuildID     string `msgpack:"build_id,omitempty"`
+	ExtensionID string `msgpack:"extension_id,omitempty"`
 }
 
 type QueryEvents struct {

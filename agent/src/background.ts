@@ -50,7 +50,7 @@ async function connect(): Promise<void> {
     }
 
     reconnectAttempts = 0;
-    resetAgentHandshakeState(handshakeState);
+    resetAgentHandshakeState(handshakeState, config.extensionId);
 
     diagnostics.log("websocket.open", { url });
     nextSocket.send(encode(buildHelloEnvelope(config)));

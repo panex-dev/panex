@@ -27,6 +27,7 @@ const (
 	handshakeTimeout    = 5 * time.Second
 	defaultReadTimeout  = 30 * time.Second
 	defaultWriteTimeout = 5 * time.Second
+	defaultExtensionID  = "default"
 )
 
 var daemonCapabilities = []string{
@@ -99,11 +100,18 @@ type WebSocketServer struct {
 }
 
 type sessionConn struct {
-	conn      *websocket.Conn
-	mu        sync.Mutex
-	closeOnce sync.Once
-	closeErr  error
-	done      chan struct{}
+	conn        *websocket.Conn
+	mu          sync.Mutex
+	closeOnce   sync.Once
+	closeErr    error
+	done        chan struct{}
+	clientKind  string
+	extensionID string
+}
+
+type sessionMetadata struct {
+	clientKind  string
+	extensionID string
 }
 
 type simulatedTab struct {
@@ -247,7 +255,7 @@ func (s *WebSocketServer) handleWebSocket(w http.ResponseWriter, r *http.Request
 	conn.SetReadLimit(maxMessageBytes)
 
 	ctx := r.Context()
-	sessionID, err := s.handshake(ctx, conn)
+	sessionID, metadata, err := s.handshake(ctx, conn)
 	if err != nil {
 		_ = conn.WriteControl(
 			websocket.CloseMessage,
@@ -269,14 +277,14 @@ func (s *WebSocketServer) handleWebSocket(w http.ResponseWriter, r *http.Request
 		_ = session.close()
 		return
 	}
-	s.register(sessionID, session)
+	s.register(sessionID, session, metadata)
 	go s.readLoop(sessionID, session)
 	go s.pingLoop(sessionID, session)
 }
 
-func (s *WebSocketServer) handshake(ctx context.Context, conn *websocket.Conn) (string, error) {
+func (s *WebSocketServer) handshake(ctx context.Context, conn *websocket.Conn) (string, sessionMetadata, error) {
 	if err := conn.SetReadDeadline(time.Now().Add(handshakeTimeout)); err != nil {
-		return "", fmt.Errorf("set handshake deadline: %w", err)
+		return "", sessionMetadata{}, fmt.Errorf("set handshake deadline: %w", err)
 	}
 	defer func() {
 		_ = conn.SetReadDeadline(time.Time{})
@@ -284,29 +292,29 @@ func (s *WebSocketServer) handshake(ctx context.Context, conn *websocket.Conn) (
 
 	_, raw, err := conn.ReadMessage()
 	if err != nil {
-		return "", fmt.Errorf("read hello message: %w", err)
+		return "", sessionMetadata{}, fmt.Errorf("read hello message: %w", err)
 	}
 
 	message, err := protocol.DecodeEnvelope(raw)
 	if err != nil {
-		return "", fmt.Errorf("decode hello envelope: %w", err)
+		return "", sessionMetadata{}, fmt.Errorf("decode hello envelope: %w", err)
 	}
 	if err := message.ValidateBase(); err != nil {
-		return "", fmt.Errorf("validate hello envelope: %w", err)
+		return "", sessionMetadata{}, fmt.Errorf("validate hello envelope: %w", err)
 	}
 	if message.Name != protocol.MessageHello {
-		return "", fmt.Errorf("expected first message %q, got %q", protocol.MessageHello, message.Name)
+		return "", sessionMetadata{}, fmt.Errorf("expected first message %q, got %q", protocol.MessageHello, message.Name)
 	}
 	if message.T != protocol.TypeLifecycle {
-		return "", fmt.Errorf("unexpected hello message type %q", message.T)
+		return "", sessionMetadata{}, fmt.Errorf("unexpected hello message type %q", message.T)
 	}
 
 	var hello protocol.Hello
 	if err := protocol.DecodePayload(message.Data, &hello); err != nil {
-		return "", fmt.Errorf("decode hello payload: %w", err)
+		return "", sessionMetadata{}, fmt.Errorf("decode hello payload: %w", err)
 	}
 	if hello.ProtocolVersion != protocol.CurrentVersion {
-		return "", fmt.Errorf(
+		return "", sessionMetadata{}, fmt.Errorf(
 			"unsupported hello protocol_version %d (expected %d)",
 			hello.ProtocolVersion,
 			protocol.CurrentVersion,
@@ -319,12 +327,12 @@ func (s *WebSocketServer) handshake(ctx context.Context, conn *websocket.Conn) (
 			AuthOK:                false,
 			CapabilitiesSupported: []string{},
 		}); err != nil {
-			return "", fmt.Errorf("write unauthorized hello.ack message: %w", err)
+			return "", sessionMetadata{}, fmt.Errorf("write unauthorized hello.ack message: %w", err)
 		}
-		return "", errors.New("unauthorized")
+		return "", sessionMetadata{}, errors.New("unauthorized")
 	}
 	if err := s.eventStore.Append(ctx, message); err != nil {
-		return "", fmt.Errorf("persist hello message: %w", err)
+		return "", sessionMetadata{}, fmt.Errorf("persist hello message: %w", err)
 	}
 
 	requestedCapabilities := hello.CapabilitiesRequested
@@ -343,13 +351,16 @@ func (s *WebSocketServer) handshake(ctx context.Context, conn *websocket.Conn) (
 		CapabilitiesSupported: supportedCapabilities,
 	})
 	if err != nil {
-		return "", fmt.Errorf("write hello.ack message: %w", err)
+		return "", sessionMetadata{}, fmt.Errorf("write hello.ack message: %w", err)
 	}
 	if err := s.eventStore.Append(ctx, helloAck); err != nil {
-		return "", fmt.Errorf("persist hello.ack message: %w", err)
+		return "", sessionMetadata{}, fmt.Errorf("persist hello.ack message: %w", err)
 	}
 
-	return sessionID, nil
+	return sessionID, sessionMetadata{
+		clientKind:  normalizeClientKind(hello.ClientKind),
+		extensionID: normalizeExtensionID(hello.ClientKind, hello.ExtensionID),
+	}, nil
 }
 
 func (s *WebSocketServer) writeHelloAck(conn *websocket.Conn, payload protocol.HelloAck) (protocol.Envelope, error) {
@@ -449,7 +460,11 @@ func (s *WebSocketServer) broadcastLiveMessage(message protocol.Envelope) error 
 	s.mu.RUnlock()
 
 	var failed []string
+	targetExtensionID := messageTargetExtensionID(message)
 	for sessionID, session := range sessions {
+		if !shouldDeliverLiveMessage(session, targetExtensionID) {
+			continue
+		}
 		writeErr := session.writeMessage(websocket.BinaryMessage, encoded, s.cfg.WriteTimeout)
 		if writeErr != nil {
 			_ = session.close()
@@ -1347,10 +1362,12 @@ func (s *WebSocketServer) nextSessionID() string {
 	return "sess-" + strconv.FormatUint(seq, 10)
 }
 
-func (s *WebSocketServer) register(sessionID string, conn *sessionConn) {
+func (s *WebSocketServer) register(sessionID string, conn *sessionConn, metadata sessionMetadata) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
+	conn.clientKind = metadata.clientKind
+	conn.extensionID = metadata.extensionID
 	s.sessions[sessionID] = conn
 }
 
@@ -1382,6 +1399,44 @@ func (s *sessionConn) writeMessage(messageType int, data []byte, timeout time.Du
 		return err
 	}
 	return s.conn.WriteMessage(messageType, data)
+}
+
+func messageTargetExtensionID(message protocol.Envelope) string {
+	switch payload := message.Data.(type) {
+	case protocol.BuildComplete:
+		return strings.TrimSpace(payload.ExtensionID)
+	case protocol.CommandReload:
+		return strings.TrimSpace(payload.ExtensionID)
+	default:
+		return ""
+	}
+}
+
+func shouldDeliverLiveMessage(session *sessionConn, targetExtensionID string) bool {
+	if strings.TrimSpace(targetExtensionID) == "" {
+		return true
+	}
+	if session.clientKind == "inspector" {
+		return true
+	}
+
+	return session.extensionID == targetExtensionID
+}
+
+func normalizeClientKind(value string) string {
+	return strings.TrimSpace(value)
+}
+
+func normalizeExtensionID(clientKind string, extensionID string) string {
+	trimmed := strings.TrimSpace(extensionID)
+	if trimmed != "" {
+		return trimmed
+	}
+	if strings.TrimSpace(clientKind) == "dev-agent" || strings.TrimSpace(clientKind) == "chrome-sim" {
+		return defaultExtensionID
+	}
+
+	return ""
 }
 
 func (s *sessionConn) writeControl(messageType int, data []byte, timeout time.Duration) error {

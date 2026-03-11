@@ -28,7 +28,7 @@ On Windows, run `panex.exe` from PowerShell or Command Prompt. Double-clicking i
 
 1. Put `panex` on your machine and open a terminal in the folder where you want to run it.
 2. Create a `panex.toml` file.
-3. Point `source_dir` at your unpacked extension source tree.
+3. Point `source_dir` at your unpacked extension source tree, or use `[[extensions]]` for more than one target.
 4. Run `panex dev`.
 5. Load the generated `out_dir` in `chrome://extensions` as an unpacked extension.
 
@@ -38,6 +38,25 @@ Starter config:
 [extension]
 source_dir = "examples/hello-extension"
 out_dir = ".panex/dist"
+
+[server]
+port = 4317
+auth_token = "replace-this-dev-token"
+event_store_path = ".panex/events.db"
+```
+
+Multi-extension config:
+
+```toml
+[[extensions]]
+id = "popup"
+source_dir = "extensions/popup"
+out_dir = ".panex/dist/popup"
+
+[[extensions]]
+id = "admin"
+source_dir = "extensions/admin"
+out_dir = ".panex/dist/admin"
 
 [server]
 port = 4317
@@ -58,6 +77,8 @@ ws_url=ws://127.0.0.1:4317/ws
 
 `[extension].source_dir` must point at an unpacked Chrome extension directory. Panex watches that tree, bundles extension entrypoints, rewrites HTML surfaces, and copies non-bundled assets such as `manifest.json` into `[extension].out_dir`.
 
+For more than one extension target, switch to `[[extensions]]` and give each entry a unique `id`. Panex then runs one build/watch loop per configured target and tags `build.complete` and `command.reload` events with that `id`.
+
 ### 2. Start the local runtime
 
 Run:
@@ -76,6 +97,8 @@ panex dev --config path/to/panex.toml
 
 Open `chrome://extensions`, enable Developer Mode, choose `Load unpacked`, and select the `out_dir` from your config.
 
+For a multi-extension config, load each generated output directory separately.
+
 ### 4. Verify basic behavior
 
 - `panex version` prints the installed version.
@@ -83,10 +106,19 @@ Open `chrome://extensions`, enable Developer Mode, choose `Load unpacked`, and s
 - The configured `out_dir` contains your built extension output, including `manifest.json`.
 - The daemon prints `ws_url=...` so browser tooling can connect locally.
 
+For multi-extension configs:
+
+- each configured `out_dir` is built independently
+- reload messages are targeted by extension `id`
+- dev-agent and `chrome-sim` clients must present the matching extension ID for non-default targets
+
 ## Config Reference
 
-- `[extension].source_dir`: required path to the unpacked extension source tree that Panex watches and rebuilds.
+- `[extension].source_dir`: required path to the unpacked extension source tree that Panex watches and rebuilds. This legacy single-extension form still works.
 - `[extension].out_dir`: required build output directory. It must not overlap `source_dir`.
+- `[[extensions]].id`: required unique identifier for a multi-extension target.
+- `[[extensions]].source_dir`: required source directory for that target.
+- `[[extensions]].out_dir`: required build output directory for that target.
 - `[server].port`: required TCP port for the local daemon. Use any value from `1` to `65535`.
 - `[server].auth_token`: required shared secret for local WebSocket clients. Clients send this token during the `hello` handshake.
 - `[server].event_store_path`: optional SQLite path for the event log. If omitted, Panex defaults it to `.panex/events.db`.
@@ -100,7 +132,16 @@ Validation rules:
 
 - Unknown config keys are rejected.
 - Empty required values are rejected.
+- Use either `[extension]` or `[[extensions]]`, not both.
 - `source_dir` and `out_dir` cannot be the same directory or nested inside each other.
+- Multi-extension targets must use unique IDs.
+- Multi-extension source and output paths must not overlap each other.
+
+Current multi-extension scope:
+
+- build, watch, and reload targeting are extension-aware
+- the inspector still shows one shared event stream
+- broader per-extension runtime and storage isolation is not complete yet
 
 ## Release Verification
 

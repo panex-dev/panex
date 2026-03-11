@@ -47,6 +47,7 @@ describe("config loading", () => {
       wsUrl: "ws://127.0.0.1:9999/ws",
       token: "secret",
       agentId: "agent-a",
+      extensionId: "popup",
       diagnosticLogging: true
     });
 
@@ -56,6 +57,7 @@ describe("config loading", () => {
       wsUrl: "ws://127.0.0.1:9999/ws",
       token: "secret",
       agentId: "agent-a",
+      extensionId: "popup",
       diagnosticLogging: true
     });
   });
@@ -65,6 +67,7 @@ describe("config loading", () => {
       wsUrl: "ws://localhost:4317/ws?client=agent&token=leak",
       token: "secret",
       agentId: "agent-a",
+      extensionId: "popup",
       diagnosticLogging: false
     });
 
@@ -74,6 +77,7 @@ describe("config loading", () => {
       wsUrl: "ws://localhost:4317/ws?client=agent",
       token: "secret",
       agentId: "agent-a",
+      extensionId: "popup",
       diagnosticLogging: false
     });
   });
@@ -83,6 +87,7 @@ describe("config loading", () => {
       wsUrl: "ws://evil.example:4317/not-ws",
       token: "secret",
       agentId: "agent-a",
+      extensionId: "popup",
       diagnosticLogging: true
     });
 
@@ -92,6 +97,7 @@ describe("config loading", () => {
       wsUrl: defaultConfig.wsUrl,
       token: "secret",
       agentId: "agent-a",
+      extensionId: "popup",
       diagnosticLogging: true
     });
   });

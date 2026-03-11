@@ -64,6 +64,7 @@ export interface Hello {
   auth_token?: string;
   client_kind?: string;
   client_version?: string;
+  extension_id?: string;
   capabilities_requested?: string[];
   // Retained for backward compatibility with early clients.
   capabilities?: string[];
@@ -81,6 +82,7 @@ export interface BuildComplete {
   build_id: string;
   success: boolean;
   duration_ms: number;
+  extension_id?: string;
   changed_files?: string[];
 }
 
@@ -94,6 +96,7 @@ export interface ContextLog {
 export interface CommandReload {
   reason: string;
   build_id?: string;
+  extension_id?: string;
 }
 
 export interface QueryEvents {

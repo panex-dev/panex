@@ -16,6 +16,7 @@ export const requestedCapabilities = ["command.reload"] as const;
 export interface AgentHandshakeState {
   complete: boolean;
   capabilitiesSupported: Set<string>;
+  extensionID: string;
 }
 
 export interface AgentHandshakeHooks {
@@ -28,13 +29,15 @@ export type AgentEnvelopeResult = "hello_ack" | "reload" | "ignored" | "closed";
 export function createAgentHandshakeState(): AgentHandshakeState {
   return {
     complete: false,
-    capabilitiesSupported: new Set<string>()
+    capabilitiesSupported: new Set<string>(),
+    extensionID: "default"
   };
 }
 
-export function resetAgentHandshakeState(state: AgentHandshakeState): void {
+export function resetAgentHandshakeState(state: AgentHandshakeState, extensionID = state.extensionID): void {
   state.complete = false;
   state.capabilitiesSupported.clear();
+  state.extensionID = extensionID;
 }
 
 export function buildHelloEnvelope(config: AgentConfig): Envelope<Hello> {
@@ -48,6 +51,7 @@ export function buildHelloEnvelope(config: AgentConfig): Envelope<Hello> {
       auth_token: config.token,
       client_kind: "dev-agent",
       client_version: "dev",
+      extension_id: config.extensionId,
       capabilities_requested: [...requestedCapabilities]
     }
   };
@@ -86,7 +90,7 @@ export function handleDaemonEnvelope(
     return "hello_ack";
   }
 
-  if (handleReloadCommand(envelope, hooks.runtimeReload)) {
+  if (handleReloadCommand(envelope, state.extensionID, hooks.runtimeReload)) {
     return "reload";
   }
 
