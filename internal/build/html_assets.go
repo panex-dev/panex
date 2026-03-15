@@ -28,7 +28,13 @@ func discoverHTMLAssets(sourceDir string) ([]string, error) {
 		if walkErr != nil {
 			return walkErr
 		}
-		if entry.IsDir() || !isHTMLAsset(filePath) {
+		if entry.IsDir() {
+			if isInfrastructureDir(entry.Name()) {
+				return filepath.SkipDir
+			}
+			return nil
+		}
+		if !isHTMLAsset(filePath) {
 			return nil
 		}
 

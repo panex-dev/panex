@@ -202,6 +202,9 @@ func discoverEntryPoints(sourceDir string) ([]string, error) {
 			return err
 		}
 		if entry.IsDir() {
+			if isInfrastructureDir(entry.Name()) {
+				return filepath.SkipDir
+			}
 			return nil
 		}
 		if !isBundleEntry(path) {
@@ -221,6 +224,14 @@ func discoverEntryPoints(sourceDir string) ([]string, error) {
 
 	sort.Strings(entries)
 	return entries, nil
+}
+
+// isInfrastructureDir returns true for directories that should be excluded
+// from source discovery. This covers version control (.git), package manager
+// caches (node_modules), IDE config (.vscode, .idea), and Panex output
+// directories (.panex).
+func isInfrastructureDir(name string) bool {
+	return name == "node_modules" || strings.HasPrefix(name, ".")
 }
 
 func isBundleEntry(path string) bool {
