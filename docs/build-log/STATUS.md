@@ -96,12 +96,14 @@ As of 2026-03-16.
 | 95 | Add `panex paths` for quick path inspection | `docs/build-log/2026-03-16-pr-095-panex-paths.md` |
 | 96 | Add `panex dev --open` to launch `chrome://extensions` | `docs/build-log/2026-03-16-pr-096-dev-open.md` |
 | 97 | Add Linux/macOS install script | `docs/build-log/2026-03-16-pr-097-install-script.md` |
+| 98 | Enforce all PRs must target main branch | (process PR, no build-log entry) |
+| 99 | Add Homebrew tap formula and release automation | `docs/build-log/2026-03-16-pr-099-homebrew-formula.md` |
 
 ## In progress
 - None.
 
 ## Next
-- PR98: Homebrew tap formula for `brew install panex-dev/tap/panex`.
+- Continue Phase 4 packaging: Windows MSI/winget, Linux .deb/apt.
 
 ## Queued Follow-Ons
 - None.
