@@ -438,6 +438,77 @@ func TestRunDevMissingConfig(t *testing.T) {
 	}
 }
 
+func TestRunDevInfersConfigFromManifestJSON(t *testing.T) {
+	tempDir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(tempDir, "manifest.json"), []byte(`{"manifest_version": 3}`), 0o600); err != nil {
+		t.Fatalf("write manifest.json: %v", err)
+	}
+
+	var out bytes.Buffer
+	var captured panexconfig.Config
+	withStubbedStartDev(t, func(cfg panexconfig.Config, stdout io.Writer) error {
+		captured = cfg
+		_, err := io.WriteString(stdout, "dev started\n")
+		return err
+	})
+
+	err := withWorkingDir(tempDir, func() error {
+		return run([]string{"dev"}, &out)
+	})
+	if err != nil {
+		t.Fatalf("run(dev) returned error: %v", err)
+	}
+
+	if !strings.Contains(out.String(), "manifest.json") {
+		t.Fatalf("expected inference notice mentioning manifest.json, got %q", out.String())
+	}
+	if captured.Extension.SourceDir != "." {
+		t.Fatalf("unexpected inferred source dir: got %q", captured.Extension.SourceDir)
+	}
+	if captured.Extension.OutDir != panexconfig.DefaultOutDir {
+		t.Fatalf("unexpected inferred out dir: got %q", captured.Extension.OutDir)
+	}
+	if captured.Server.Port != panexconfig.DefaultPort {
+		t.Fatalf("unexpected inferred port: got %d", captured.Server.Port)
+	}
+	if captured.Server.AuthToken != panexconfig.DefaultAuthToken {
+		t.Fatalf("unexpected inferred auth token: got %q", captured.Server.AuthToken)
+	}
+}
+
+func TestRunDevInferredConfigRespectsEnvAuthTokenOverride(t *testing.T) {
+	tempDir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(tempDir, "manifest.json"), []byte(`{"manifest_version": 3}`), 0o600); err != nil {
+		t.Fatalf("write manifest.json: %v", err)
+	}
+
+	withStubbedLookupEnv(t, func(key string) (string, bool) {
+		if key != "PANEX_AUTH_TOKEN" {
+			return "", false
+		}
+		return "custom-env-token", true
+	})
+
+	var out bytes.Buffer
+	var captured panexconfig.Config
+	withStubbedStartDev(t, func(cfg panexconfig.Config, stdout io.Writer) error {
+		captured = cfg
+		_, err := io.WriteString(stdout, "dev started\n")
+		return err
+	})
+
+	err := withWorkingDir(tempDir, func() error {
+		return run([]string{"dev"}, &out)
+	})
+	if err != nil {
+		t.Fatalf("run(dev) returned error: %v", err)
+	}
+
+	if captured.Server.AuthToken != "custom-env-token" {
+		t.Fatalf("unexpected auth token: got %q, want %q", captured.Server.AuthToken, "custom-env-token")
+	}
+}
+
 func TestRunDevMissingDefaultConfigSuggestsInit(t *testing.T) {
 	tempDir := t.TempDir()
 	var out bytes.Buffer

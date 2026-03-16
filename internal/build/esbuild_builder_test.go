@@ -491,6 +491,50 @@ func TestIsInfrastructureDir(t *testing.T) {
 	}
 }
 
+func TestNewEsbuildBuilderAllowsInfrastructureShieldedOutput(t *testing.T) {
+	sourceDir := t.TempDir()
+	outDir := filepath.Join(sourceDir, ".panex", "dist")
+
+	writeFixture(t, filepath.Join(sourceDir, "index.ts"), `console.log("hello")`)
+
+	_, err := NewEsbuildBuilder(sourceDir, outDir)
+	if err != nil {
+		t.Fatalf("NewEsbuildBuilder() returned error: %v", err)
+	}
+}
+
+func TestIsShieldedByInfrastructureDir(t *testing.T) {
+	base := t.TempDir()
+	testCases := []struct {
+		name   string
+		parent string
+		child  string
+		want   bool
+	}{
+		{
+			name:   "dot-prefixed output dir",
+			parent: base,
+			child:  filepath.Join(base, ".panex", "dist"),
+			want:   true,
+		},
+		{
+			name:   "regular output dir",
+			parent: base,
+			child:  filepath.Join(base, "dist"),
+			want:   false,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			got := isShieldedByInfrastructureDir(tc.parent, tc.child)
+			if got != tc.want {
+				t.Fatalf("isShieldedByInfrastructureDir(%q, %q) = %v, want %v", tc.parent, tc.child, got, tc.want)
+			}
+		})
+	}
+}
+
 func TestAutoDetectChromeSimInjection(t *testing.T) {
 	rootDir := t.TempDir()
 	sourceDir := filepath.Join(rootDir, "agent", "src")

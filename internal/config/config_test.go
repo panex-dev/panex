@@ -346,6 +346,127 @@ func TestLoadInvalidPathArgument(t *testing.T) {
 	}
 }
 
+func TestLoadAllowsInfrastructureShieldedOutput(t *testing.T) {
+	configPath := filepath.Join(t.TempDir(), "panex.toml")
+	writeConfig(t, configPath, `
+[extension]
+source_dir = "."
+out_dir = ".panex/dist"
+
+[server]
+port = 4317
+auth_token = "test-token"
+`)
+
+	cfg, err := Load(configPath)
+	if err != nil {
+		t.Fatalf("Load() returned error: %v", err)
+	}
+	if cfg.Extension.OutDir != ".panex/dist" {
+		t.Fatalf("unexpected out_dir: got %q", cfg.Extension.OutDir)
+	}
+}
+
+func TestInferSuccess(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "manifest.json"), []byte(`{"manifest_version": 3}`), 0o600); err != nil {
+		t.Fatalf("write manifest.json: %v", err)
+	}
+
+	cfg, err := Infer(dir)
+	if err != nil {
+		t.Fatalf("Infer() returned error: %v", err)
+	}
+
+	if cfg.Extension.SourceDir != dir {
+		t.Fatalf("unexpected source_dir: got %q, want %q", cfg.Extension.SourceDir, dir)
+	}
+	if cfg.Extension.OutDir != filepath.Join(dir, DefaultOutDir) {
+		t.Fatalf("unexpected out_dir: got %q, want %q", cfg.Extension.OutDir, filepath.Join(dir, DefaultOutDir))
+	}
+	if cfg.Extension.ID != DefaultExtensionID {
+		t.Fatalf("unexpected extension id: got %q, want %q", cfg.Extension.ID, DefaultExtensionID)
+	}
+	if cfg.Server.Port != DefaultPort {
+		t.Fatalf("unexpected port: got %d, want %d", cfg.Server.Port, DefaultPort)
+	}
+	if cfg.Server.AuthToken != DefaultAuthToken {
+		t.Fatalf("unexpected auth_token: got %q, want %q", cfg.Server.AuthToken, DefaultAuthToken)
+	}
+	if cfg.Server.EventStorePath != DefaultEventStorePath {
+		t.Fatalf("unexpected event_store_path: got %q, want %q", cfg.Server.EventStorePath, DefaultEventStorePath)
+	}
+	if len(cfg.Extensions) != 1 {
+		t.Fatalf("unexpected extensions count: got %d, want 1", len(cfg.Extensions))
+	}
+}
+
+func TestInferMissingManifest(t *testing.T) {
+	dir := t.TempDir()
+
+	_, err := Infer(dir)
+	if err == nil {
+		t.Fatal("expected error, got nil")
+	}
+	if !errors.Is(err, ErrManifestNotFound) {
+		t.Fatalf("expected ErrManifestNotFound, got %v", err)
+	}
+}
+
+func TestInferEmptyDir(t *testing.T) {
+	_, err := Infer("")
+	if err == nil {
+		t.Fatal("expected error, got nil")
+	}
+	if !strings.Contains(err.Error(), "directory is required") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestIsShieldedByInfrastructureDir(t *testing.T) {
+	base := t.TempDir()
+	testCases := []struct {
+		name   string
+		parent string
+		child  string
+		want   bool
+	}{
+		{
+			name:   "dot-prefixed output dir",
+			parent: base,
+			child:  filepath.Join(base, ".panex", "dist"),
+			want:   true,
+		},
+		{
+			name:   "node_modules output dir",
+			parent: base,
+			child:  filepath.Join(base, "node_modules", "cache"),
+			want:   true,
+		},
+		{
+			name:   "regular output dir",
+			parent: base,
+			child:  filepath.Join(base, "dist"),
+			want:   false,
+		},
+		{
+			name:   "nested non-infra output dir",
+			parent: base,
+			child:  filepath.Join(base, "build", "output"),
+			want:   false,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			got := isShieldedByInfrastructureDir(tc.parent, tc.child)
+			if got != tc.want {
+				t.Fatalf("isShieldedByInfrastructureDir(%q, %q) = %v, want %v", tc.parent, tc.child, got, tc.want)
+			}
+		})
+	}
+}
+
 func writeConfig(t *testing.T, path, value string) {
 	t.Helper()
 

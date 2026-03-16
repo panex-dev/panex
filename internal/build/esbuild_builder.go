@@ -99,8 +99,25 @@ func NewEsbuildBuilder(sourceDir, outDir string, opts ...Option) (*EsbuildBuilde
 	}, nil
 }
 
-func pathsOverlap(first, second string) bool {
-	return isSameOrNestedPath(first, second) || isSameOrNestedPath(second, first)
+// pathsOverlap reports whether absSourceDir and absOutDir overlap in a way
+// that would cause build loops. Output nested inside source is allowed when
+// the relative path passes through an infrastructure directory (e.g.
+// .panex/dist) because discoverEntryPoints and other walkers skip those
+// directories.
+func pathsOverlap(absSourceDir, absOutDir string) bool {
+	if absSourceDir == absOutDir {
+		return true
+	}
+	// Source nested inside output is always dangerous.
+	if isSameOrNestedPath(absOutDir, absSourceDir) {
+		return true
+	}
+	// Output nested inside source is safe only when the nesting passes
+	// through an infrastructure directory (e.g. .panex/dist).
+	if isSameOrNestedPath(absSourceDir, absOutDir) {
+		return !isShieldedByInfrastructureDir(absSourceDir, absOutDir)
+	}
+	return false
 }
 
 func isSameOrNestedPath(parent, child string) bool {
@@ -113,6 +130,18 @@ func isSameOrNestedPath(parent, child string) bool {
 	}
 
 	return relPath != ".." && !strings.HasPrefix(relPath, ".."+string(filepath.Separator))
+}
+
+// isShieldedByInfrastructureDir reports whether the relative path from parent
+// to child begins with a directory that source walkers skip (node_modules or
+// dot-prefixed directories like .panex, .git).
+func isShieldedByInfrastructureDir(parent, child string) bool {
+	rel, err := filepath.Rel(parent, child)
+	if err != nil {
+		return false
+	}
+	parts := strings.SplitN(rel, string(filepath.Separator), 2)
+	return len(parts) > 0 && isInfrastructureDir(parts[0])
 }
 
 func (b *EsbuildBuilder) Build(ctx context.Context, changedPaths []string) (Result, error) {

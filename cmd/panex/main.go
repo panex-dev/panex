@@ -143,14 +143,22 @@ func runDev(args []string, stdout io.Writer) error {
 	cfg, err := panexconfig.Load(*configPath)
 	if err != nil {
 		if errors.Is(err, panexconfig.ErrConfigFileNotFound) && *configPath == panexconfig.DefaultPath {
+			inferred, inferErr := panexconfig.Infer(".")
+			if inferErr != nil {
+				return &cliError{
+					code: 2,
+					msg:  fmt.Sprintf("failed to load config %q: %v\n\nRun `panex init` in the current directory to scaffold a starter config and extension.", *configPath, err),
+				}
+			}
+			cfg = inferred
+			if writeErr := writef(stdout, "no panex.toml found, using manifest.json in current directory\n"); writeErr != nil {
+				return writeErr
+			}
+		} else {
 			return &cliError{
 				code: 2,
-				msg:  fmt.Sprintf("failed to load config %q: %v\n\nRun `panex init` in the current directory to scaffold a starter config and extension.", *configPath, err),
+				msg:  fmt.Sprintf("failed to load config %q: %v", *configPath, err),
 			}
-		}
-		return &cliError{
-			code: 2,
-			msg:  fmt.Sprintf("failed to load config %q: %v", *configPath, err),
 		}
 	}
 	cfg, err = applyEnvironmentOverrides(cfg)
