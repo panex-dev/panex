@@ -91,12 +91,16 @@ As of 2026-03-16.
 | 90 | Add `panex init` first-run scaffolding and default missing-config recovery guidance | `docs/build-log/2026-03-11-pr-090-first-run-init.md` |
 | 91 | Skip infrastructure directories in build discovery and file watching | `docs/build-log/2026-03-16-pr-091-infrastructure-dir-exclusion.md` |
 | 92 | Zero-config `panex dev` for manifest.json directories | `docs/build-log/2026-03-16-pr-092-zero-config-manifest-detection.md` |
+| 93 | Guided startup messaging with Chrome loading instructions | `docs/build-log/2026-03-16-pr-093-guided-startup-messaging.md` |
+| 94 | Add `panex doctor` for project health checks | `docs/build-log/2026-03-16-pr-094-panex-doctor.md` |
+| 95 | Add `panex paths` for quick path inspection | `docs/build-log/2026-03-16-pr-095-panex-paths.md` |
+| 96 | Add `panex dev --open` to launch `chrome://extensions` | `docs/build-log/2026-03-16-pr-096-dev-open.md` |
 
 ## In progress
 - None.
 
 ## Next
-- Wire zero-config `panex dev` end-to-end for the demo experience: `cd my-extension && panex dev` should build, watch, and serve without any prior setup.
+- Continue Phase 3 or begin Phase 4 packaging work.
 
 ## Queued Follow-Ons
 - None.

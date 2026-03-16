@@ -615,9 +615,19 @@ func TestStartDevServerCoordinatesStartupLifecycle(t *testing.T) {
 		t.Fatalf("startDevServer() returned error: %v", err)
 	}
 
-	const wantBanner = "panex dev\nws_url=ws://127.0.0.1:4317/ws\n"
-	if out.String() != wantBanner {
-		t.Fatalf("unexpected startup banner: got %q, want %q", out.String(), wantBanner)
+	output := out.String()
+	if !strings.Contains(output, "panex dev\nws_url=ws://127.0.0.1:4317/ws\n") {
+		t.Fatalf("missing banner header in output: %q", output)
+	}
+	absOutDir, _ := filepath.Abs(cfg.Extensions[0].OutDir)
+	if !strings.Contains(output, "out_dir="+absOutDir+"\n") {
+		t.Fatalf("missing out_dir in output: %q", output)
+	}
+	if !strings.Contains(output, "Load your extension in Chrome:") {
+		t.Fatalf("missing Chrome loading guide in output: %q", output)
+	}
+	if !strings.Contains(output, absOutDir) {
+		t.Fatalf("missing output path in Chrome guide: %q", output)
 	}
 	if serverCfg.Port != 4317 {
 		t.Fatalf("unexpected websocket port: got %d, want %d", serverCfg.Port, 4317)

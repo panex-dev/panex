@@ -8,6 +8,7 @@ import (
 	"io"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"strings"
 	"sync/atomic"
 	"syscall"
@@ -24,7 +25,9 @@ const usageText = `panex - development runtime for Chrome extensions
 Usage:
   panex version
   panex init [--force]
-  panex dev [--config path/to/panex.toml]
+  panex dev [--config path/to/panex.toml] [--open]
+  panex doctor
+  panex paths
 `
 
 // This is overridden in release builds via -ldflags "-X main.version=<semver>".
@@ -110,6 +113,10 @@ func run(args []string, stdout io.Writer) error {
 		return runInit(args[1:], stdout)
 	case "dev":
 		return runDev(args[1:], stdout)
+	case "doctor":
+		return runDoctor(stdout)
+	case "paths":
+		return runPaths(stdout)
 	case "help", "-h", "--help":
 		return writeString(stdout, usageText)
 	default:
@@ -126,6 +133,7 @@ func runDev(args []string, stdout io.Writer) error {
 	fs.SetOutput(io.Discard)
 
 	configPath := fs.String("config", panexconfig.DefaultPath, "Path to panex configuration file")
+	openFlag := fs.Bool("open", false, "Open chrome://extensions in the default browser")
 	if err := fs.Parse(args); err != nil {
 		return &cliError{
 			code: 2,
@@ -169,6 +177,12 @@ func runDev(args []string, stdout io.Writer) error {
 		}
 	}
 
+	if *openFlag {
+		if openErr := openBrowser("chrome://extensions"); openErr != nil {
+			_ = writef(stdout, "note: could not open browser: %v\n", openErr)
+		}
+	}
+
 	return startDev(cfg, stdout)
 }
 
@@ -197,6 +211,30 @@ func writeString(w io.Writer, value string) error {
 	return err
 }
 
+func writeStartupGuide(w io.Writer, extensions []panexconfig.Extension) error {
+	for _, ext := range extensions {
+		absOutDir, err := filepath.Abs(ext.OutDir)
+		if err != nil {
+			absOutDir = ext.OutDir
+		}
+		if len(extensions) == 1 {
+			if err := writef(w, "out_dir=%s\n", absOutDir); err != nil {
+				return err
+			}
+		} else {
+			if err := writef(w, "out_dir[%s]=%s\n", ext.ID, absOutDir); err != nil {
+				return err
+			}
+		}
+	}
+
+	if len(extensions) == 1 {
+		absOutDir, _ := filepath.Abs(extensions[0].OutDir)
+		return writef(w, "\nLoad your extension in Chrome:\n  1. Open chrome://extensions\n  2. Enable \"Developer mode\"\n  3. Click \"Load unpacked\" → select %s\n", absOutDir)
+	}
+	return nil
+}
+
 func startDevServer(cfg panexconfig.Config, stdout io.Writer) error {
 	server, err := newWebSocketServer(daemon.WebSocketConfig{
 		Port:           cfg.Server.Port,
@@ -210,6 +248,9 @@ func startDevServer(cfg panexconfig.Config, stdout io.Writer) error {
 	}
 
 	if err := writef(stdout, "panex dev\nws_url=ws://127.0.0.1:%d/ws\n", cfg.Server.Port); err != nil {
+		return err
+	}
+	if err := writeStartupGuide(stdout, cfg.Extensions); err != nil {
 		return err
 	}
 
