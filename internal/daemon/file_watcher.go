@@ -174,6 +174,9 @@ func (w *FileWatcher) addDirectoryTree(watcher *fsnotify.Watcher, root string) e
 		if !entry.IsDir() {
 			return nil
 		}
+		if isInfrastructureDir(entry.Name()) {
+			return filepath.SkipDir
+		}
 
 		if err := watcher.Add(path); err != nil {
 			return fmt.Errorf("add directory watch %q: %w", path, err)
@@ -181,6 +184,14 @@ func (w *FileWatcher) addDirectoryTree(watcher *fsnotify.Watcher, root string) e
 
 		return nil
 	})
+}
+
+// isInfrastructureDir returns true for directories that should be excluded
+// from file watching. This covers version control (.git), package manager
+// caches (node_modules), IDE config (.vscode, .idea), and Panex output
+// directories (.panex).
+func isInfrastructureDir(name string) bool {
+	return name == "node_modules" || strings.HasPrefix(name, ".")
 }
 
 func (w *FileWatcher) normalizePath(path string) (string, error) {

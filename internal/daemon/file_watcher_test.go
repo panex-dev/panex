@@ -206,6 +206,134 @@ func TestFileWatcherFlushesPendingChangesOnCancel(t *testing.T) {
 	}
 }
 
+func TestFileWatcherSkipsInfrastructureDirs(t *testing.T) {
+	root := t.TempDir()
+
+	if err := os.MkdirAll(filepath.Join(root, ".git", "objects"), 0o755); err != nil {
+		t.Fatalf("create .git: %v", err)
+	}
+	if err := os.MkdirAll(filepath.Join(root, "node_modules", "dep"), 0o755); err != nil {
+		t.Fatalf("create node_modules: %v", err)
+	}
+	if err := os.MkdirAll(filepath.Join(root, ".panex", "dist"), 0o755); err != nil {
+		t.Fatalf("create .panex: %v", err)
+	}
+	if err := os.MkdirAll(filepath.Join(root, "src"), 0o755); err != nil {
+		t.Fatalf("create src: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(root, "src", "app.js"), []byte("v1"), 0o600); err != nil {
+		t.Fatalf("write app.js: %v", err)
+	}
+
+	events := make(chan FileChangeEvent, 8)
+	watcher, err := NewFileWatcher(root, 50*time.Millisecond, func(event FileChangeEvent) {
+		events <- event
+	})
+	if err != nil {
+		t.Fatalf("NewFileWatcher() returned error: %v", err)
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	startWatcher(t, watcher, ctx)
+
+	// Write to infrastructure directories — these should not trigger events
+	// because the watcher never added those directories.
+	if err := os.WriteFile(filepath.Join(root, ".git", "index"), []byte("git-data"), 0o600); err != nil {
+		t.Fatalf("write .git/index: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(root, "node_modules", "dep", "index.js"), []byte("dep"), 0o600); err != nil {
+		t.Fatalf("write node_modules file: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(root, ".panex", "dist", "output.js"), []byte("out"), 0o600); err != nil {
+		t.Fatalf("write .panex file: %v", err)
+	}
+
+	// Write to a watched directory — this should trigger an event.
+	if err := os.WriteFile(filepath.Join(root, "src", "app.js"), []byte("v2"), 0o600); err != nil {
+		t.Fatalf("write src/app.js: %v", err)
+	}
+
+	event := waitForEvent(t, events, 2*time.Second)
+	for _, path := range event.Paths {
+		if strings.HasPrefix(path, ".git") || strings.HasPrefix(path, "node_modules") || strings.HasPrefix(path, ".panex") {
+			t.Fatalf("unexpected infrastructure path in event: %q", path)
+		}
+	}
+	if !slices.Contains(event.Paths, "src/app.js") {
+		t.Fatalf("expected src/app.js in event, got %v", event.Paths)
+	}
+}
+
+func TestFileWatcherSkipsNewInfrastructureDirs(t *testing.T) {
+	root := t.TempDir()
+	if err := os.WriteFile(filepath.Join(root, "index.js"), []byte("v1"), 0o600); err != nil {
+		t.Fatalf("write index.js: %v", err)
+	}
+
+	events := make(chan FileChangeEvent, 8)
+	watcher, err := NewFileWatcher(root, 50*time.Millisecond, func(event FileChangeEvent) {
+		events <- event
+	})
+	if err != nil {
+		t.Fatalf("NewFileWatcher() returned error: %v", err)
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	startWatcher(t, watcher, ctx)
+
+	// Create a new infrastructure directory after the watcher starts.
+	if err := os.MkdirAll(filepath.Join(root, ".panex", "dist"), 0o755); err != nil {
+		t.Fatalf("create .panex: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(root, ".panex", "dist", "bundle.js"), []byte("out"), 0o600); err != nil {
+		t.Fatalf("write .panex bundle: %v", err)
+	}
+
+	// Write to root to confirm the watcher is still alive.
+	if err := os.WriteFile(filepath.Join(root, "index.js"), []byte("v2"), 0o600); err != nil {
+		t.Fatalf("write index.js v2: %v", err)
+	}
+
+	event := waitForEvent(t, events, 2*time.Second)
+
+	// The root-level .panex creation may appear as a directory event from the parent
+	// watcher, but files inside .panex/dist/ must not appear because the subtree
+	// was never added to fsnotify.
+	for _, path := range event.Paths {
+		if strings.HasPrefix(path, ".panex/dist/") {
+			t.Fatalf("unexpected .panex/dist/ path in event: %q", path)
+		}
+	}
+}
+
+func TestIsInfrastructureDir(t *testing.T) {
+	testCases := []struct {
+		name string
+		want bool
+	}{
+		{"node_modules", true},
+		{".git", true},
+		{".panex", true},
+		{".vscode", true},
+		{"src", false},
+		{"dist", false},
+		{"nested", false},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			got := isInfrastructureDir(tc.name)
+			if got != tc.want {
+				t.Fatalf("isInfrastructureDir(%q) = %v, want %v", tc.name, got, tc.want)
+			}
+		})
+	}
+}
+
 func waitForEvent(t *testing.T, events <-chan FileChangeEvent, timeout time.Duration) FileChangeEvent {
 	t.Helper()
 

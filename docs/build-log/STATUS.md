@@ -1,6 +1,6 @@
 # Build Status Tracker
 
-As of 2026-03-11.
+As of 2026-03-16.
 
 ## Completed
 | PR | Scope | Evidence |
@@ -89,12 +89,13 @@ As of 2026-03-11.
 | 88 | Bound the inspector Timeline to a reloadable working set so older browsing does not grow client memory without limit | `docs/build-log/2026-03-11-pr-088-timeline-history-scalability.md` |
 | 89 | Add multi-extension config/build/watch support with targeted reload routing | `docs/build-log/2026-03-11-pr-089-multi-extension-support.md` |
 | 90 | Add `panex init` first-run scaffolding and default missing-config recovery guidance | `docs/build-log/2026-03-11-pr-090-first-run-init.md` |
+| 91 | Skip infrastructure directories in build discovery and file watching | `docs/build-log/2026-03-16-pr-091-infrastructure-dir-exclusion.md` |
 
 ## In progress
 - None.
 
 ## Next
-- None. Review the remaining browser-install friction before selecting another release-readiness slice.
+- Relax source/output overlap validation for `.panex/`-prefixed output, then wire zero-config `panex dev` for directories containing `manifest.json`.
 
 ## Queued Follow-Ons
 - None.

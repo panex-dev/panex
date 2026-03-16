@@ -398,6 +398,99 @@ func TestNextBuildIDMonotonic(t *testing.T) {
 	}
 }
 
+func TestDiscoverEntryPointsSkipsInfrastructureDirs(t *testing.T) {
+	sourceDir := t.TempDir()
+
+	writeFixture(t, filepath.Join(sourceDir, "background.ts"), `console.log("bg")`)
+	writeFixture(t, filepath.Join(sourceDir, "popup.js"), `console.log("popup")`)
+	writeFixture(t, filepath.Join(sourceDir, "node_modules", "dep", "index.js"), `export default 1`)
+	writeFixture(t, filepath.Join(sourceDir, ".git", "hooks", "pre-commit.js"), `#!/usr/bin/env node`)
+	writeFixture(t, filepath.Join(sourceDir, ".panex", "dist", "background.js"), `bundled`)
+	writeFixture(t, filepath.Join(sourceDir, ".vscode", "settings.js"), `{}`)
+
+	entries, err := discoverEntryPoints(sourceDir)
+	if err != nil {
+		t.Fatalf("discoverEntryPoints() returned error: %v", err)
+	}
+
+	if len(entries) != 2 {
+		t.Fatalf("expected 2 entry points, got %d: %v", len(entries), entries)
+	}
+	if entries[0] != "background.ts" || entries[1] != "popup.js" {
+		t.Fatalf("unexpected entry points: %v", entries)
+	}
+}
+
+func TestDiscoverHTMLAssetsSkipsInfrastructureDirs(t *testing.T) {
+	sourceDir := t.TempDir()
+
+	writeFixture(t, filepath.Join(sourceDir, "popup.html"), `<!doctype html><html><head></head><body></body></html>`)
+	writeFixture(t, filepath.Join(sourceDir, "pages", "options.html"), `<!doctype html><html><head></head><body></body></html>`)
+	writeFixture(t, filepath.Join(sourceDir, "node_modules", "dep", "index.html"), `dep page`)
+	writeFixture(t, filepath.Join(sourceDir, ".panex", "dist", "popup.html"), `built page`)
+
+	assets, err := discoverHTMLAssets(sourceDir)
+	if err != nil {
+		t.Fatalf("discoverHTMLAssets() returned error: %v", err)
+	}
+
+	if len(assets) != 2 {
+		t.Fatalf("expected 2 html assets, got %d: %v", len(assets), assets)
+	}
+	if assets[0] != "pages/options.html" || assets[1] != "popup.html" {
+		t.Fatalf("unexpected html assets: %v", assets)
+	}
+}
+
+func TestDiscoverStaticAssetsSkipsInfrastructureDirs(t *testing.T) {
+	sourceDir := t.TempDir()
+
+	writeFixture(t, filepath.Join(sourceDir, "manifest.json"), `{"manifest_version": 3}`)
+	writeFixture(t, filepath.Join(sourceDir, "icons", "icon.png"), `png-bits`)
+	writeFixture(t, filepath.Join(sourceDir, "node_modules", "dep", "package.json"), `{"name":"dep"}`)
+	writeFixture(t, filepath.Join(sourceDir, ".git", "config"), `[core]`)
+	writeFixture(t, filepath.Join(sourceDir, ".panex", "events.db"), `sqlite`)
+
+	assets, err := discoverStaticAssets(sourceDir)
+	if err != nil {
+		t.Fatalf("discoverStaticAssets() returned error: %v", err)
+	}
+
+	if len(assets) != 2 {
+		t.Fatalf("expected 2 static assets, got %d: %v", len(assets), assets)
+	}
+	if assets[0] != "icons/icon.png" || assets[1] != "manifest.json" {
+		t.Fatalf("unexpected static assets: %v", assets)
+	}
+}
+
+func TestIsInfrastructureDir(t *testing.T) {
+	testCases := []struct {
+		name string
+		want bool
+	}{
+		{"node_modules", true},
+		{".git", true},
+		{".panex", true},
+		{".vscode", true},
+		{".idea", true},
+		{".cache", true},
+		{"src", false},
+		{"dist", false},
+		{"pages", false},
+		{"icons", false},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			got := isInfrastructureDir(tc.name)
+			if got != tc.want {
+				t.Fatalf("isInfrastructureDir(%q) = %v, want %v", tc.name, got, tc.want)
+			}
+		})
+	}
+}
+
 func TestAutoDetectChromeSimInjection(t *testing.T) {
 	rootDir := t.TempDir()
 	sourceDir := filepath.Join(rootDir, "agent", "src")

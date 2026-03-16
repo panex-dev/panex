@@ -16,7 +16,7 @@ func discoverStaticAssets(sourceDir string) ([]string, error) {
 			return walkErr
 		}
 		if entry.IsDir() {
-			if entry.Name() == "node_modules" {
+			if isInfrastructureDir(entry.Name()) {
 				return filepath.SkipDir
 			}
 			return nil
