@@ -11,12 +11,18 @@ import (
 	"github.com/BurntSushi/toml"
 )
 
-var ErrConfigFileNotFound = errors.New("config file not found")
+var (
+	ErrConfigFileNotFound = errors.New("config file not found")
+	ErrManifestNotFound   = errors.New("manifest.json not found")
+)
 
 const (
 	DefaultPath           = "panex.toml"
 	DefaultEventStorePath = ".panex/events.db"
 	DefaultExtensionID    = "default"
+	DefaultPort           = 4317
+	DefaultOutDir         = ".panex/dist"
+	DefaultAuthToken      = "dev-token"
 	minPort               = 1
 	maxPort               = 65535
 )
@@ -66,6 +72,42 @@ func Load(path string) (Config, error) {
 
 	if err := cfg.Validate(); err != nil {
 		return Config{}, err
+	}
+
+	return cfg, nil
+}
+
+// Infer returns a convention-based Config for a directory that contains a
+// manifest.json but no panex.toml. The inferred config uses the directory
+// itself as source_dir and .panex/dist as out_dir.
+func Infer(dir string) (Config, error) {
+	if strings.TrimSpace(dir) == "" {
+		return Config{}, errors.New("directory is required")
+	}
+
+	manifestPath := filepath.Join(dir, "manifest.json")
+	if _, err := os.Stat(manifestPath); err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return Config{}, fmt.Errorf("%w: %s", ErrManifestNotFound, manifestPath)
+		}
+		return Config{}, fmt.Errorf("stat manifest.json: %w", err)
+	}
+
+	cfg := Config{
+		Extensions: []Extension{{
+			ID:        DefaultExtensionID,
+			SourceDir: dir,
+			OutDir:    filepath.Join(dir, DefaultOutDir),
+		}},
+		Server: Server{
+			Port:           DefaultPort,
+			AuthToken:      DefaultAuthToken,
+			EventStorePath: DefaultEventStorePath,
+		},
+	}
+
+	if err := cfg.Validate(); err != nil {
+		return Config{}, fmt.Errorf("validate inferred config: %w", err)
 	}
 
 	return cfg, nil
@@ -228,17 +270,35 @@ func extensionLabel(index int, id string, legacyMode bool) string {
 	return fmt.Sprintf("extensions[%q]", id)
 }
 
-func pathsOverlap(first, second string) (bool, error) {
-	absFirst, err := filepath.Abs(first)
+// pathsOverlap reports whether sourceDir and outDir overlap in a way that
+// would cause build loops or data corruption. Output nested inside source is
+// allowed when the relative path passes through an infrastructure directory
+// (e.g. .panex/dist) because source walkers and file watchers skip those
+// directories.
+func pathsOverlap(sourceDir, outDir string) (bool, error) {
+	absSource, err := filepath.Abs(sourceDir)
 	if err != nil {
 		return false, err
 	}
-	absSecond, err := filepath.Abs(second)
+	absOut, err := filepath.Abs(outDir)
 	if err != nil {
 		return false, err
 	}
 
-	return isSameOrNestedPath(absFirst, absSecond) || isSameOrNestedPath(absSecond, absFirst), nil
+	if absSource == absOut {
+		return true, nil
+	}
+	// Source nested inside output is always dangerous.
+	if isSameOrNestedPath(absOut, absSource) {
+		return true, nil
+	}
+	// Output nested inside source is safe only when the nesting passes
+	// through an infrastructure directory (e.g. .panex/dist), because
+	// source walkers and file watchers skip those directories.
+	if isSameOrNestedPath(absSource, absOut) {
+		return !isShieldedByInfrastructureDir(absSource, absOut), nil
+	}
+	return false, nil
 }
 
 func isSameOrNestedPath(parent, child string) bool {
@@ -251,4 +311,23 @@ func isSameOrNestedPath(parent, child string) bool {
 	}
 
 	return relPath != ".." && !strings.HasPrefix(relPath, ".."+string(filepath.Separator))
+}
+
+// isShieldedByInfrastructureDir reports whether the relative path from parent
+// to child begins with a directory that source walkers and file watchers skip
+// (node_modules or dot-prefixed directories like .panex, .git).
+func isShieldedByInfrastructureDir(parent, child string) bool {
+	rel, err := filepath.Rel(parent, child)
+	if err != nil {
+		return false
+	}
+	parts := strings.SplitN(rel, string(filepath.Separator), 2)
+	return len(parts) > 0 && isInfrastructureDir(parts[0])
+}
+
+// isInfrastructureDir reports whether a directory name represents build
+// infrastructure that source walkers and file watchers skip. This matches
+// the same predicate in package build and package daemon.
+func isInfrastructureDir(name string) bool {
+	return name == "node_modules" || strings.HasPrefix(name, ".")
 }

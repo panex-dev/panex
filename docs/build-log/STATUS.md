@@ -90,12 +90,13 @@ As of 2026-03-16.
 | 89 | Add multi-extension config/build/watch support with targeted reload routing | `docs/build-log/2026-03-11-pr-089-multi-extension-support.md` |
 | 90 | Add `panex init` first-run scaffolding and default missing-config recovery guidance | `docs/build-log/2026-03-11-pr-090-first-run-init.md` |
 | 91 | Skip infrastructure directories in build discovery and file watching | `docs/build-log/2026-03-16-pr-091-infrastructure-dir-exclusion.md` |
+| 92 | Zero-config `panex dev` for manifest.json directories | `docs/build-log/2026-03-16-pr-092-zero-config-manifest-detection.md` |
 
 ## In progress
 - None.
 
 ## Next
-- Relax source/output overlap validation for `.panex/`-prefixed output, then wire zero-config `panex dev` for directories containing `manifest.json`.
+- Wire zero-config `panex dev` end-to-end for the demo experience: `cd my-extension && panex dev` should build, watch, and serve without any prior setup.
 
 ## Queued Follow-Ons
 - None.
