@@ -26,6 +26,7 @@ Usage:
   panex version
   panex init [--force]
   panex dev [--config path/to/panex.toml]
+  panex doctor
 `
 
 // This is overridden in release builds via -ldflags "-X main.version=<semver>".
@@ -111,6 +112,8 @@ func run(args []string, stdout io.Writer) error {
 		return runInit(args[1:], stdout)
 	case "dev":
 		return runDev(args[1:], stdout)
+	case "doctor":
+		return runDoctor(stdout)
 	case "help", "-h", "--help":
 		return writeString(stdout, usageText)
 	default:
