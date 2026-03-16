@@ -94,12 +94,13 @@ As of 2026-03-16.
 | 93 | Guided startup messaging with Chrome loading instructions | `docs/build-log/2026-03-16-pr-093-guided-startup-messaging.md` |
 | 94 | Add `panex doctor` for project health checks | `docs/build-log/2026-03-16-pr-094-panex-doctor.md` |
 | 95 | Add `panex paths` for quick path inspection | `docs/build-log/2026-03-16-pr-095-panex-paths.md` |
+| 96 | Add `panex dev --open` to launch `chrome://extensions` | `docs/build-log/2026-03-16-pr-096-dev-open.md` |
 
 ## In progress
 - None.
 
 ## Next
-- Start Phase 3: `panex dev --open` for Chrome boundary assistance, or begin Phase 4 packaging work.
+- Continue Phase 3 or begin Phase 4 packaging work.
 
 ## Queued Follow-Ons
 - None.

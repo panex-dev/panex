@@ -25,7 +25,7 @@ const usageText = `panex - development runtime for Chrome extensions
 Usage:
   panex version
   panex init [--force]
-  panex dev [--config path/to/panex.toml]
+  panex dev [--config path/to/panex.toml] [--open]
   panex doctor
   panex paths
 `
@@ -133,6 +133,7 @@ func runDev(args []string, stdout io.Writer) error {
 	fs.SetOutput(io.Discard)
 
 	configPath := fs.String("config", panexconfig.DefaultPath, "Path to panex configuration file")
+	openFlag := fs.Bool("open", false, "Open chrome://extensions in the default browser")
 	if err := fs.Parse(args); err != nil {
 		return &cliError{
 			code: 2,
@@ -173,6 +174,12 @@ func runDev(args []string, stdout io.Writer) error {
 		return &cliError{
 			code: 2,
 			msg:  err.Error(),
+		}
+	}
+
+	if *openFlag {
+		if openErr := openBrowser("chrome://extensions"); openErr != nil {
+			_ = writef(stdout, "note: could not open browser: %v\n", openErr)
 		}
 	}
 
