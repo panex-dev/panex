@@ -42,9 +42,16 @@ func TestRunPackagesDeterministicArchiveForCurrentTarget(t *testing.T) {
 
 	firstPaths := writtenPaths(t, firstOut.String())
 	secondPaths := writtenPaths(t, secondOut.String())
-	if len(firstPaths) != 2 || len(secondPaths) != 2 {
-		t.Fatalf("unexpected written file count: got %d and %d", len(firstPaths), len(secondPaths))
+
+	// Linux targets produce 3 files (archive + .deb + checksum), others produce 2.
+	wantCount := 2
+	if runtime.GOOS == "linux" {
+		wantCount = 3
 	}
+	if len(firstPaths) != wantCount || len(secondPaths) != wantCount {
+		t.Fatalf("unexpected written file count: got %d and %d, want %d", len(firstPaths), len(secondPaths), wantCount)
+	}
+
 	firstArchivePath := firstPaths[0]
 	secondArchivePath := secondPaths[0]
 	firstBytes, err := os.ReadFile(firstArchivePath)
@@ -62,11 +69,12 @@ func TestRunPackagesDeterministicArchiveForCurrentTarget(t *testing.T) {
 		t.Fatalf("expected archive extension in %q", firstArchivePath)
 	}
 
-	firstChecksumBytes, err := os.ReadFile(firstPaths[1])
+	// Checksum manifest is always the last file written.
+	firstChecksumBytes, err := os.ReadFile(firstPaths[wantCount-1])
 	if err != nil {
 		t.Fatalf("read first checksum manifest: %v", err)
 	}
-	secondChecksumBytes, err := os.ReadFile(secondPaths[1])
+	secondChecksumBytes, err := os.ReadFile(secondPaths[wantCount-1])
 	if err != nil {
 		t.Fatalf("read second checksum manifest: %v", err)
 	}
@@ -76,6 +84,25 @@ func TestRunPackagesDeterministicArchiveForCurrentTarget(t *testing.T) {
 	wantLine := release.SHA256Hex(firstBytes) + "  " + filepath.Base(firstArchivePath)
 	if !strings.Contains(string(firstChecksumBytes), wantLine) {
 		t.Fatalf("checksum manifest missing archive digest line %q:\n%s", wantLine, string(firstChecksumBytes))
+	}
+
+	// On Linux, verify .deb is also deterministic and in the checksum manifest.
+	if runtime.GOOS == "linux" {
+		firstDebBytes, err := os.ReadFile(firstPaths[1])
+		if err != nil {
+			t.Fatalf("read first deb: %v", err)
+		}
+		secondDebBytes, err := os.ReadFile(secondPaths[1])
+		if err != nil {
+			t.Fatalf("read second deb: %v", err)
+		}
+		if !bytes.Equal(firstDebBytes, secondDebBytes) {
+			t.Fatal("expected reproducible .deb bytes across repeated runs")
+		}
+		debLine := release.SHA256Hex(firstDebBytes) + "  " + filepath.Base(firstPaths[1])
+		if !strings.Contains(string(firstChecksumBytes), debLine) {
+			t.Fatalf("checksum manifest missing .deb digest line %q:\n%s", debLine, string(firstChecksumBytes))
+		}
 	}
 }
 
