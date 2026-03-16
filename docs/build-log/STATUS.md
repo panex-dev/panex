@@ -95,12 +95,13 @@ As of 2026-03-16.
 | 94 | Add `panex doctor` for project health checks | `docs/build-log/2026-03-16-pr-094-panex-doctor.md` |
 | 95 | Add `panex paths` for quick path inspection | `docs/build-log/2026-03-16-pr-095-panex-paths.md` |
 | 96 | Add `panex dev --open` to launch `chrome://extensions` | `docs/build-log/2026-03-16-pr-096-dev-open.md` |
+| 97 | Add Linux/macOS install script | `docs/build-log/2026-03-16-pr-097-install-script.md` |
 
 ## In progress
 - None.
 
 ## Next
-- Continue Phase 3 or begin Phase 4 packaging work.
+- PR98: Homebrew tap formula for `brew install panex-dev/tap/panex`.
 
 ## Queued Follow-Ons
 - None.
