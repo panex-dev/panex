@@ -104,3 +104,14 @@ jobs:
           else
             gh release create "$TAG" "${assets[@]}" --title "$TAG" --generate-notes "${prerelease_args[@]}"
           fi
+
+      - name: Update Homebrew tap formula
+        if: ${{ !contains(github.ref_name, '-') }}
+        env:
+          GH_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+        run: |
+          if [[ -z "$GH_TOKEN" ]]; then
+            echo "::warning::HOMEBREW_TAP_TOKEN not set — skipping tap update"
+            exit 0
+          fi
+          ./scripts/update-homebrew-tap.sh --version "${{ github.ref_name }}"
