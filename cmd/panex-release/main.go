@@ -71,6 +71,22 @@ func run(args []string, stdout io.Writer) error {
 		if _, err := fmt.Fprintf(stdout, "wrote %s\n", archivePath); err != nil {
 			return err
 		}
+
+		// Generate .deb package for eligible Linux targets.
+		if debName := release.DebFileName(*version, target); debName != "" {
+			debPath := filepath.Join(*outDir, debName)
+			if err := packageDeb(repoRoot, debPath, *version, target); err != nil {
+				return err
+			}
+			debBytes, err := os.ReadFile(debPath)
+			if err != nil {
+				return fmt.Errorf("read deb %q for checksum: %w", debPath, err)
+			}
+			checksumEntries[filepath.Base(debPath)] = release.SHA256Hex(debBytes)
+			if _, err := fmt.Fprintf(stdout, "wrote %s\n", debPath); err != nil {
+				return err
+			}
+		}
 	}
 
 	checksumPath := filepath.Join(*outDir, release.ChecksumFileName(*version))
@@ -183,6 +199,48 @@ func writeArchive(path string, target release.Target, files []release.File) (err
 
 	if err := release.WriteArchive(file, target, files); err != nil {
 		return fmt.Errorf("write archive %q: %w", path, err)
+	}
+	return nil
+}
+
+func packageDeb(repoRoot, debPath, version string, target release.Target) error {
+	tempDir, err := os.MkdirTemp("", "panex-deb-*")
+	if err != nil {
+		return fmt.Errorf("create temp deb dir: %w", err)
+	}
+	defer func() {
+		_ = os.RemoveAll(tempDir)
+	}()
+
+	binaryPath := filepath.Join(tempDir, target.BinaryFileName())
+	if err := buildBinary(repoRoot, binaryPath, version, target); err != nil {
+		return err
+	}
+	binaryBytes, err := os.ReadFile(binaryPath)
+	if err != nil {
+		return fmt.Errorf("read built binary %q: %w", binaryPath, err)
+	}
+
+	return writeDebFile(debPath, version, target, binaryBytes)
+}
+
+func writeDebFile(path, version string, target release.Target, binaryData []byte) (err error) {
+	file, err := os.Create(path)
+	if err != nil {
+		return fmt.Errorf("create deb %q: %w", path, err)
+	}
+	defer func() {
+		closeErr := file.Close()
+		if err == nil && closeErr != nil {
+			err = closeErr
+		}
+		if err != nil {
+			_ = os.Remove(path)
+		}
+	}()
+
+	if err := release.WriteDeb(file, version, target, binaryData); err != nil {
+		return fmt.Errorf("write deb %q: %w", path, err)
 	}
 	return nil
 }
