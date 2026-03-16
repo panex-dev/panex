@@ -1,4 +1,4 @@
-.PHONY: init build build-go build-ts check check-ts test test-go test-ts lint fmt release clean
+.PHONY: init build build-go build-ts check check-ts test test-go test-ts lint fmt release clean pr
 
 # Pin tool versions for reproductivity
 GOLANGCI_LINT_VERSION := v1.64.5
@@ -72,6 +72,9 @@ release:
 		args="$$args --targets $(TARGETS)"; \
 	fi; \
 	go run ./cmd/panex-release $$args
+
+pr:
+	./scripts/pr-create.sh
 
 clean:
 	rm -rf $(BIN_DIR) $(RELEASE_DIR)

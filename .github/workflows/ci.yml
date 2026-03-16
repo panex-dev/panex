@@ -6,7 +6,6 @@ on:
       - main
       - feat/pr*
   pull_request:
-    branches: [main]
 
 permissions:
   contents: read
@@ -16,6 +15,15 @@ jobs:
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     steps:
+      - name: Reject PRs not targeting main
+        if: github.event.pull_request.base.ref != 'main'
+        run: |
+          echo "::error::PR targets '${{ github.event.pull_request.base.ref }}' instead of 'main'."
+          echo "All PRs must target the main branch. Chained feature-branch PRs are not allowed."
+          echo ""
+          echo "Fix: close this PR, rebase your branch onto main, and open a new PR targeting main."
+          exit 1
+
       - name: Checkout code
         uses: actions/checkout@v4
         with:
