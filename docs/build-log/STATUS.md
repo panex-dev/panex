@@ -93,12 +93,13 @@ As of 2026-03-16.
 | 92 | Zero-config `panex dev` for manifest.json directories | `docs/build-log/2026-03-16-pr-092-zero-config-manifest-detection.md` |
 | 93 | Guided startup messaging with Chrome loading instructions | `docs/build-log/2026-03-16-pr-093-guided-startup-messaging.md` |
 | 94 | Add `panex doctor` for project health checks | `docs/build-log/2026-03-16-pr-094-panex-doctor.md` |
+| 95 | Add `panex paths` for quick path inspection | `docs/build-log/2026-03-16-pr-095-panex-paths.md` |
 
 ## In progress
 - None.
 
 ## Next
-- Add `panex paths` command for quick path inspection, or start Phase 3 (`panex dev --open`) for Chrome boundary assistance.
+- Start Phase 3: `panex dev --open` for Chrome boundary assistance, or begin Phase 4 packaging work.
 
 ## Queued Follow-Ons
 - None.
