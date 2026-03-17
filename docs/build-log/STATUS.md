@@ -1,6 +1,6 @@
 # Build Status Tracker
 
-As of 2026-03-16.
+As of 2026-03-17.
 
 ## Completed
 | PR | Scope | Evidence |
@@ -99,12 +99,13 @@ As of 2026-03-16.
 | 98 | Enforce all PRs must target main branch | (process PR, no build-log entry) |
 | 99 | Add Homebrew tap formula and release automation | `docs/build-log/2026-03-16-pr-099-homebrew-formula.md` |
 | 100 | Generate `.deb` packages for Linux releases | `docs/build-log/2026-03-17-pr-100-deb-package.md` |
+| 101 | Add Windows MSI installer and winget manifest generator | `docs/build-log/2026-03-17-pr-101-windows-msi.md` |
 
 ## In progress
 - None.
 
 ## Next
-- Continue Phase 4 packaging: Windows MSI/winget.
+- Phase 4 packaging complete. Proceed to Phase 5 onboarding.
 
 ## Queued Follow-Ons
 - None.
