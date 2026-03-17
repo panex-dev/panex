@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Install Panex</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <header>
+    <h1>Panex</h1>
+    <p class="tagline">Development runtime for Chrome extensions</p>
+  </header>
+
+  <main>
+    <section id="install" class="install-section">
+      <h2>Install</h2>
+      <p class="detect-msg">Detected: <strong id="detected-os">detecting&hellip;</strong></p>
+
+      <!-- macOS -->
+      <div class="platform-card" id="card-macos" hidden>
+        <h3>macOS</h3>
+        <div class="method primary">
+          <span class="label">Recommended</span>
+          <pre><code>brew install panex-dev/tap/panex</code></pre>
+        </div>
+        <div class="method">
+          <span class="label">Shell script</span>
+          <pre><code>curl -fsSL https://github.com/panex-dev/panex/raw/main/scripts/install.sh | sh</code></pre>
+        </div>
+      </div>
+
+      <!-- Linux -->
+      <div class="platform-card" id="card-linux" hidden>
+        <h3>Linux</h3>
+        <div class="method primary">
+          <span class="label">Recommended</span>
+          <pre><code>curl -fsSL https://github.com/panex-dev/panex/raw/main/scripts/install.sh | sh</code></pre>
+        </div>
+        <div class="method">
+          <span class="label">Debian / Ubuntu</span>
+          <pre><code># Download the .deb from the latest release
+sudo dpkg -i panex_*_linux_amd64.deb</code></pre>
+        </div>
+        <div class="method">
+          <span class="label">Homebrew</span>
+          <pre><code>brew install panex-dev/tap/panex</code></pre>
+        </div>
+      </div>
+
+      <!-- Windows -->
+      <div class="platform-card" id="card-windows" hidden>
+        <h3>Windows</h3>
+        <div class="method primary">
+          <span class="label">Recommended</span>
+          <pre><code>winget install panex-dev.panex</code></pre>
+        </div>
+        <div class="method">
+          <span class="label">MSI Installer</span>
+          <p>Download the <code>.msi</code> installer from the
+            <a href="https://github.com/panex-dev/panex/releases/latest">latest release</a>.
+          </p>
+        </div>
+      </div>
+
+      <!-- Fallback / manual -->
+      <details class="manual-section">
+        <summary>Manual install (all platforms)</summary>
+        <p>Download the archive for your OS and architecture from
+          <a href="https://github.com/panex-dev/panex/releases/latest">GitHub Releases</a>,
+          extract it, and place the <code>panex</code> binary on your <code>PATH</code>.
+        </p>
+      </details>
+
+      <div class="other-platforms">
+        <button id="show-macos" class="tab" hidden>macOS</button>
+        <button id="show-linux" class="tab" hidden>Linux</button>
+        <button id="show-windows" class="tab" hidden>Windows</button>
+      </div>
+    </section>
+
+    <section class="next-steps">
+      <h2>Get started</h2>
+      <p>After installing, verify it works:</p>
+      <pre><code>panex version</code></pre>
+      <p>Then create your first extension project:</p>
+      <pre><code>panex init my-extension
+cd my-extension
+panex dev</code></pre>
+      <p>Follow the on-screen instructions to load the extension in Chrome.</p>
+    </section>
+
+    <section class="chrome-steps">
+      <h2>Load in Chrome</h2>
+      <ol>
+        <li>Open <code>chrome://extensions</code></li>
+        <li>Turn on <strong>Developer Mode</strong> (top right)</li>
+        <li>Click <strong>Load unpacked</strong></li>
+        <li>Select the <code>.panex/dist</code> folder printed by <code>panex dev</code></li>
+      </ol>
+    </section>
+  </main>
+
+  <footer>
+    <p>
+      <a href="https://github.com/panex-dev/panex">GitHub</a>
+      &middot;
+      <a href="https://github.com/panex-dev/panex/releases/latest">Releases</a>
+    </p>
+  </footer>
+
+  <script src="detect.js"></script>
+</body>
+</html>
