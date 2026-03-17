@@ -90,7 +90,7 @@ export interface ContextLog {
   context_id: string;
   level: string;
   message: string;
-  timestamp_s: number;
+  timestamp_ms: number;
 }
 
 export interface CommandReload {

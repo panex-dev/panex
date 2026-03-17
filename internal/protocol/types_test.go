@@ -216,7 +216,7 @@ func TestConstructors(t *testing.T) {
 		},
 		{
 			name:         "context.log",
-			got:          NewContextLog(src, ContextLog{ContextID: "background", Level: "info", Message: "ok", TimestampS: 10}),
+			got:          NewContextLog(src, ContextLog{ContextID: "background", Level: "info", Message: "ok", TimestampMS: 10000}),
 			wantType:     TypeEvent,
 			wantName:     MessageContextLog,
 			wantDataType: ContextLog{},

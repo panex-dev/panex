@@ -228,6 +228,6 @@ function contextLogEnvelope(): Envelope {
     t: "event",
     name: "context.log",
     src: { role: "daemon", id: "daemon-1" },
-    data: { context_id: "ctx-1", level: "info", message: "hello", timestamp_s: 1 }
+    data: { context_id: "ctx-1", level: "info", message: "hello", timestamp_ms: 1000 }
   };
 }
