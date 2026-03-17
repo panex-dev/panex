@@ -100,12 +100,13 @@ As of 2026-03-17.
 | 99 | Add Homebrew tap formula and release automation | `docs/build-log/2026-03-16-pr-099-homebrew-formula.md` |
 | 100 | Generate `.deb` packages for Linux releases | `docs/build-log/2026-03-17-pr-100-deb-package.md` |
 | 101 | Add Windows MSI installer and winget manifest generator | `docs/build-log/2026-03-17-pr-101-windows-msi.md` |
+| 102 | OS-aware download and install page | `docs/build-log/2026-03-17-pr-102-download-page.md` |
 
 ## In progress
 - None.
 
 ## Next
-- Phase 4 packaging complete. Proceed to Phase 5 onboarding.
+- Phase 5 complete. All five onboarding plan phases done.
 
 ## Queued Follow-Ons
 - None.
