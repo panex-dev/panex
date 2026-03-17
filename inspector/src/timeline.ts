@@ -216,7 +216,7 @@ export function filterEntries(entries: TimelineEntry[], filter: TimelineFilter):
           }
           break;
         case "type":
-          if (!entry.envelope.t.toLowerCase().startsWith(clause.value)) {
+          if (!entry.envelope.t.toLowerCase().includes(clause.value)) {
             return false;
           }
           break;
