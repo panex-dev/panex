@@ -267,3 +267,65 @@ export function readWebSocketMessageData(
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
 }
+
+// --- Daemon URL utilities ---
+
+const loopbackHosts = new Set(["127.0.0.1", "localhost"]);
+
+/**
+ * Strip the token query parameter from a daemon WebSocket URL.
+ * Used to build a display-safe URL that does not leak credentials.
+ */
+export function buildDaemonURL(wsURL: string): string {
+  const url = new URL(wsURL);
+  url.searchParams.delete("token");
+  return url.toString();
+}
+
+/**
+ * Return `value` trimmed if non-empty, otherwise `fallback`.
+ */
+export function nonEmpty(value: string | null | undefined, fallback: string): string {
+  if (typeof value !== "string") {
+    return fallback;
+  }
+
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : fallback;
+}
+
+/**
+ * Validate and normalize a daemon WebSocket URL.
+ * Only allows ws:// protocol on loopback hosts with /ws path.
+ * Returns `fallback` for any invalid input.
+ */
+export function normalizeDaemonWebSocketURL(
+  value: string | null | undefined,
+  fallback: string
+): string {
+  const trimmed = nonEmpty(value, "");
+  if (trimmed === "") {
+    return fallback;
+  }
+
+  let parsed: URL;
+  try {
+    parsed = new URL(trimmed);
+  } catch {
+    return fallback;
+  }
+
+  if (
+    parsed.protocol !== "ws:" ||
+    !loopbackHosts.has(parsed.hostname) ||
+    parsed.pathname !== "/ws" ||
+    parsed.username !== "" ||
+    parsed.password !== ""
+  ) {
+    return fallback;
+  }
+
+  parsed.hash = "";
+  parsed.searchParams.delete("token");
+  return parsed.toString();
+}
