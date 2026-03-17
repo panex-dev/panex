@@ -1,10 +1,13 @@
 import { decode, encode } from "@msgpack/msgpack";
 import {
   PROTOCOL_VERSION,
+  buildDaemonURL,
   isEnvelope,
   isHelloAck,
   isQueryEventsResult,
   isQueryStorageResult,
+  nonEmpty,
+  normalizeDaemonWebSocketURL,
   readWebSocketMessageData,
   type ChromeAPICall,
   type Envelope,
@@ -48,7 +51,6 @@ export type ConnectionStatus = "connecting" | "open" | "reconnecting" | "closed"
 
 const defaultDaemonWSURL = "ws://127.0.0.1:4317/ws";
 const defaultDaemonToken = "dev-token";
-const loopbackHosts = new Set(["127.0.0.1", "localhost"]);
 const closeMessageTooBig = 1009;
 
 interface ConnectionContextValue {
@@ -662,12 +664,6 @@ export function resolveConnectionParamsFromSearch(
   };
 }
 
-function buildDaemonURL(wsURL: string): string {
-  const url = new URL(wsURL);
-  url.searchParams.delete("token");
-  return url.toString();
-}
-
 function safeClientID(): string {
   if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
     return crypto.randomUUID();
@@ -680,43 +676,6 @@ function safeClientID(): string {
   }
 
   return `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
-}
-
-function nonEmpty(value: string | null, fallback: string): string {
-  if (typeof value !== "string") {
-    return fallback;
-  }
-
-  const trimmed = value.trim();
-  return trimmed.length > 0 ? trimmed : fallback;
-}
-
-function normalizeDaemonWebSocketURL(value: string | null, fallback: string): string {
-  const trimmed = nonEmpty(value, "");
-  if (trimmed === "") {
-    return fallback;
-  }
-
-  let parsed: URL;
-  try {
-    parsed = new URL(trimmed);
-  } catch {
-    return fallback;
-  }
-
-  if (
-    parsed.protocol !== "ws:" ||
-    !loopbackHosts.has(parsed.hostname) ||
-    parsed.pathname !== "/ws" ||
-    parsed.username !== "" ||
-    parsed.password !== ""
-  ) {
-    return fallback;
-  }
-
-  parsed.hash = "";
-  parsed.searchParams.delete("token");
-  return parsed.toString();
 }
 
 function isEmbeddedContext(): boolean {

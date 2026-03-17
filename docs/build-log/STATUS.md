@@ -103,12 +103,13 @@ As of 2026-03-17.
 | 102 | OS-aware download and install page | `docs/build-log/2026-03-17-pr-102-download-page.md` |
 | 103 | Inspector dark mode, font fix, client ID hardening | `docs/build-log/2026-03-17-pr-103-inspector-dark-mode.md` |
 | 104 | Fix type: operator inconsistency and reject privileged ports | `docs/build-log/2026-03-17-pr-104-search-port-fixes.md` |
+| 105 | Deduplicate daemon URL utilities into shared/protocol | `docs/build-log/2026-03-17-pr-105-deduplicate-daemon-url.md` |
 
 ## In progress
 - None.
 
 ## Next
-- Remaining tech debt: deduplicate `buildDaemonURL`/`nonEmpty`, unify `TimestampS` unit.
+- Tech debt nearly clear. Remaining: `TimestampS` unit inconsistency (protocol change, deferred).
 
 ## Queued Follow-Ons
 - None.
