@@ -102,12 +102,13 @@ As of 2026-03-17.
 | 101 | Add Windows MSI installer and winget manifest generator | `docs/build-log/2026-03-17-pr-101-windows-msi.md` |
 | 102 | OS-aware download and install page | `docs/build-log/2026-03-17-pr-102-download-page.md` |
 | 103 | Inspector dark mode, font fix, client ID hardening | `docs/build-log/2026-03-17-pr-103-inspector-dark-mode.md` |
+| 104 | Fix type: operator inconsistency and reject privileged ports | `docs/build-log/2026-03-17-pr-104-search-port-fixes.md` |
 
 ## In progress
 - None.
 
 ## Next
-- Continue inspector polish (remaining tech debt items).
+- Remaining tech debt: deduplicate `buildDaemonURL`/`nonEmpty`, unify `TimestampS` unit.
 
 ## Queued Follow-Ons
 - None.

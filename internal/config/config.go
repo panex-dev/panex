@@ -23,7 +23,7 @@ const (
 	DefaultPort           = 4317
 	DefaultOutDir         = ".panex/dist"
 	DefaultAuthToken      = "dev-token"
-	minPort               = 1
+	minPort               = 1024
 	maxPort               = 65535
 )
 
