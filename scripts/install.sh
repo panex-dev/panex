@@ -6,6 +6,7 @@
 #   curl -fsSL https://raw.githubusercontent.com/panex-dev/panex/main/scripts/install.sh | sh
 #   curl -fsSL ... | sh -s -- --version v0.2.0
 #   curl -fsSL ... | sh -s -- --install-dir ~/.local/bin
+#   curl -fsSL ... | sh -s -- --method apt
 #
 # The script:
 #   1. Detects OS and architecture.
@@ -36,18 +37,22 @@ need_cmd() {
 
 VERSION=""
 INSTALL_DIR=""
+METHOD=""
 
 while [ $# -gt 0 ]; do
   case "$1" in
     --version)    shift; VERSION="${1:-}"; shift ;;
     --install-dir) shift; INSTALL_DIR="${1:-}"; shift ;;
+    --method)     shift; METHOD="${1:-}"; shift ;;
     --help|-h)
-      log "Usage: install.sh [--version VERSION] [--install-dir DIR]"
+      log "Usage: install.sh [--version VERSION] [--install-dir DIR] [--method METHOD]"
       log ""
       log "Options:"
       log "  --version      Pin a specific release (e.g. v0.2.0). Default: latest."
       log "  --install-dir  Directory to install into. Default: /usr/local/bin"
       log "                 (falls back to ~/.local/bin without sudo)."
+      log "  --method       Install method: 'apt' to set up the APT repository"
+      log "                 (Debian/Ubuntu only). Default: direct binary download."
       exit 0
       ;;
     *) fatal "unknown option: $1" ;;
@@ -177,9 +182,62 @@ check_path() {
   esac
 }
 
+# --- apt installation --------------------------------------------------------
+
+install_via_apt() {
+  need_cmd curl
+  need_cmd sudo
+
+  os="$(detect_os)"
+  if [ "$os" != "linux" ]; then
+    fatal "--method apt is only supported on Linux (Debian/Ubuntu)"
+  fi
+
+  if ! command -v apt-get >/dev/null 2>&1; then
+    fatal "--method apt requires apt-get (Debian/Ubuntu)"
+  fi
+
+  log ""
+  log "panex installer (apt)"
+  log ""
+
+  log "adding GPG key..."
+  sudo mkdir -p /etc/apt/keyrings
+  curl -fsSL https://panex-dev.github.io/apt/gpg.key \
+    | sudo gpg --dearmor -o /etc/apt/keyrings/panex.gpg
+
+  log "adding APT repository..."
+  echo "deb [signed-by=/etc/apt/keyrings/panex.gpg] https://panex-dev.github.io/apt stable main" \
+    | sudo tee /etc/apt/sources.list.d/panex.list >/dev/null
+
+  log "installing panex..."
+  sudo apt-get update -qq
+  if [ -n "$VERSION" ]; then
+    deb_version="${VERSION#v}"
+    sudo apt-get install -y "panex=${deb_version}"
+  else
+    sudo apt-get install -y panex
+  fi
+
+  installed_version="$(panex version 2>/dev/null || echo "unknown")"
+  log ""
+  log "panex installed successfully via apt."
+  log "  version: ${installed_version}"
+  log ""
+  log "Future updates: sudo apt update && sudo apt upgrade panex"
+  log ""
+}
+
 # --- main --------------------------------------------------------------------
 
 main() {
+  if [ "$METHOD" = "apt" ]; then
+    install_via_apt
+    return
+  elif [ -n "$METHOD" ]; then
+    fatal "unknown method: $METHOD (supported: apt)"
+  fi
+
   need_cmd curl
   need_cmd tar
   need_cmd mktemp

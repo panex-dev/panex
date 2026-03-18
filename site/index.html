@@ -34,13 +34,14 @@
       <div class="platform-card" id="card-linux" hidden>
         <h3>Linux</h3>
         <div class="method primary">
-          <span class="label">Recommended</span>
-          <pre><code>curl -fsSL https://github.com/panex-dev/panex/raw/main/scripts/install.sh | sh</code></pre>
+          <span class="label">Debian / Ubuntu (recommended)</span>
+          <pre><code>curl -fsSL https://panex-dev.github.io/apt/gpg.key | sudo gpg --dearmor -o /etc/apt/keyrings/panex.gpg
+echo "deb [signed-by=/etc/apt/keyrings/panex.gpg] https://panex-dev.github.io/apt stable main" | sudo tee /etc/apt/sources.list.d/panex.list
+sudo apt update && sudo apt install panex</code></pre>
         </div>
         <div class="method">
-          <span class="label">Debian / Ubuntu</span>
-          <pre><code># Download the .deb from the latest release
-sudo dpkg -i panex_*_linux_amd64.deb</code></pre>
+          <span class="label">Shell script</span>
+          <pre><code>curl -fsSL https://github.com/panex-dev/panex/raw/main/scripts/install.sh | sh</code></pre>
         </div>
         <div class="method">
           <span class="label">Homebrew</span>
