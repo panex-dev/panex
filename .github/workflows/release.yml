@@ -116,6 +116,28 @@ jobs:
           fi
           ./scripts/update-homebrew-tap.sh --version "${{ github.ref_name }}"
 
+      - name: Import GPG key for APT signing
+        if: ${{ !contains(github.ref_name, '-') }}
+        env:
+          APT_GPG_PRIVATE_KEY: ${{ secrets.APT_GPG_PRIVATE_KEY }}
+        run: |
+          if [[ -z "$APT_GPG_PRIVATE_KEY" ]]; then
+            echo "::warning::APT_GPG_PRIVATE_KEY not set — skipping apt repo update"
+            exit 0
+          fi
+          echo "$APT_GPG_PRIVATE_KEY" | gpg --batch --import
+
+      - name: Update APT repository
+        if: ${{ !contains(github.ref_name, '-') }}
+        env:
+          GH_TOKEN: ${{ secrets.APT_REPO_TOKEN }}
+        run: |
+          if [[ -z "$GH_TOKEN" ]]; then
+            echo "::warning::APT_REPO_TOKEN not set — skipping apt repo update"
+            exit 0
+          fi
+          ./scripts/update-apt-repo.sh --version "${{ github.ref_name }}"
+
   build-msi:
     needs: verify-and-package
     strategy:
