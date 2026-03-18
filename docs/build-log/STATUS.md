@@ -104,12 +104,13 @@ As of 2026-03-17.
 | 103 | Inspector dark mode, font fix, client ID hardening | `docs/build-log/2026-03-17-pr-103-inspector-dark-mode.md` |
 | 104 | Fix type: operator inconsistency and reject privileged ports | `docs/build-log/2026-03-17-pr-104-search-port-fixes.md` |
 | 105 | Deduplicate daemon URL utilities into shared/protocol | `docs/build-log/2026-03-17-pr-105-deduplicate-daemon-url.md` |
+| 106 | Unify ContextLog timestamp to milliseconds | `docs/build-log/2026-03-17-pr-106-timestamp-ms-consistency.md` |
 
 ## In progress
 - None.
 
 ## Next
-- Tech debt nearly clear. Remaining: `TimestampS` unit inconsistency (protocol change, deferred).
+- Tech debt tracker clear. All known issues resolved or mitigated.
 
 ## Queued Follow-Ons
 - None.

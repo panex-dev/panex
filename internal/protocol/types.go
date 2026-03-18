@@ -117,10 +117,10 @@ type BuildComplete struct {
 }
 
 type ContextLog struct {
-	ContextID  string `msgpack:"context_id"`
-	Level      string `msgpack:"level"`
-	Message    string `msgpack:"message"`
-	TimestampS int64  `msgpack:"timestamp_s"`
+	ContextID   string `msgpack:"context_id"`
+	Level       string `msgpack:"level"`
+	Message     string `msgpack:"message"`
+	TimestampMS int64  `msgpack:"timestamp_ms"`
 }
 
 type CommandReload struct {
