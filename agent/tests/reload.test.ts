@@ -43,7 +43,7 @@ describe("reload command handler", () => {
   });
 
   it("does not call runtime reload for unrelated messages", () => {
-    const envelope = baseEnvelope("context.log", "event");
+    const envelope = baseEnvelope("build.complete", "event");
 
     let called = 0;
     const handled = handleReloadCommand(envelope, "default", () => {

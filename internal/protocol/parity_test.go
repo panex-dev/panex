@@ -42,7 +42,6 @@ func TestTypeScriptProtocolParity(t *testing.T) {
 		string(MessageHello),
 		string(MessageHelloAck),
 		string(MessageBuildComplete),
-		string(MessageContextLog),
 		string(MessageCommandReload),
 		string(MessageQueryEvents),
 		string(MessageQueryResult),

@@ -11,7 +11,6 @@ export const envelopeNames = [
   "hello",
   "hello.ack",
   "build.complete",
-  "context.log",
   "command.reload",
   "query.events",
   "query.events.result",
@@ -31,7 +30,6 @@ export const messageTypeByName: Readonly<Record<EnvelopeName, EnvelopeType>> = {
   hello: "lifecycle",
   "hello.ack": "lifecycle",
   "build.complete": "event",
-  "context.log": "event",
   "command.reload": "command",
   "query.events": "command",
   "query.events.result": "event",
@@ -84,13 +82,6 @@ export interface BuildComplete {
   duration_ms: number;
   extension_id?: string;
   changed_files?: string[];
-}
-
-export interface ContextLog {
-  context_id: string;
-  level: string;
-  message: string;
-  timestamp_ms: number;
 }
 
 export interface CommandReload {

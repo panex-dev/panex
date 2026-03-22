@@ -77,7 +77,7 @@ describe("message guards", () => {
 
   it("identifies command.reload envelopes", () => {
     assert.equal(isReloadCommand(makeEnvelope("command.reload")), true);
-    assert.equal(isReloadCommand(makeEnvelope("context.log")), false);
+    assert.equal(isReloadCommand(makeEnvelope("build.complete")), false);
   });
 
   it("identifies query.storage.result envelopes", () => {

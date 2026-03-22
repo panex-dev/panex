@@ -22,7 +22,6 @@ const (
 	MessageHello           MessageName = "hello"
 	MessageHelloAck        MessageName = "hello.ack"
 	MessageBuildComplete   MessageName = "build.complete"
-	MessageContextLog      MessageName = "context.log"
 	MessageCommandReload   MessageName = "command.reload"
 	MessageQueryEvents     MessageName = "query.events"
 	MessageQueryResult     MessageName = "query.events.result"
@@ -116,13 +115,6 @@ type BuildComplete struct {
 	ChangedFiles []string `msgpack:"changed_files,omitempty"`
 }
 
-type ContextLog struct {
-	ContextID   string `msgpack:"context_id"`
-	Level       string `msgpack:"level"`
-	Message     string `msgpack:"message"`
-	TimestampMS int64  `msgpack:"timestamp_ms"`
-}
-
 type CommandReload struct {
 	Reason      string `msgpack:"reason"`
 	BuildID     string `msgpack:"build_id,omitempty"`
@@ -208,7 +200,6 @@ var messageTypeByName = map[MessageName]MessageType{
 	MessageHello:           TypeLifecycle,
 	MessageHelloAck:        TypeLifecycle,
 	MessageBuildComplete:   TypeEvent,
-	MessageContextLog:      TypeEvent,
 	MessageCommandReload:   TypeCommand,
 	MessageQueryEvents:     TypeCommand,
 	MessageQueryResult:     TypeEvent,
@@ -238,10 +229,6 @@ func NewHelloAck(src Source, data HelloAck) Envelope {
 
 func NewBuildComplete(src Source, data BuildComplete) Envelope {
 	return newEnvelope(TypeEvent, MessageBuildComplete, src, data)
-}
-
-func NewContextLog(src Source, data ContextLog) Envelope {
-	return newEnvelope(TypeEvent, MessageContextLog, src, data)
 }
 
 func NewCommandReload(src Source, data CommandReload) Envelope {
