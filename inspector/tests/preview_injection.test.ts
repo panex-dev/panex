@@ -16,7 +16,7 @@ describe("preview html chrome-sim injection", () => {
 
     assert.match(injected, /data-panex-chrome-sim="1"/);
     assert.match(injected, /data-panex-ws="ws:\/\/127\.0\.0\.1:4317\/ws"/);
-    assert.match(injected, /data-panex-token="dev-token"/);
+    assert.doesNotMatch(injected, /data-panex-token/);
     assert.match(injected, /data-panex-extension-id="ext-1"/);
     assert.match(injected, /src="\.\/chrome-sim\.js"/);
     assert.ok(injected.indexOf("data-panex-chrome-sim") < injected.toLowerCase().indexOf("</head>"));
@@ -44,7 +44,7 @@ describe("preview html chrome-sim injection", () => {
     );
   });
 
-  it("renders a deterministic script tag with escaped attributes", () => {
+  it("renders a deterministic script tag with escaped attributes and no token", () => {
     const tag = chromeSimScriptTag({
       daemonURL: "ws://localhost:4317/ws?x=1&y=2",
       authToken: "\"quoted\"",
@@ -53,7 +53,7 @@ describe("preview html chrome-sim injection", () => {
 
     assert.match(tag, /^<script /);
     assert.match(tag, /type="module"/);
-    assert.match(tag, /data-panex-token="&quot;quoted&quot;"/);
+    assert.doesNotMatch(tag, /data-panex-token/);
     assert.match(tag, /data-panex-ws="ws:\/\/localhost:4317\/ws\?x=1&amp;y=2"/);
   });
 });

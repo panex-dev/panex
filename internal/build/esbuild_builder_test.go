@@ -163,8 +163,16 @@ func TestBuildCopiesHTMLAndInjectsChromeSim(t *testing.T) {
 	if !strings.Contains(popupHTML, `src="./chrome-sim.js"`) {
 		t.Fatalf("expected popup html to inject chrome-sim.js, got %q", popupHTML)
 	}
-	if !strings.Contains(popupHTML, `data-panex-token="dev-token"`) {
-		t.Fatalf("expected popup html to include panex token bootstrap, got %q", popupHTML)
+	if strings.Contains(popupHTML, `data-panex-token`) {
+		t.Fatalf("expected popup html to NOT include token in data attribute, got %q", popupHTML)
+	}
+	if !strings.Contains(popupHTML, `__panex_bootstrap__.js`) {
+		t.Fatalf("expected popup html to reference bootstrap config script, got %q", popupHTML)
+	}
+
+	bootstrapJS := readFixture(t, filepath.Join(outDir, "__panex_bootstrap__.js"))
+	if !strings.Contains(bootstrapJS, `__PANEX_DAEMON_TOKEN__`) {
+		t.Fatalf("expected bootstrap config to contain token global, got %q", bootstrapJS)
 	}
 
 	optionsHTML := readFixture(t, filepath.Join(outDir, "pages", "options.html"))
