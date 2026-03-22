@@ -65,35 +65,96 @@ func (s *SQLiteEventStore) initialize() error {
 		CREATE TABLE IF NOT EXISTS protocol_events (
 			id INTEGER PRIMARY KEY AUTOINCREMENT,
 			recorded_at_ms INTEGER NOT NULL,
+			extension_id TEXT NOT NULL DEFAULT 'default',
 			envelope BLOB NOT NULL
 		);
 	`); err != nil {
 		return fmt.Errorf("create sqlite schema: %w", err)
 	}
+	if err := s.migrateProtocolEventsExtensionID(); err != nil {
+		return err
+	}
 	if _, err := s.db.Exec(`
 		CREATE TABLE IF NOT EXISTS storage_items (
+			extension_id TEXT NOT NULL DEFAULT 'default',
 			area TEXT NOT NULL,
 			key TEXT NOT NULL,
 			value BLOB NOT NULL,
-			PRIMARY KEY(area, key)
+			PRIMARY KEY(extension_id, area, key)
 		);
 	`); err != nil {
 		return fmt.Errorf("create sqlite storage schema: %w", err)
+	}
+	if err := s.migrateStorageItemsExtensionID(); err != nil {
+		return err
 	}
 
 	return nil
 }
 
-func (s *SQLiteEventStore) Append(ctx context.Context, envelope protocol.Envelope) error {
+func (s *SQLiteEventStore) migrateProtocolEventsExtensionID() error {
+	var count int
+	err := s.db.QueryRow(
+		`SELECT COUNT(*) FROM pragma_table_info('protocol_events') WHERE name = 'extension_id';`,
+	).Scan(&count)
+	if err != nil || count > 0 {
+		return nil
+	}
+	if _, err := s.db.Exec(`ALTER TABLE protocol_events ADD COLUMN extension_id TEXT NOT NULL DEFAULT 'default';`); err != nil {
+		return fmt.Errorf("migrate protocol_events: add extension_id: %w", err)
+	}
+	return nil
+}
+
+func (s *SQLiteEventStore) migrateStorageItemsExtensionID() error {
+	var count int
+	err := s.db.QueryRow(
+		`SELECT COUNT(*) FROM pragma_table_info('storage_items') WHERE name = 'extension_id';`,
+	).Scan(&count)
+	if err != nil || count > 0 {
+		return nil
+	}
+	// Recreate table with new primary key since SQLite can't alter PKs.
+	if _, err := s.db.Exec(`
+		ALTER TABLE storage_items RENAME TO storage_items_old;
+	`); err != nil {
+		return fmt.Errorf("migrate storage_items: rename: %w", err)
+	}
+	if _, err := s.db.Exec(`
+		CREATE TABLE storage_items (
+			extension_id TEXT NOT NULL DEFAULT 'default',
+			area TEXT NOT NULL,
+			key TEXT NOT NULL,
+			value BLOB NOT NULL,
+			PRIMARY KEY(extension_id, area, key)
+		);
+	`); err != nil {
+		return fmt.Errorf("migrate storage_items: create new table: %w", err)
+	}
+	if _, err := s.db.Exec(`
+		INSERT INTO storage_items(extension_id, area, key, value)
+		SELECT 'default', area, key, value FROM storage_items_old;
+	`); err != nil {
+		return fmt.Errorf("migrate storage_items: copy data: %w", err)
+	}
+	if _, err := s.db.Exec(`DROP TABLE storage_items_old;`); err != nil {
+		return fmt.Errorf("migrate storage_items: drop old table: %w", err)
+	}
+	return nil
+}
+
+func (s *SQLiteEventStore) Append(ctx context.Context, envelope protocol.Envelope, extensionID string) error {
 	encoded, err := protocol.Encode(envelope)
 	if err != nil {
 		return fmt.Errorf("encode event envelope: %w", err)
 	}
 
+	extID := normalizeExtensionIDParam(extensionID)
 	_, err = s.db.ExecContext(
 		ctx,
-		`INSERT INTO protocol_events(recorded_at_ms, envelope) VALUES(?, ?);`,
+		`INSERT INTO protocol_events(recorded_at_ms, extension_id, envelope) VALUES(?, ?, ?);`,
 		time.Now().UnixMilli(),
+		extID,
 		encoded,
 	)
 	if err != nil {
@@ -103,14 +164,31 @@ func (s *SQLiteEventStore) Append(ctx context.Context, envelope protocol.Envelop
 	return nil
 }
 
-func (s *SQLiteEventStore) Recent(ctx context.Context, limit int, beforeID int64) ([]Record, bool, error) {
+func normalizeExtensionIDParam(extensionID string) string {
+	trimmed := strings.TrimSpace(extensionID)
+	if trimmed == "" {
+		return "default"
+	}
+	return trimmed
+}
+
+func (s *SQLiteEventStore) Recent(ctx context.Context, limit int, beforeID int64, extensionID string) ([]Record, bool, error) {
 	boundedLimit := boundLimit(limit)
 
 	query := `SELECT id, recorded_at_ms, envelope FROM protocol_events`
 	args := []any{}
+	var conditions []string
 	if beforeID > 0 {
-		query += ` WHERE id < ?`
+		conditions = append(conditions, `id < ?`)
 		args = append(args, beforeID)
+	}
+	extID := strings.TrimSpace(extensionID)
+	if extID != "" {
+		conditions = append(conditions, `extension_id = ?`)
+		args = append(args, extID)
+	}
+	if len(conditions) > 0 {
+		query += ` WHERE ` + strings.Join(conditions, ` AND `)
 	}
 	query += ` ORDER BY id DESC LIMIT ?;`
 	args = append(args, boundedLimit+1)

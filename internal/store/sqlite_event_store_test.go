@@ -39,14 +39,14 @@ func TestSQLiteEventStoreAppendAndRecent(t *testing.T) {
 		},
 	)
 
-	if err := store.Append(ctx, first); err != nil {
+	if err := store.Append(ctx, first, "default"); err != nil {
 		t.Fatalf("Append(first) returned error: %v", err)
 	}
-	if err := store.Append(ctx, second); err != nil {
+	if err := store.Append(ctx, second, "default"); err != nil {
 		t.Fatalf("Append(second) returned error: %v", err)
 	}
 
-	records, hasMore, err := store.Recent(ctx, 10, 0)
+	records, hasMore, err := store.Recent(ctx, 10, 0, "")
 	if err != nil {
 		t.Fatalf("Recent() returned error: %v", err)
 	}
@@ -83,12 +83,12 @@ func TestSQLiteEventStoreRecentLimit(t *testing.T) {
 			BuildID:    "build-limit",
 			Success:    true,
 			DurationMS: int64(i + 1),
-		})); err != nil {
+		}), "default"); err != nil {
 			t.Fatalf("Append(%d) returned error: %v", i, err)
 		}
 	}
 
-	records, hasMore, err := store.Recent(ctx, 1, 0)
+	records, hasMore, err := store.Recent(ctx, 1, 0, "")
 	if err != nil {
 		t.Fatalf("Recent(limit=1) returned error: %v", err)
 	}
@@ -122,18 +122,18 @@ func TestSQLiteEventStoreRecentBeforeID(t *testing.T) {
 			BuildID:    "build-before",
 			Success:    true,
 			DurationMS: int64(i + 1),
-		})); err != nil {
+		}), "default"); err != nil {
 			t.Fatalf("Append(%d) returned error: %v", i, err)
 		}
 
-		records, _, err := store.Recent(ctx, 1, 0)
+		records, _, err := store.Recent(ctx, 1, 0, "")
 		if err != nil {
 			t.Fatalf("Recent(latest) after append %d returned error: %v", i, err)
 		}
 		ids = append(ids, records[0].ID)
 	}
 
-	records, hasMore, err := store.Recent(ctx, 2, ids[3])
+	records, hasMore, err := store.Recent(ctx, 2, ids[3], "")
 	if err != nil {
 		t.Fatalf("Recent(before_id) returned error: %v", err)
 	}
@@ -158,18 +158,18 @@ func TestSQLiteEventStoreStorageSnapshotsPersistAcrossReopen(t *testing.T) {
 	}
 
 	source := protocol.Source{Role: protocol.SourceDaemon, ID: "daemon-1"}
-	if _, err := store.SetStorageItem(ctx, source, "local", "theme", "dark"); err != nil {
+	if _, err := store.SetStorageItem(ctx, source, "local", "theme", "dark", "default"); err != nil {
 		t.Fatalf("SetStorageItem(local theme) returned error: %v", err)
 	}
-	if _, err := store.SetStorageItem(ctx, source, "sync", "enabled", true); err != nil {
+	if _, err := store.SetStorageItem(ctx, source, "sync", "enabled", true, "default"); err != nil {
 		t.Fatalf("SetStorageItem(sync enabled) returned error: %v", err)
 	}
-	if _, changed, err := store.RemoveStorageItem(ctx, source, "sync", "enabled"); err != nil {
+	if _, changed, err := store.RemoveStorageItem(ctx, source, "sync", "enabled", "default"); err != nil {
 		t.Fatalf("RemoveStorageItem(sync enabled) returned error: %v", err)
 	} else if !changed {
 		t.Fatal("expected RemoveStorageItem(sync enabled) to report a change")
 	}
-	if _, err := store.SetStorageItem(ctx, source, "session", "temp", int64(42)); err != nil {
+	if _, err := store.SetStorageItem(ctx, source, "session", "temp", int64(42), "default"); err != nil {
 		t.Fatalf("SetStorageItem(session temp) returned error: %v", err)
 	}
 	if err := store.Close(); err != nil {
@@ -184,7 +184,7 @@ func TestSQLiteEventStoreStorageSnapshotsPersistAcrossReopen(t *testing.T) {
 		_ = reopened.Close()
 	}()
 
-	snapshots, err := reopened.StorageSnapshots(ctx, "")
+	snapshots, err := reopened.StorageSnapshots(ctx, "", "default")
 	if err != nil {
 		t.Fatalf("StorageSnapshots() returned error: %v", err)
 	}
@@ -201,7 +201,7 @@ func TestSQLiteEventStoreStorageSnapshotsPersistAcrossReopen(t *testing.T) {
 		t.Fatalf("unexpected persisted session temp value: %#v", got)
 	}
 
-	records, hasMore, err := reopened.Recent(ctx, 10, 0)
+	records, hasMore, err := reopened.Recent(ctx, 10, 0, "")
 	if err != nil {
 		t.Fatalf("Recent() after reopen returned error: %v", err)
 	}
@@ -226,14 +226,14 @@ func TestSQLiteEventStoreClearStorageAreaPersistsEmptySnapshot(t *testing.T) {
 	}()
 
 	source := protocol.Source{Role: protocol.SourceDaemon, ID: "daemon-1"}
-	if _, err := store.SetStorageItem(ctx, source, "local", "one", int64(1)); err != nil {
+	if _, err := store.SetStorageItem(ctx, source, "local", "one", int64(1), "default"); err != nil {
 		t.Fatalf("SetStorageItem(local one) returned error: %v", err)
 	}
-	if _, err := store.SetStorageItem(ctx, source, "local", "two", int64(2)); err != nil {
+	if _, err := store.SetStorageItem(ctx, source, "local", "two", int64(2), "default"); err != nil {
 		t.Fatalf("SetStorageItem(local two) returned error: %v", err)
 	}
 
-	diff, changed, err := store.ClearStorageArea(ctx, source, "local")
+	diff, changed, err := store.ClearStorageArea(ctx, source, "local", "default")
 	if err != nil {
 		t.Fatalf("ClearStorageArea(local) returned error: %v", err)
 	}
@@ -252,7 +252,7 @@ func TestSQLiteEventStoreClearStorageAreaPersistsEmptySnapshot(t *testing.T) {
 		t.Fatalf("unexpected clear diff order: %+v", payload.Changes)
 	}
 
-	snapshots, err := store.StorageSnapshots(ctx, "local")
+	snapshots, err := store.StorageSnapshots(ctx, "local", "default")
 	if err != nil {
 		t.Fatalf("StorageSnapshots(local) returned error: %v", err)
 	}

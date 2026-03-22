@@ -164,7 +164,7 @@ func TestIntegrationDaemonLifecycle(t *testing.T) {
 	}
 
 	// --- Step 5: Daemon mutates storage, inspector receives diff ---
-	if err := ws.SetStorageItem(context.Background(), "local", "theme", "dark"); err != nil {
+	if err := ws.SetStorageItem(context.Background(), "local", "theme", "dark", "default"); err != nil {
 		t.Fatalf("SetStorageItem returned error: %v", err)
 	}
 
@@ -244,10 +244,10 @@ func TestIntegrationStoragePersistsAcrossDaemonRestart(t *testing.T) {
 		t.Fatalf("NewWebSocketServer(first) returned error: %v", err)
 	}
 
-	if err := first.SetStorageItem(context.Background(), "local", "theme", "dark"); err != nil {
+	if err := first.SetStorageItem(context.Background(), "local", "theme", "dark", "default"); err != nil {
 		t.Fatalf("first.SetStorageItem(local theme) returned error: %v", err)
 	}
-	if err := first.SetStorageItem(context.Background(), "session", "counter", int64(7)); err != nil {
+	if err := first.SetStorageItem(context.Background(), "session", "counter", int64(7), "default"); err != nil {
 		t.Fatalf("first.SetStorageItem(session counter) returned error: %v", err)
 	}
 	if err := first.Close(); err != nil {

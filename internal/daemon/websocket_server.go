@@ -55,26 +55,29 @@ type WebSocketConfig struct {
 }
 
 type eventStore interface {
-	Append(ctx context.Context, envelope protocol.Envelope) error
-	Recent(ctx context.Context, limit int, beforeID int64) ([]store.Record, bool, error)
-	StorageSnapshots(ctx context.Context, area string) ([]protocol.StorageSnapshot, error)
+	Append(ctx context.Context, envelope protocol.Envelope, extensionID string) error
+	Recent(ctx context.Context, limit int, beforeID int64, extensionID string) ([]store.Record, bool, error)
+	StorageSnapshots(ctx context.Context, area string, extensionID string) ([]protocol.StorageSnapshot, error)
 	SetStorageItem(
 		ctx context.Context,
 		source protocol.Source,
 		area string,
 		key string,
 		value any,
+		extensionID string,
 	) (protocol.Envelope, error)
 	RemoveStorageItem(
 		ctx context.Context,
 		source protocol.Source,
 		area string,
 		key string,
+		extensionID string,
 	) (protocol.Envelope, bool, error)
 	ClearStorageArea(
 		ctx context.Context,
 		source protocol.Source,
 		area string,
+		extensionID string,
 	) (protocol.Envelope, bool, error)
 	Close() error
 }
@@ -331,7 +334,8 @@ func (s *WebSocketServer) handshake(ctx context.Context, conn *websocket.Conn) (
 		}
 		return "", sessionMetadata{}, errors.New("unauthorized")
 	}
-	if err := s.eventStore.Append(ctx, message); err != nil {
+	helloExtID := normalizeExtensionID(hello.ClientKind, hello.ExtensionID)
+	if err := s.eventStore.Append(ctx, message, helloExtID); err != nil {
 		return "", sessionMetadata{}, fmt.Errorf("persist hello message: %w", err)
 	}
 
@@ -353,13 +357,13 @@ func (s *WebSocketServer) handshake(ctx context.Context, conn *websocket.Conn) (
 	if err != nil {
 		return "", sessionMetadata{}, fmt.Errorf("write hello.ack message: %w", err)
 	}
-	if err := s.eventStore.Append(ctx, helloAck); err != nil {
+	if err := s.eventStore.Append(ctx, helloAck, helloExtID); err != nil {
 		return "", sessionMetadata{}, fmt.Errorf("persist hello.ack message: %w", err)
 	}
 
 	return sessionID, sessionMetadata{
 		clientKind:  normalizeClientKind(hello.ClientKind),
-		extensionID: normalizeExtensionID(hello.ClientKind, hello.ExtensionID),
+		extensionID: helloExtID,
 	}, nil
 }
 
@@ -438,7 +442,8 @@ func (s *WebSocketServer) pingLoop(sessionID string, session *sessionConn) {
 }
 
 func (s *WebSocketServer) Broadcast(ctx context.Context, message protocol.Envelope) error {
-	if err := s.eventStore.Append(ctx, message); err != nil {
+	extID := messageTargetExtensionID(message)
+	if err := s.eventStore.Append(ctx, message, extID); err != nil {
 		return fmt.Errorf("persist broadcast message: %w", err)
 	}
 
@@ -492,6 +497,7 @@ func (s *WebSocketServer) handleClientMessage(ctx context.Context, sessionID str
 	if err := message.ValidateBase(); err != nil {
 		return fmt.Errorf("validate client message: %w", err)
 	}
+	extID := s.sessionExtensionID(sessionID)
 	switch message.Name {
 	case protocol.MessageQueryEvents:
 		if message.T != protocol.TypeCommand {
@@ -503,7 +509,7 @@ func (s *WebSocketServer) handleClientMessage(ctx context.Context, sessionID str
 			return fmt.Errorf("decode query.events payload: %w", err)
 		}
 
-		records, hasMore, err := s.eventStore.Recent(ctx, query.Limit, query.BeforeID)
+		records, hasMore, err := s.eventStore.Recent(ctx, query.Limit, query.BeforeID, extID)
 		if err != nil {
 			return fmt.Errorf("query recent events: %w", err)
 		}
@@ -547,7 +553,7 @@ func (s *WebSocketServer) handleClientMessage(ctx context.Context, sessionID str
 			return fmt.Errorf("decode query.storage payload: %w", err)
 		}
 
-		snapshots, err := s.eventStore.StorageSnapshots(ctx, query.Area)
+		snapshots, err := s.eventStore.StorageSnapshots(ctx, query.Area, extID)
 		if err != nil {
 			return fmt.Errorf("build query.storage snapshots: %w", err)
 		}
@@ -581,7 +587,7 @@ func (s *WebSocketServer) handleClientMessage(ctx context.Context, sessionID str
 			return fmt.Errorf("decode storage.set payload: %w", err)
 		}
 
-		if err := s.SetStorageItem(ctx, command.Area, command.Key, command.Value); err != nil {
+		if err := s.SetStorageItem(ctx, command.Area, command.Key, command.Value, extID); err != nil {
 			return fmt.Errorf("apply storage.set command: %w", err)
 		}
 
@@ -596,7 +602,7 @@ func (s *WebSocketServer) handleClientMessage(ctx context.Context, sessionID str
 			return fmt.Errorf("decode storage.remove payload: %w", err)
 		}
 
-		if err := s.RemoveStorageItem(ctx, command.Area, command.Key); err != nil {
+		if err := s.RemoveStorageItem(ctx, command.Area, command.Key, extID); err != nil {
 			return fmt.Errorf("apply storage.remove command: %w", err)
 		}
 
@@ -611,7 +617,7 @@ func (s *WebSocketServer) handleClientMessage(ctx context.Context, sessionID str
 			return fmt.Errorf("decode storage.clear payload: %w", err)
 		}
 
-		if err := s.ClearStorageArea(ctx, command.Area); err != nil {
+		if err := s.ClearStorageArea(ctx, command.Area, extID); err != nil {
 			return fmt.Errorf("apply storage.clear command: %w", err)
 		}
 
@@ -626,7 +632,7 @@ func (s *WebSocketServer) handleClientMessage(ctx context.Context, sessionID str
 			return fmt.Errorf("decode chrome.api.call payload: %w", err)
 		}
 
-		result, err := s.handleChromeAPICall(ctx, command)
+		result, err := s.handleChromeAPICall(ctx, command, extID)
 		if err != nil {
 			return fmt.Errorf("handle chrome.api.call command: %w", err)
 		}
@@ -656,6 +662,7 @@ func (s *WebSocketServer) handleClientMessage(ctx context.Context, sessionID str
 func (s *WebSocketServer) handleChromeAPICall(
 	ctx context.Context,
 	command protocol.ChromeAPICall,
+	extensionID string,
 ) (protocol.ChromeAPIResult, error) {
 	callID := strings.TrimSpace(command.CallID)
 	if callID == "" {
@@ -688,7 +695,7 @@ func (s *WebSocketServer) handleChromeAPICall(
 		}, nil
 	}
 
-	return s.handleChromeStorageCall(ctx, callID, namespace, method, area, command.Args), nil
+	return s.handleChromeStorageCall(ctx, callID, namespace, method, area, command.Args, extensionID), nil
 }
 
 func (s *WebSocketServer) handleChromeStorageCall(
@@ -698,10 +705,11 @@ func (s *WebSocketServer) handleChromeStorageCall(
 	method string,
 	area string,
 	args []any,
+	extensionID string,
 ) protocol.ChromeAPIResult {
 	switch method {
 	case "get":
-		items, getErr := s.chromeStorageGet(ctx, area, args)
+		items, getErr := s.chromeStorageGet(ctx, area, args, extensionID)
 		if failure, failed := chromeAPIFailureResult(callID, getErr); failed {
 			return failure
 		}
@@ -711,7 +719,7 @@ func (s *WebSocketServer) handleChromeStorageCall(
 			Data:    items,
 		}
 	case "set":
-		if failure, failed := chromeAPIFailureResult(callID, s.chromeStorageSet(ctx, area, args)); failed {
+		if failure, failed := chromeAPIFailureResult(callID, s.chromeStorageSet(ctx, area, args, extensionID)); failed {
 			return failure
 		}
 		return protocol.ChromeAPIResult{
@@ -719,7 +727,7 @@ func (s *WebSocketServer) handleChromeStorageCall(
 			Success: true,
 		}
 	case "remove":
-		if failure, failed := chromeAPIFailureResult(callID, s.chromeStorageRemove(ctx, area, args)); failed {
+		if failure, failed := chromeAPIFailureResult(callID, s.chromeStorageRemove(ctx, area, args, extensionID)); failed {
 			return failure
 		}
 		return protocol.ChromeAPIResult{
@@ -734,7 +742,7 @@ func (s *WebSocketServer) handleChromeStorageCall(
 				Error:   "clear expects no arguments",
 			}
 		}
-		if failure, failed := chromeAPIFailureResult(callID, s.ClearStorageArea(ctx, area)); failed {
+		if failure, failed := chromeAPIFailureResult(callID, s.ClearStorageArea(ctx, area, extensionID)); failed {
 			return failure
 		}
 		return protocol.ChromeAPIResult{
@@ -742,7 +750,7 @@ func (s *WebSocketServer) handleChromeStorageCall(
 			Success: true,
 		}
 	case "getBytesInUse":
-		bytesInUse, bytesErr := s.chromeStorageBytesInUse(ctx, area, args)
+		bytesInUse, bytesErr := s.chromeStorageBytesInUse(ctx, area, args, extensionID)
 		if failure, failed := chromeAPIFailureResult(callID, bytesErr); failed {
 			return failure
 		}
@@ -853,7 +861,7 @@ func storageAreaFromNamespace(namespace string) (string, bool) {
 	}
 }
 
-func (s *WebSocketServer) chromeStorageGet(ctx context.Context, area string, args []any) (map[string]any, error) {
+func (s *WebSocketServer) chromeStorageGet(ctx context.Context, area string, args []any, extensionID string) (map[string]any, error) {
 	var keys []string
 	defaults := map[string]any(nil)
 
@@ -866,7 +874,7 @@ func (s *WebSocketServer) chromeStorageGet(ctx context.Context, area string, arg
 		defaults = parsedDefaults
 	}
 
-	snapshots, err := s.eventStore.StorageSnapshots(ctx, area)
+	snapshots, err := s.eventStore.StorageSnapshots(ctx, area, extensionID)
 	if err != nil {
 		return nil, err
 	}
@@ -899,7 +907,7 @@ func (s *WebSocketServer) chromeStorageGet(ctx context.Context, area string, arg
 	return result, nil
 }
 
-func (s *WebSocketServer) chromeStorageSet(ctx context.Context, area string, args []any) error {
+func (s *WebSocketServer) chromeStorageSet(ctx context.Context, area string, args []any, extensionID string) error {
 	if len(args) == 0 {
 		return errors.New("set expects one object argument")
 	}
@@ -919,7 +927,7 @@ func (s *WebSocketServer) chromeStorageSet(ctx context.Context, area string, arg
 	sort.Strings(keys)
 
 	for _, key := range keys {
-		if err := s.SetStorageItem(ctx, area, key, values[key]); err != nil {
+		if err := s.SetStorageItem(ctx, area, key, values[key], extensionID); err != nil {
 			return err
 		}
 	}
@@ -927,7 +935,7 @@ func (s *WebSocketServer) chromeStorageSet(ctx context.Context, area string, arg
 	return nil
 }
 
-func (s *WebSocketServer) chromeStorageRemove(ctx context.Context, area string, args []any) error {
+func (s *WebSocketServer) chromeStorageRemove(ctx context.Context, area string, args []any, extensionID string) error {
 	if len(args) == 0 {
 		return errors.New("remove expects key or key list argument")
 	}
@@ -938,7 +946,7 @@ func (s *WebSocketServer) chromeStorageRemove(ctx context.Context, area string, 
 	}
 
 	for _, key := range keys {
-		if err := s.RemoveStorageItem(ctx, area, key); err != nil {
+		if err := s.RemoveStorageItem(ctx, area, key, extensionID); err != nil {
 			return err
 		}
 	}
@@ -946,7 +954,7 @@ func (s *WebSocketServer) chromeStorageRemove(ctx context.Context, area string, 
 	return nil
 }
 
-func (s *WebSocketServer) chromeStorageBytesInUse(ctx context.Context, area string, args []any) (int, error) {
+func (s *WebSocketServer) chromeStorageBytesInUse(ctx context.Context, area string, args []any, extensionID string) (int, error) {
 	var keys []string
 	if len(args) > 0 {
 		parsedKeys, _, err := parseStorageSelection(args[0])
@@ -956,7 +964,7 @@ func (s *WebSocketServer) chromeStorageBytesInUse(ctx context.Context, area stri
 		keys = parsedKeys
 	}
 
-	snapshots, err := s.eventStore.StorageSnapshots(ctx, area)
+	snapshots, err := s.eventStore.StorageSnapshots(ctx, area, extensionID)
 	if err != nil {
 		return 0, err
 	}
@@ -1273,7 +1281,7 @@ func deduplicateSorted(values []string) []string {
 	return unique
 }
 
-func (s *WebSocketServer) SetStorageItem(ctx context.Context, area, key string, value any) error {
+func (s *WebSocketServer) SetStorageItem(ctx context.Context, area, key string, value any, extensionID string) error {
 	normalizedArea, err := normalizeStorageArea(area)
 	if err != nil {
 		return err
@@ -1290,6 +1298,7 @@ func (s *WebSocketServer) SetStorageItem(ctx context.Context, area, key string, 
 		normalizedArea,
 		normalizedKey,
 		value,
+		extensionID,
 	)
 	if err != nil {
 		return fmt.Errorf("persist storage.set mutation: %w", err)
@@ -1298,7 +1307,7 @@ func (s *WebSocketServer) SetStorageItem(ctx context.Context, area, key string, 
 	return s.broadcastLiveMessage(diff)
 }
 
-func (s *WebSocketServer) RemoveStorageItem(ctx context.Context, area, key string) error {
+func (s *WebSocketServer) RemoveStorageItem(ctx context.Context, area, key string, extensionID string) error {
 	normalizedArea, err := normalizeStorageArea(area)
 	if err != nil {
 		return err
@@ -1314,6 +1323,7 @@ func (s *WebSocketServer) RemoveStorageItem(ctx context.Context, area, key strin
 		protocol.Source{Role: protocol.SourceDaemon, ID: s.cfg.DaemonID},
 		normalizedArea,
 		normalizedKey,
+		extensionID,
 	)
 	if err != nil {
 		return fmt.Errorf("persist storage.remove mutation: %w", err)
@@ -1325,7 +1335,7 @@ func (s *WebSocketServer) RemoveStorageItem(ctx context.Context, area, key strin
 	return s.broadcastLiveMessage(diff)
 }
 
-func (s *WebSocketServer) ClearStorageArea(ctx context.Context, area string) error {
+func (s *WebSocketServer) ClearStorageArea(ctx context.Context, area string, extensionID string) error {
 	normalizedArea, err := normalizeStorageArea(area)
 	if err != nil {
 		return err
@@ -1335,6 +1345,7 @@ func (s *WebSocketServer) ClearStorageArea(ctx context.Context, area string) err
 		ctx,
 		protocol.Source{Role: protocol.SourceDaemon, ID: s.cfg.DaemonID},
 		normalizedArea,
+		extensionID,
 	)
 	if err != nil {
 		return fmt.Errorf("persist storage.clear mutation: %w", err)
@@ -1344,6 +1355,16 @@ func (s *WebSocketServer) ClearStorageArea(ctx context.Context, area string) err
 	}
 
 	return s.broadcastLiveMessage(diff)
+}
+
+func (s *WebSocketServer) sessionExtensionID(sessionID string) string {
+	s.mu.RLock()
+	session, ok := s.sessions[sessionID]
+	s.mu.RUnlock()
+	if !ok {
+		return ""
+	}
+	return session.extensionID
 }
 
 func (s *WebSocketServer) writeSessionMessage(sessionID string, encoded []byte) error {
