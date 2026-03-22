@@ -46,6 +46,9 @@ auth_token = "test-token"
 	if cfg.Server.EventStorePath != DefaultEventStorePath {
 		t.Fatalf("unexpected default event_store_path: got %q, want %q", cfg.Server.EventStorePath, DefaultEventStorePath)
 	}
+	if cfg.Server.BindAddress != DefaultBindAddress {
+		t.Fatalf("unexpected default bind_address: got %q, want %q", cfg.Server.BindAddress, DefaultBindAddress)
+	}
 }
 
 func TestLoadMultipleExtensions(t *testing.T) {
@@ -395,6 +398,9 @@ func TestInferSuccess(t *testing.T) {
 	}
 	if cfg.Server.EventStorePath != DefaultEventStorePath {
 		t.Fatalf("unexpected event_store_path: got %q, want %q", cfg.Server.EventStorePath, DefaultEventStorePath)
+	}
+	if cfg.Server.BindAddress != DefaultBindAddress {
+		t.Fatalf("unexpected bind_address: got %q, want %q", cfg.Server.BindAddress, DefaultBindAddress)
 	}
 	if len(cfg.Extensions) != 1 {
 		t.Fatalf("unexpected extensions count: got %d, want 1", len(cfg.Extensions))

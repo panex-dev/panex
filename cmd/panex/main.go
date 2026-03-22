@@ -238,6 +238,7 @@ func writeStartupGuide(w io.Writer, extensions []panexconfig.Extension) error {
 func startDevServer(cfg panexconfig.Config, stdout io.Writer) error {
 	server, err := newWebSocketServer(daemon.WebSocketConfig{
 		Port:           cfg.Server.Port,
+		BindAddress:    cfg.Server.BindAddress,
 		AuthToken:      cfg.Server.AuthToken,
 		EventStorePath: cfg.Server.EventStorePath,
 		ServerVersion:  version,
@@ -247,7 +248,7 @@ func startDevServer(cfg panexconfig.Config, stdout io.Writer) error {
 		return err
 	}
 
-	if err := writef(stdout, "panex dev\nws_url=ws://127.0.0.1:%d/ws\n", cfg.Server.Port); err != nil {
+	if err := writef(stdout, "panex dev\nws_url=ws://%s:%d/ws\n", cfg.Server.BindAddress, cfg.Server.Port); err != nil {
 		return err
 	}
 	if err := writeStartupGuide(stdout, cfg.Extensions); err != nil {
@@ -274,7 +275,7 @@ func startDevServer(cfg panexconfig.Config, stdout io.Writer) error {
 	}
 
 	runtimes := make([]extensionRuntime, 0, len(targets))
-	daemonURL := fmt.Sprintf("ws://127.0.0.1:%d/ws", cfg.Server.Port)
+	daemonURL := fmt.Sprintf("ws://%s:%d/ws", cfg.Server.BindAddress, cfg.Server.Port)
 	for _, target := range targets {
 		builderOptions := []build.Option{}
 		if injection, ok := build.AutoDetectChromeSimInjection(

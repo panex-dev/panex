@@ -21,6 +21,7 @@ const (
 	DefaultEventStorePath = ".panex/events.db"
 	DefaultExtensionID    = "default"
 	DefaultPort           = 4317
+	DefaultBindAddress    = "127.0.0.1"
 	DefaultOutDir         = ".panex/dist"
 	DefaultAuthToken      = "dev-token"
 	minPort               = 1024
@@ -41,6 +42,7 @@ type Extension struct {
 
 type Server struct {
 	Port           int    `toml:"port"`
+	BindAddress    string `toml:"bind_address"`
 	AuthToken      string `toml:"auth_token"`
 	EventStorePath string `toml:"event_store_path"`
 }
@@ -68,6 +70,9 @@ func Load(path string) (Config, error) {
 	}
 	if strings.TrimSpace(cfg.Server.EventStorePath) == "" {
 		cfg.Server.EventStorePath = DefaultEventStorePath
+	}
+	if strings.TrimSpace(cfg.Server.BindAddress) == "" {
+		cfg.Server.BindAddress = DefaultBindAddress
 	}
 
 	if err := cfg.Validate(); err != nil {
@@ -101,6 +106,7 @@ func Infer(dir string) (Config, error) {
 		}},
 		Server: Server{
 			Port:           DefaultPort,
+			BindAddress:    DefaultBindAddress,
 			AuthToken:      DefaultAuthToken,
 			EventStorePath: DefaultEventStorePath,
 		},

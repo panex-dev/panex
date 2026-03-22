@@ -45,6 +45,7 @@ var daemonCapabilities = []string{
 
 type WebSocketConfig struct {
 	Port           int
+	BindAddress    string
 	AuthToken      string
 	EventStorePath string
 	ServerVersion  string
@@ -146,6 +147,9 @@ func NewWebSocketServer(cfg WebSocketConfig) (*WebSocketServer, error) {
 	if strings.TrimSpace(cfg.DaemonID) == "" {
 		cfg.DaemonID = "daemon-1"
 	}
+	if strings.TrimSpace(cfg.BindAddress) == "" {
+		cfg.BindAddress = "127.0.0.1"
+	}
 	if strings.TrimSpace(cfg.EventStorePath) == "" {
 		cfg.EventStorePath = ".panex/events.db"
 	}
@@ -194,7 +198,7 @@ func (s *WebSocketServer) Run(ctx context.Context) (runErr error) {
 	}()
 
 	server := &http.Server{
-		Addr:              ":" + strconv.Itoa(s.cfg.Port),
+		Addr:              s.cfg.BindAddress + ":" + strconv.Itoa(s.cfg.Port),
 		Handler:           s.Handler(),
 		ReadHeaderTimeout: 5 * time.Second,
 	}
