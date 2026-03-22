@@ -50,7 +50,7 @@ import {
 export type ConnectionStatus = "connecting" | "open" | "reconnecting" | "closed";
 
 const defaultDaemonWSURL = "ws://127.0.0.1:4317/ws";
-const defaultDaemonToken = "dev-token";
+const defaultDaemonToken = "";
 const closeMessageTooBig = 1009;
 
 interface ConnectionContextValue {

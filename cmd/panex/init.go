@@ -1,6 +1,8 @@
 package main
 
 import (
+	"crypto/rand"
+	"encoding/hex"
 	"flag"
 	"fmt"
 	"io"
@@ -63,6 +65,14 @@ type scaffoldResult struct {
 	outDir     string
 }
 
+func generateAuthToken() (string, error) {
+	b := make([]byte, 16)
+	if _, err := rand.Read(b); err != nil {
+		return "", fmt.Errorf("generate auth token: %w", err)
+	}
+	return hex.EncodeToString(b), nil
+}
+
 func scaffoldStarterProject(root string, force bool) (scaffoldResult, error) {
 	configPath := filepath.Join(root, panexconfig.DefaultPath)
 	sourceDir := filepath.Join(root, defaultScaffoldSourceDir)
@@ -70,18 +80,23 @@ func scaffoldStarterProject(root string, force bool) (scaffoldResult, error) {
 		return scaffoldResult{}, err
 	}
 
+	token, err := generateAuthToken()
+	if err != nil {
+		return scaffoldResult{}, err
+	}
+
 	files := []scaffoldFile{
 		{
 			relativePath: panexconfig.DefaultPath,
-			contents: `[extension]
+			contents: fmt.Sprintf(`[extension]
 source_dir = "panex-extension"
 out_dir = ".panex/dist"
 
 [server]
 port = 4317
-auth_token = "dev-token"
+auth_token = %q
 event_store_path = ".panex/events.db"
-`,
+`, token),
 			perm: 0o600,
 		},
 		{

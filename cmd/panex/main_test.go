@@ -194,8 +194,8 @@ func TestRunInitThenDevUsesScaffoldedConfig(t *testing.T) {
 	if captured.Extension.OutDir != ".panex/dist" {
 		t.Fatalf("unexpected scaffold out dir: got %q", captured.Extension.OutDir)
 	}
-	if captured.Server.AuthToken != "dev-token" {
-		t.Fatalf("unexpected scaffold auth token: got %q", captured.Server.AuthToken)
+	if len(captured.Server.AuthToken) != 32 {
+		t.Fatalf("expected 32-char hex auth token, got %q (len %d)", captured.Server.AuthToken, len(captured.Server.AuthToken))
 	}
 }
 

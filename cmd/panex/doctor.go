@@ -74,6 +74,13 @@ func runDoctor(stdout io.Writer) error {
 		}
 	}
 
+	if cfg.Server.AuthToken == panexconfig.DefaultAuthToken {
+		issues++
+		if err := writeString(stdout, "auth_token: using default \"dev-token\" — run `panex init --force` to generate a unique token\n"); err != nil {
+			return err
+		}
+	}
+
 	if isWSL() {
 		for _, ext := range cfg.Extensions {
 			absOut, _ := filepath.Abs(ext.OutDir)
