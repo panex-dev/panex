@@ -7,7 +7,8 @@ import {
   type ChromeAPICall,
   type ChromeAPIEvent,
   type Envelope,
-  type Hello
+  type Hello,
+  type StorageDiff
 } from "@panex/protocol";
 import { reconnectCeilingMS, reconnectDelay, reconnectFloorMS } from "./reconnect";
 import { resolveDefaultExtensionID } from "./runtime";
@@ -19,6 +20,7 @@ export interface ChromeSimTransport {
   close(): void;
   status(): TransportStatus;
   subscribeEvents(handler: (event: Envelope<ChromeAPIEvent>) => void): () => void;
+  subscribeStorageDiff(handler: (event: Envelope<StorageDiff>) => void): () => void;
 }
 
 export interface TransportSocket {
@@ -77,6 +79,7 @@ export function createChromeSimTransport(options: ChromeSimTransportOptions = {}
   let reconnectTimer: ReturnType<typeof setTimeout> | undefined;
   const pendingCalls = new Map<string, PendingCall>();
   const eventHandlers = new Set<(event: Envelope<ChromeAPIEvent>) => void>();
+  const storageDiffHandlers = new Set<(event: Envelope<StorageDiff>) => void>();
 
   const setState = (next: TransportStatus) => {
     state = next;
@@ -164,6 +167,12 @@ export function createChromeSimTransport(options: ChromeSimTransportOptions = {}
       return;
     }
 
+    if (decoded.name === "storage.diff" && decoded.t === "event") {
+      for (const handler of storageDiffHandlers) {
+        handler(decoded as Envelope<StorageDiff>);
+      }
+    }
+
     if (decoded.name === "chrome.api.event" && decoded.t === "event") {
       for (const handler of eventHandlers) {
         handler(decoded as Envelope<ChromeAPIEvent>);
@@ -213,7 +222,7 @@ export function createChromeSimTransport(options: ChromeSimTransportOptions = {}
             client_kind: "chrome-sim",
             client_version: "dev",
             extension_id: extensionID,
-            capabilities_requested: ["chrome.api.call", "chrome.api.result", "chrome.api.event"]
+            capabilities_requested: ["chrome.api.call", "chrome.api.result", "chrome.api.event", "storage.diff"]
           }
         };
 
@@ -380,6 +389,13 @@ export function createChromeSimTransport(options: ChromeSimTransportOptions = {}
       eventHandlers.add(handler);
       return () => {
         eventHandlers.delete(handler);
+      };
+    },
+
+    subscribeStorageDiff(handler) {
+      storageDiffHandlers.add(handler);
+      return () => {
+        storageDiffHandlers.delete(handler);
       };
     }
   };
