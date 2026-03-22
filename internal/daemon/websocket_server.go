@@ -104,18 +104,20 @@ type WebSocketServer struct {
 }
 
 type sessionConn struct {
-	conn        *websocket.Conn
-	mu          sync.Mutex
-	closeOnce   sync.Once
-	closeErr    error
-	done        chan struct{}
-	clientKind  string
-	extensionID string
+	conn         *websocket.Conn
+	mu           sync.Mutex
+	closeOnce    sync.Once
+	closeErr     error
+	done         chan struct{}
+	clientKind   string
+	extensionID  string
+	capabilities map[string]struct{}
 }
 
 type sessionMetadata struct {
-	clientKind  string
-	extensionID string
+	clientKind   string
+	extensionID  string
+	capabilities []string
 }
 
 type simulatedTab struct {
@@ -366,8 +368,9 @@ func (s *WebSocketServer) handshake(ctx context.Context, conn *websocket.Conn) (
 	}
 
 	return sessionID, sessionMetadata{
-		clientKind:  normalizeClientKind(hello.ClientKind),
-		extensionID: helloExtID,
+		clientKind:   normalizeClientKind(hello.ClientKind),
+		extensionID:  helloExtID,
+		capabilities: supportedCapabilities,
 	}, nil
 }
 
@@ -502,6 +505,9 @@ func (s *WebSocketServer) handleClientMessage(ctx context.Context, sessionID str
 		return fmt.Errorf("validate client message: %w", err)
 	}
 	extID := s.sessionExtensionID(sessionID)
+	if !s.sessionHasCapability(sessionID, string(message.Name)) {
+		return fmt.Errorf("capability %q not negotiated for this session", message.Name)
+	}
 	switch message.Name {
 	case protocol.MessageQueryEvents:
 		if message.T != protocol.TypeCommand {
@@ -1371,6 +1377,17 @@ func (s *WebSocketServer) sessionExtensionID(sessionID string) string {
 	return session.extensionID
 }
 
+func (s *WebSocketServer) sessionHasCapability(sessionID, capability string) bool {
+	s.mu.RLock()
+	session, ok := s.sessions[sessionID]
+	s.mu.RUnlock()
+	if !ok {
+		return false
+	}
+	_, has := session.capabilities[capability]
+	return has
+}
+
 func (s *WebSocketServer) writeSessionMessage(sessionID string, encoded []byte) error {
 	s.mu.RLock()
 	session, ok := s.sessions[sessionID]
@@ -1393,6 +1410,10 @@ func (s *WebSocketServer) register(sessionID string, conn *sessionConn, metadata
 
 	conn.clientKind = metadata.clientKind
 	conn.extensionID = metadata.extensionID
+	conn.capabilities = make(map[string]struct{}, len(metadata.capabilities))
+	for _, cap := range metadata.capabilities {
+		conn.capabilities[cap] = struct{}{}
+	}
 	s.sessions[sessionID] = conn
 }
 
