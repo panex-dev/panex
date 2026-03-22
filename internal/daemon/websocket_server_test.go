@@ -115,7 +115,7 @@ func TestWebSocketHandshakeSendsHelloAckAndTracksConnection(t *testing.T) {
 		t.Fatalf("unexpected daemon version: got %q, want %q", helloAck.DaemonVersion, "test-version")
 	}
 	if len(helloAck.CapabilitiesSupported) != len(daemonCapabilities) {
-		t.Fatalf("expected all daemon capabilities when none requested, got: %v", helloAck.CapabilitiesSupported)
+		t.Fatalf("unexpected supported capabilities count: got %d, want %d (%v)", len(helloAck.CapabilitiesSupported), len(daemonCapabilities), helloAck.CapabilitiesSupported)
 	}
 
 	waitForConnectionCount(t, server.ws, 1)
@@ -1763,6 +1763,133 @@ func TestWebSocketRejectsNonLocalOrigin(t *testing.T) {
 	}
 }
 
+func TestWebSocketCapabilityEnforcementRejectsUnnegotiatedMessage(t *testing.T) {
+	server := newTestServer(t)
+	defer server.httpServer.Close()
+
+	conn := dialAuthorizedConnection(t, server.wsURL, server.token)
+	t.Cleanup(func() {
+		_ = conn.Close()
+	})
+
+	// Negotiate only command.reload (a broadcast capability — no handler capabilities).
+	_ = mustHandshakeWithCapabilities(t, conn, server.token, []string{"command.reload"})
+	waitForConnectionCount(t, server.ws, 1)
+
+	// Send query.events, which was not negotiated for this session.
+	query := protocol.NewQueryEvents(
+		protocol.Source{Role: protocol.SourceInspector, ID: "inspector-1"},
+		protocol.QueryEvents{Limit: 1},
+	)
+	rawQuery, err := protocol.Encode(query)
+	if err != nil {
+		t.Fatalf("Encode(query.events) returned error: %v", err)
+	}
+	if err := conn.WriteMessage(websocket.BinaryMessage, rawQuery); err != nil {
+		t.Fatalf("WriteMessage(query.events) returned error: %v", err)
+	}
+
+	_, _, err = conn.ReadMessage()
+	if err == nil {
+		t.Fatal("expected connection close for unnegotiated capability")
+	}
+	closeErr, ok := err.(*websocket.CloseError)
+	if !ok {
+		t.Fatalf("expected websocket.CloseError, got %T (%v)", err, err)
+	}
+	if closeErr.Code != websocket.ClosePolicyViolation {
+		t.Fatalf("unexpected close code: got %d, want %d", closeErr.Code, websocket.ClosePolicyViolation)
+	}
+	if !strings.Contains(closeErr.Text, "not negotiated") {
+		t.Fatalf("expected close text to mention 'not negotiated', got %q", closeErr.Text)
+	}
+
+	waitForConnectionCount(t, server.ws, 0)
+}
+
+func TestWebSocketCapabilityEnforcementRejectsBroadcastOnlyMessage(t *testing.T) {
+	server := newTestServer(t)
+	defer server.httpServer.Close()
+
+	conn := dialAuthorizedConnection(t, server.wsURL, server.token)
+	t.Cleanup(func() {
+		_ = conn.Close()
+	})
+
+	// Negotiate all capabilities.
+	_ = mustHandshake(t, conn)
+	waitForConnectionCount(t, server.ws, 1)
+
+	// Send command.reload to daemon — this is a broadcast-only capability.
+	reload := protocol.NewCommandReload(
+		protocol.Source{Role: protocol.SourceDevAgent, ID: "agent-1"},
+		protocol.CommandReload{
+			Reason:  "test",
+			BuildID: "build-1",
+		},
+	)
+	rawReload, err := protocol.Encode(reload)
+	if err != nil {
+		t.Fatalf("Encode(command.reload) returned error: %v", err)
+	}
+	if err := conn.WriteMessage(websocket.BinaryMessage, rawReload); err != nil {
+		t.Fatalf("WriteMessage(command.reload) returned error: %v", err)
+	}
+
+	_, _, err = conn.ReadMessage()
+	if err == nil {
+		t.Fatal("expected connection close for broadcast-only message sent by client")
+	}
+	closeErr, ok := err.(*websocket.CloseError)
+	if !ok {
+		t.Fatalf("expected websocket.CloseError, got %T (%v)", err, err)
+	}
+	if closeErr.Code != websocket.ClosePolicyViolation {
+		t.Fatalf("unexpected close code: got %d, want %d", closeErr.Code, websocket.ClosePolicyViolation)
+	}
+	if !strings.Contains(closeErr.Text, "broadcast-only") {
+		t.Fatalf("expected close text to mention 'broadcast-only', got %q", closeErr.Text)
+	}
+
+	waitForConnectionCount(t, server.ws, 0)
+}
+
+func TestWebSocketCapabilityListsSeparateBroadcastAndHandler(t *testing.T) {
+	// Verify no overlap between handler and broadcast capability lists.
+	handlerSet := make(map[string]struct{}, len(daemonHandlerCapabilities))
+	for _, cap := range daemonHandlerCapabilities {
+		handlerSet[cap] = struct{}{}
+	}
+	for _, cap := range daemonBroadcastCapabilities {
+		if _, overlap := handlerSet[cap]; overlap {
+			t.Fatalf("capability %q appears in both handler and broadcast lists", cap)
+		}
+	}
+
+	// Verify command.reload is broadcast-only.
+	if isHandlerCapability("command.reload") {
+		t.Fatal("command.reload must be broadcast-only, not a handler capability")
+	}
+
+	// Verify build.complete is broadcast-only.
+	if isHandlerCapability("build.complete") {
+		t.Fatal("build.complete must be broadcast-only, not a handler capability")
+	}
+
+	// Verify query.events is a handler capability.
+	if !isHandlerCapability("query.events") {
+		t.Fatal("query.events must be a handler capability")
+	}
+
+	// Verify combined list equals handler + broadcast.
+	if len(daemonCapabilities) != len(daemonHandlerCapabilities)+len(daemonBroadcastCapabilities) {
+		t.Fatalf(
+			"daemonCapabilities length %d != handler(%d) + broadcast(%d)",
+			len(daemonCapabilities), len(daemonHandlerCapabilities), len(daemonBroadcastCapabilities),
+		)
+	}
+}
+
 func snapshotByArea(
 	t *testing.T,
 	snapshots []protocol.StorageSnapshot,
@@ -1896,10 +2023,14 @@ func singleSessionID(t *testing.T, server *WebSocketServer) string {
 }
 
 func mustHandshake(t *testing.T, conn *websocket.Conn) protocol.Envelope {
-	return mustHandshakeWithToken(t, conn, defaultHandshakeToken)
+	return mustHandshakeWithCapabilities(t, conn, defaultHandshakeToken, daemonCapabilities)
 }
 
 func mustHandshakeWithToken(t *testing.T, conn *websocket.Conn, token string) protocol.Envelope {
+	return mustHandshakeWithCapabilities(t, conn, token, daemonCapabilities)
+}
+
+func mustHandshakeWithCapabilities(t *testing.T, conn *websocket.Conn, token string, capabilities []string) protocol.Envelope {
 	t.Helper()
 
 	hello := protocol.NewHello(
@@ -1908,10 +2039,11 @@ func mustHandshakeWithToken(t *testing.T, conn *websocket.Conn, token string) pr
 			ID:   "agent-1",
 		},
 		protocol.Hello{
-			ProtocolVersion: protocol.CurrentVersion,
-			AuthToken:       token,
-			ClientKind:      "dev-agent",
-			ClientVersion:   "dev",
+			ProtocolVersion:       protocol.CurrentVersion,
+			AuthToken:             token,
+			ClientKind:            "dev-agent",
+			ClientVersion:         "dev",
+			CapabilitiesRequested: capabilities,
 		},
 	)
 	rawHello, err := protocol.Encode(hello)

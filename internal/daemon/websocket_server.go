@@ -30,17 +30,32 @@ const (
 	defaultExtensionID  = "default"
 )
 
-var daemonCapabilities = []string{
-	"command.reload",
-	"query.events",
-	"query.storage",
-	"storage.diff",
-	"storage.set",
-	"storage.remove",
-	"storage.clear",
-	"chrome.api.call",
-	"chrome.api.result",
-	"chrome.api.event",
+var daemonHandlerCapabilities = []string{
+	"query.events", "query.storage", "storage.set", "storage.remove", "storage.clear", "chrome.api.call",
+}
+
+var daemonBroadcastCapabilities = []string{
+	"command.reload", "build.complete", "storage.diff", "chrome.api.event",
+}
+
+var daemonCapabilities = append(append([]string(nil), daemonHandlerCapabilities...), daemonBroadcastCapabilities...)
+
+var handlerCapabilitySet = func() map[string]struct{} {
+	m := make(map[string]struct{}, len(daemonHandlerCapabilities))
+	for _, cap := range daemonHandlerCapabilities {
+		m[cap] = struct{}{}
+	}
+	return m
+}()
+
+func isHandlerCapability(name string) bool {
+	_, ok := handlerCapabilitySet[name]
+	return ok
+}
+
+func sessionHasCapability(session *sessionConn, name string) bool {
+	_, ok := session.capabilities[name]
+	return ok
 }
 
 type WebSocketConfig struct {
@@ -505,9 +520,19 @@ func (s *WebSocketServer) handleClientMessage(ctx context.Context, sessionID str
 		return fmt.Errorf("validate client message: %w", err)
 	}
 	extID := s.sessionExtensionID(sessionID)
-	if !s.sessionHasCapability(sessionID, string(message.Name)) {
-		return fmt.Errorf("capability %q not negotiated for this session", message.Name)
+
+	msgName := string(message.Name)
+	if !isHandlerCapability(msgName) {
+		return fmt.Errorf("message %q is broadcast-only and cannot be sent by clients", msgName)
 	}
+
+	s.mu.RLock()
+	session := s.sessions[sessionID]
+	s.mu.RUnlock()
+	if session != nil && !sessionHasCapability(session, msgName) {
+		return fmt.Errorf("message %q was not negotiated for this session", msgName)
+	}
+
 	switch message.Name {
 	case protocol.MessageQueryEvents:
 		if message.T != protocol.TypeCommand {
