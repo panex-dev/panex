@@ -188,10 +188,10 @@ func TestWebSocketBroadcastToConnectedClient(t *testing.T) {
 			ID:   "daemon-test",
 		},
 		protocol.BuildComplete{
-			BuildID:      "build-1",
-			Success:      true,
-			DurationMS:   42,
-			ChangedFiles: []string{"index.ts"},
+			BuildID:         "build-1",
+			Success:         true,
+			DurationMS:      42,
+			TriggeringFiles: []string{"index.ts"},
 		},
 	)
 	if err := server.ws.Broadcast(context.Background(), buildComplete); err != nil {
@@ -218,8 +218,8 @@ func TestWebSocketBroadcastToConnectedClient(t *testing.T) {
 	if payload.BuildID != "build-1" {
 		t.Fatalf("unexpected build id: got %q, want %q", payload.BuildID, "build-1")
 	}
-	if len(payload.ChangedFiles) != 1 || payload.ChangedFiles[0] != "index.ts" {
-		t.Fatalf("unexpected changed files: %v", payload.ChangedFiles)
+	if len(payload.TriggeringFiles) != 1 || payload.TriggeringFiles[0] != "index.ts" {
+		t.Fatalf("unexpected triggering files: %v", payload.TriggeringFiles)
 	}
 }
 
@@ -258,10 +258,10 @@ func TestWebSocketBroadcastUnregistersClosedSession(t *testing.T) {
 			ID:   "daemon-test",
 		},
 		protocol.BuildComplete{
-			BuildID:      "build-closed",
-			Success:      true,
-			DurationMS:   42,
-			ChangedFiles: []string{"index.ts"},
+			BuildID:         "build-closed",
+			Success:         true,
+			DurationMS:      42,
+			TriggeringFiles: []string{"index.ts"},
 		},
 	)
 	err := server.ws.Broadcast(context.Background(), buildComplete)
@@ -442,10 +442,10 @@ func TestWebSocketQueryEventsReturnsRecentStoredMessages(t *testing.T) {
 	buildComplete := protocol.NewBuildComplete(
 		protocol.Source{Role: protocol.SourceDaemon, ID: "daemon-test"},
 		protocol.BuildComplete{
-			BuildID:      "build-query",
-			Success:      true,
-			DurationMS:   42,
-			ChangedFiles: []string{"index.ts"},
+			BuildID:         "build-query",
+			Success:         true,
+			DurationMS:      42,
+			TriggeringFiles: []string{"index.ts"},
 		},
 	)
 	reload := protocol.NewCommandReload(

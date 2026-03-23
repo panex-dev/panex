@@ -71,10 +71,10 @@ func TestIntegrationDaemonLifecycle(t *testing.T) {
 	buildComplete := protocol.NewBuildComplete(
 		protocol.Source{Role: protocol.SourceDaemon, ID: "daemon-integration"},
 		protocol.BuildComplete{
-			BuildID:      "build-integration-1",
-			Success:      true,
-			DurationMS:   50,
-			ChangedFiles: []string{"index.ts"},
+			BuildID:         "build-integration-1",
+			Success:         true,
+			DurationMS:      50,
+			TriggeringFiles: []string{"index.ts"},
 		},
 	)
 	if err := ws.Broadcast(context.Background(), buildComplete); err != nil {

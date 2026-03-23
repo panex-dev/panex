@@ -83,7 +83,7 @@ export interface BuildComplete {
   success: boolean;
   duration_ms: number;
   extension_id?: string;
-  changed_files?: string[];
+  triggering_files?: string[];
 }
 
 export interface ContextLog {
