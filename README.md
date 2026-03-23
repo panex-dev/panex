@@ -144,6 +144,17 @@ For multi-extension configs:
 - reload messages are targeted by extension `id`
 - dev-agent and `chrome-sim` clients must present the matching extension ID for non-default targets
 
+## Supported Chrome APIs
+
+Panex includes a Chrome API simulator (`chrome-sim`) for use in preview and testing contexts. The following APIs are currently supported:
+
+- `chrome.runtime.sendMessage` / `chrome.runtime.onMessage`
+- `chrome.tabs.query`
+- `chrome.storage.local` / `chrome.storage.sync` / `chrome.storage.session` (get, set, remove, clear, getBytesInUse)
+- `chrome.storage.onChanged`
+
+Other Chrome extension APIs (`chrome.action`, `chrome.scripting`, `chrome.alarms`, `chrome.notifications`, `chrome.contextMenus`, `chrome.identity`, `chrome.webRequest`, etc.) are not yet implemented and will return an "unsupported" error from the daemon. This surface is expected to grow over time.
+
 ## Config Reference
 
 - `[extension].source_dir`: required path to the unpacked extension source tree that Panex watches and rebuilds. `panex init` creates `panex-extension` for the default single-extension path.
