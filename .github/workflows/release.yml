@@ -75,6 +75,25 @@ jobs:
       - name: Package release archives
         run: make release VERSION=${{ github.ref_name }}
 
+      - name: Verify release binary
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          archive="dist/release/panex_${TAG}_linux_amd64.tar.gz"
+          if [[ ! -f "$archive" ]]; then
+            echo "::error::expected archive not found: $archive"
+            exit 1
+          fi
+          tmp="$(mktemp -d)"
+          tar -xzf "$archive" -C "$tmp"
+          binary="$tmp/panex_${TAG}_linux_amd64/panex"
+          if [[ ! -x "$binary" ]]; then
+            echo "::error::binary not found or not executable: $binary"
+            exit 1
+          fi
+          "$binary" version
+          rm -rf "$tmp"
+
       - name: Upload workflow artifacts
         uses: actions/upload-artifact@v4
         with:
@@ -111,8 +130,8 @@ jobs:
           GH_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
         run: |
           if [[ -z "$GH_TOKEN" ]]; then
-            echo "::warning::HOMEBREW_TAP_TOKEN not set — skipping tap update"
-            exit 0
+            echo "::error::HOMEBREW_TAP_TOKEN not set — required for non-prerelease"
+            exit 1
           fi
           ./scripts/update-homebrew-tap.sh --version "${{ github.ref_name }}"
 
@@ -122,8 +141,8 @@ jobs:
           APT_GPG_PRIVATE_KEY: ${{ secrets.APT_GPG_PRIVATE_KEY }}
         run: |
           if [[ -z "$APT_GPG_PRIVATE_KEY" ]]; then
-            echo "::warning::APT_GPG_PRIVATE_KEY not set — skipping apt repo update"
-            exit 0
+            echo "::error::APT_GPG_PRIVATE_KEY not set — required for non-prerelease"
+            exit 1
           fi
           echo "$APT_GPG_PRIVATE_KEY" | gpg --batch --import
 
@@ -133,8 +152,8 @@ jobs:
           GH_TOKEN: ${{ secrets.APT_REPO_TOKEN }}
         run: |
           if [[ -z "$GH_TOKEN" ]]; then
-            echo "::warning::APT_REPO_TOKEN not set — skipping apt repo update"
-            exit 0
+            echo "::error::APT_REPO_TOKEN not set — required for non-prerelease"
+            exit 1
           fi
           ./scripts/update-apt-repo.sh --version "${{ github.ref_name }}"
 
@@ -166,6 +185,17 @@ jobs:
         env:
           TAG: ${{ github.ref_name }}
         run: ./scripts/build-msi.sh --version "$TAG" --arch ${{ matrix.arch }} --out-dir dist/release
+
+      - name: Verify MSI was created
+        shell: bash
+        run: |
+          shopt -s nullglob
+          msi_files=(dist/release/*.msi)
+          if [[ ${#msi_files[@]} -eq 0 ]]; then
+            echo "::error::no MSI file found in dist/release/"
+            exit 1
+          fi
+          echo "verified: ${msi_files[*]}"
 
       - name: Upload MSI to release
         env:
