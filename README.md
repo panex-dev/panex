@@ -20,8 +20,14 @@ The CLI surface today is:
 ```text
 panex version
 panex init [--force]
-panex dev [--config path/to/panex.toml]
+panex dev [--config path/to/panex.toml] [--open]
+panex doctor
+panex paths
 ```
+
+- `panex doctor` checks your config, paths, and WSL environment for common issues.
+- `panex paths` prints the resolved source and output directories.
+- `--open` launches `chrome://extensions` in your default browser after the dev server starts.
 
 On Windows, run `panex.exe` from PowerShell or Command Prompt. Double-clicking it will not open a GUI.
 
