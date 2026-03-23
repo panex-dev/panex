@@ -5,6 +5,7 @@ import (
 	"maps"
 	"os"
 	"path/filepath"
+	"reflect"
 	"regexp"
 	"runtime"
 	"slices"
@@ -155,6 +156,106 @@ func parseTSStringMap(t *testing.T, source, constName string) map[string]string 
 	}
 
 	return values
+}
+
+func TestPayloadFieldShapeParity(t *testing.T) {
+	source := loadSharedProtocolSource(t)
+
+	// Registry of Go structs that must match TypeScript interfaces.
+	// The map key is the shared name (e.g. "Hello") used in both Go and TS.
+	registry := map[string]reflect.Type{
+		"Source":             reflect.TypeOf(Source{}),
+		"Envelope":           reflect.TypeOf(Envelope{}),
+		"Hello":              reflect.TypeOf(Hello{}),
+		"HelloAck":           reflect.TypeOf(HelloAck{}),
+		"BuildComplete":      reflect.TypeOf(BuildComplete{}),
+		"ContextLog":         reflect.TypeOf(ContextLog{}),
+		"CommandReload":      reflect.TypeOf(CommandReload{}),
+		"QueryEvents":        reflect.TypeOf(QueryEvents{}),
+		"EventSnapshot":      reflect.TypeOf(EventSnapshot{}),
+		"QueryEventsResult":  reflect.TypeOf(QueryEventsResult{}),
+		"QueryStorage":       reflect.TypeOf(QueryStorage{}),
+		"StorageSnapshot":    reflect.TypeOf(StorageSnapshot{}),
+		"QueryStorageResult": reflect.TypeOf(QueryStorageResult{}),
+		"StorageChange":      reflect.TypeOf(StorageChange{}),
+		"StorageDiff":        reflect.TypeOf(StorageDiff{}),
+		"StorageSet":         reflect.TypeOf(StorageSet{}),
+		"StorageRemove":      reflect.TypeOf(StorageRemove{}),
+		"StorageClear":       reflect.TypeOf(StorageClear{}),
+		"ChromeAPICall":      reflect.TypeOf(ChromeAPICall{}),
+		"ChromeAPIResult":    reflect.TypeOf(ChromeAPIResult{}),
+		"ChromeAPIEvent":     reflect.TypeOf(ChromeAPIEvent{}),
+	}
+
+	tsInterfaces := parseTSInterfaces(t, source)
+
+	for name, goType := range registry {
+		tsFields, ok := tsInterfaces[name]
+		if !ok {
+			t.Errorf("interface %q: present in Go but not found in TypeScript", name)
+			continue
+		}
+
+		goFields := goMsgpackFieldNames(t, name, goType)
+
+		if !slices.Equal(goFields, tsFields) {
+			t.Errorf("field shape drift for %q:\n  go=%v\n  ts=%v", name, goFields, tsFields)
+		}
+	}
+}
+
+// goMsgpackFieldNames returns the sorted msgpack tag names for a struct type.
+func goMsgpackFieldNames(t *testing.T, name string, rt reflect.Type) []string {
+	t.Helper()
+
+	fields := make([]string, 0, rt.NumField())
+	for i := range rt.NumField() {
+		tag := rt.Field(i).Tag.Get("msgpack")
+		if tag == "" || tag == "-" {
+			t.Fatalf("struct %q field %d (%s): missing or ignored msgpack tag",
+				name, i, rt.Field(i).Name)
+		}
+		// Strip options like ",omitempty".
+		tagName, _, _ := strings.Cut(tag, ",")
+		fields = append(fields, tagName)
+	}
+
+	slices.Sort(fields)
+	return fields
+}
+
+// parseTSInterfaces extracts all `export interface Name { ... }` blocks and
+// returns a map from interface name to sorted property names.
+func parseTSInterfaces(t *testing.T, source string) map[string][]string {
+	t.Helper()
+
+	// Match interface blocks. The generic parameter (e.g. <TData = unknown>)
+	// is optional. We use a non-greedy match up to the closing brace at column 0.
+	interfaceRE := regexp.MustCompile(`(?ms)^export interface (\w+)(?:<[^>]+>)?\s*\{(.*?)^\}`)
+	matches := interfaceRE.FindAllStringSubmatch(source, -1)
+	if len(matches) == 0 {
+		t.Fatal("parse ts interfaces: no interface blocks found")
+	}
+
+	// Match property names: lines like "  field_name: type;" or "  field_name?: type;"
+	propRE := regexp.MustCompile(`(?m)^\s+(\w+)\??:\s+`)
+
+	result := make(map[string][]string, len(matches))
+	for _, m := range matches {
+		name := m[1]
+		body := m[2]
+
+		propMatches := propRE.FindAllStringSubmatch(body, -1)
+		fields := make([]string, 0, len(propMatches))
+		for _, pm := range propMatches {
+			fields = append(fields, pm[1])
+		}
+
+		slices.Sort(fields)
+		result[name] = fields
+	}
+
+	return result
 }
 
 func formatMap(value map[string]string) string {
