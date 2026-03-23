@@ -254,6 +254,10 @@ func startDevServer(cfg panexconfig.Config, stdout io.Writer) error {
 		return err
 	}
 
+	if len(cfg.Extensions) > 1 {
+		_ = writef(os.Stderr, "warning: multi-extension mode is experimental — storage and event isolation between extensions is not complete yet\n")
+	}
+
 	ctx, stop := newSignalContext()
 	defer stop()
 
