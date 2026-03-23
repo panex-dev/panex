@@ -177,6 +177,16 @@ func runDev(args []string, stdout io.Writer) error {
 		}
 	}
 
+	if isWSL() {
+		for _, ext := range cfg.Extensions {
+			absOut, _ := filepath.Abs(ext.OutDir)
+			if !strings.HasPrefix(absOut, "/mnt/") {
+				_ = writef(stdout, "warning: WSL detected — output directory %s is not on a Windows-mounted path.\nChrome cannot load extensions from Linux filesystem paths.\nRun 'panex doctor' for details, or set out_dir to a path under /mnt/.\n", absOut)
+				break
+			}
+		}
+	}
+
 	if *openFlag {
 		if openErr := openBrowser("chrome://extensions"); openErr != nil {
 			_ = writef(stdout, "note: could not open browser: %v\n", openErr)

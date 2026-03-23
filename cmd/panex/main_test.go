@@ -168,6 +168,7 @@ func TestRunInitThenDevUsesScaffoldedConfig(t *testing.T) {
 		_, err := io.WriteString(stdout, "dev started\n")
 		return err
 	})
+	withStubbedReadProcVersion(t, nil)
 
 	err := withWorkingDir(tempDir, func() error {
 		var initOut bytes.Buffer
@@ -255,6 +256,7 @@ auth_token = "token-123"
 		_, err := io.WriteString(stdout, "dev started\n")
 		return err
 	})
+	withStubbedReadProcVersion(t, nil)
 
 	err := withWorkingDir(tempDir, func() error {
 		return run([]string{"dev"}, &out)
@@ -294,6 +296,7 @@ auth_token = "custom-token"
 		_, err := io.WriteString(stdout, "dev started\n")
 		return err
 	})
+	withStubbedReadProcVersion(t, nil)
 
 	err := run([]string{"dev", "--config", configPath}, &out)
 	if err != nil {
@@ -523,6 +526,102 @@ func TestRunDevMissingDefaultConfigSuggestsInit(t *testing.T) {
 	}
 	if !strings.Contains(cliErr.msg, "Run `panex init`") {
 		t.Fatalf("missing init guidance for default config path: %q", cliErr.msg)
+	}
+}
+
+func TestRunDevWSLWarningWhenOutDirNotUnderMnt(t *testing.T) {
+	tempDir := t.TempDir()
+	writePanexConfig(t, filepath.Join(tempDir, "panex.toml"), `
+[extension]
+source_dir = "./src"
+out_dir = "./dist"
+
+[server]
+port = 3000
+auth_token = "tok"
+`)
+
+	var out bytes.Buffer
+	withStubbedStartDev(t, func(cfg panexconfig.Config, stdout io.Writer) error {
+		_, err := io.WriteString(stdout, "dev started\n")
+		return err
+	})
+	withStubbedReadProcVersion(t, []byte("Linux version 5.15.133.1-microsoft-standard-WSL2"))
+
+	err := withWorkingDir(tempDir, func() error {
+		return run([]string{"dev"}, &out)
+	})
+	if err != nil {
+		t.Fatalf("run(dev) returned error: %v", err)
+	}
+
+	if !strings.Contains(out.String(), "warning: WSL detected") {
+		t.Fatalf("expected WSL warning in output, got: %q", out.String())
+	}
+	if !strings.Contains(out.String(), "not on a Windows-mounted path") {
+		t.Fatalf("expected mount path guidance in output, got: %q", out.String())
+	}
+}
+
+func TestRunDevNoWSLWarningWhenOutDirUnderMnt(t *testing.T) {
+	tempDir := t.TempDir()
+	writePanexConfig(t, filepath.Join(tempDir, "panex.toml"), `
+[extension]
+source_dir = "./src"
+out_dir = "/mnt/c/projects/ext/dist"
+
+[server]
+port = 3000
+auth_token = "tok"
+`)
+
+	var out bytes.Buffer
+	withStubbedStartDev(t, func(cfg panexconfig.Config, stdout io.Writer) error {
+		_, err := io.WriteString(stdout, "dev started\n")
+		return err
+	})
+	withStubbedReadProcVersion(t, []byte("Linux version 5.15.133.1-microsoft-standard-WSL2"))
+
+	err := withWorkingDir(tempDir, func() error {
+		return run([]string{"dev"}, &out)
+	})
+	if err != nil {
+		t.Fatalf("run(dev) returned error: %v", err)
+	}
+
+	if strings.Contains(out.String(), "warning: WSL detected") {
+		t.Fatalf("unexpected WSL warning when out_dir is under /mnt/: %q", out.String())
+	}
+}
+
+func TestRunDevNoWSLWarningWhenNotWSL(t *testing.T) {
+	tempDir := t.TempDir()
+	writePanexConfig(t, filepath.Join(tempDir, "panex.toml"), `
+[extension]
+source_dir = "./src"
+out_dir = "./dist"
+
+[server]
+port = 3000
+auth_token = "tok"
+`)
+
+	var out bytes.Buffer
+	withStubbedStartDev(t, func(cfg panexconfig.Config, stdout io.Writer) error {
+		_, err := io.WriteString(stdout, "dev started\n")
+		return err
+	})
+	withStubbedReadProcVersion(t, []byte("Linux version 6.1.0-generic"))
+
+	err := withWorkingDir(tempDir, func() error {
+		return run([]string{"dev"}, &out)
+	})
+	if err != nil {
+		t.Fatalf("run(dev) returned error: %v", err)
+	}
+
+	if strings.Contains(out.String(), "warning: WSL detected") {
+		t.Fatalf("unexpected WSL warning on non-WSL system: %q", out.String())
 	}
 }
 
