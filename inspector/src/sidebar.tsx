@@ -22,15 +22,6 @@ export function Sidebar(props: SidebarProps): JSX.Element {
           {props.lastError()}
         </p>
       ) : null}
-
-      <div class="sidebar-actions">
-        <button class="filter-reset" type="button" disabled>
-          reload (soon)
-        </button>
-        <button class="filter-reset" type="button" disabled>
-          reinject (soon)
-        </button>
-      </div>
     </section>
   );
 }
