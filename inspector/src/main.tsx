@@ -8,7 +8,7 @@ import { ConnectionProvider, useConnection } from "./connection";
 import { createInspectorRouter } from "./router";
 import { Sidebar } from "./sidebar";
 import { Shell, type ShellTabSpec } from "./shell";
-import { ReplayTab } from "./tabs/replay";
+import { ProbeHistoryTab } from "./tabs/probe-history";
 import { StorageTab } from "./tabs/storage";
 import { TimelineTab } from "./tabs/timeline";
 import { WorkbenchTab } from "./tabs/workbench";
@@ -22,7 +22,7 @@ const tabs: readonly ShellTabSpec[] = [
   { id: "timeline", label: "Timeline" },
   { id: "storage", label: "Storage" },
   { id: "workbench", label: "Workbench" },
-  { id: "replay", label: "Replay" }
+  { id: "probe-history", label: "Probe History" }
 ];
 
 function InspectorApp(): JSX.Element {
@@ -64,8 +64,8 @@ function InspectorApp(): JSX.Element {
           removeStorageItem: connection.removeStorageItem,
           sendRuntimeMessage: connection.sendRuntimeMessage
         });
-      case "replay":
-        return ReplayTab({
+      case "probe-history":
+        return ProbeHistoryTab({
           status: connection.status,
           socketURL: connection.socketURL,
           lastError: connection.lastError,
