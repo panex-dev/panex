@@ -113,6 +113,7 @@ type BuildComplete struct {
 	DurationMS      int64    `msgpack:"duration_ms"`
 	ExtensionID     string   `msgpack:"extension_id,omitempty"`
 	TriggeringFiles []string `msgpack:"triggering_files,omitempty"`
+	Diagnostics     []string `msgpack:"diagnostics,omitempty"`
 }
 
 type CommandReload struct {

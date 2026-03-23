@@ -395,6 +395,7 @@ func runBuildLoop(
 					DurationMS:      result.DurationMS,
 					ExtensionID:     target.ID,
 					TriggeringFiles: result.TriggeringFiles,
+					Diagnostics:     result.Errors,
 				},
 			),
 		); broadcastErr != nil && !errors.Is(ctx.Err(), context.Canceled) {

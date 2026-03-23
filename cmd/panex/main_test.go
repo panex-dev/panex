@@ -1083,6 +1083,9 @@ func TestRunBuildLoopBuilderErrorStillBroadcastsFailure(t *testing.T) {
 	if payload.ExtensionID != "default" {
 		t.Fatalf("unexpected failure extension id: got %q, want %q", payload.ExtensionID, "default")
 	}
+	if len(payload.Diagnostics) != 1 || payload.Diagnostics[0] != "boom" {
+		t.Fatalf("unexpected diagnostics: %v", payload.Diagnostics)
+	}
 	if countBroadcastsByName(broadcaster, protocol.MessageCommandReload) != 0 {
 		t.Fatal("did not expect command.reload broadcast for failed build")
 	}

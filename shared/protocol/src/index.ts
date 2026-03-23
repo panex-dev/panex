@@ -82,6 +82,7 @@ export interface BuildComplete {
   duration_ms: number;
   extension_id?: string;
   triggering_files?: string[];
+  diagnostics?: string[];
 }
 
 export interface CommandReload {
