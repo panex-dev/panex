@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -831,9 +832,10 @@ func TestRunBuildLoopBroadcastsBuildComplete(t *testing.T) {
 		},
 	}
 
+	var noDirty atomic.Bool
 	done := make(chan error, 1)
 	go func() {
-		done <- runBuildLoop(ctx, extensionTarget{ID: "default"}, builder, broadcaster, changes)
+		done <- runBuildLoop(ctx, extensionTarget{ID: "default"}, builder, broadcaster, changes, &noDirty)
 	}()
 
 	startupBuildEvent := waitForBroadcast(t, broadcaster, 2*time.Second)
@@ -944,9 +946,10 @@ func TestRunBuildLoopBuilderErrorStillBroadcastsFailure(t *testing.T) {
 		},
 	}
 
+	var noDirty2 atomic.Bool
 	done := make(chan error, 1)
 	go func() {
-		done <- runBuildLoop(ctx, extensionTarget{ID: "default"}, builder, broadcaster, changes)
+		done <- runBuildLoop(ctx, extensionTarget{ID: "default"}, builder, broadcaster, changes, &noDirty2)
 	}()
 
 	startupBuildEvent := waitForBroadcast(t, broadcaster, 2*time.Second)
@@ -983,6 +986,147 @@ func TestRunBuildLoopBuilderErrorStillBroadcastsFailure(t *testing.T) {
 	}
 	if countBroadcastsByName(broadcaster, protocol.MessageCommandReload) != 0 {
 		t.Fatal("did not expect command.reload broadcast for failed build")
+	}
+
+	cancel()
+	select {
+	case err := <-done:
+		if err != nil {
+			t.Fatalf("runBuildLoop() returned error: %v", err)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("timed out waiting for build loop shutdown")
+	}
+}
+
+func TestRunBuildLoopDirtyFlagTriggersRebuild(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	changes := make(chan daemon.FileChangeEvent, 1)
+	broadcaster := &fakeBroadcaster{}
+	var buildCalls int
+	builder := fakeBuildRunner{
+		build: func(_ context.Context, changedPaths []string) (build.Result, error) {
+			buildCalls++
+			return build.Result{
+				BuildID:      fmt.Sprintf("build-%d", buildCalls),
+				Success:      true,
+				DurationMS:   5,
+				ChangedFiles: changedPaths,
+			}, nil
+		},
+	}
+
+	var dirty atomic.Bool
+	dirty.Store(true)
+
+	done := make(chan error, 1)
+	go func() {
+		done <- runBuildLoop(ctx, extensionTarget{ID: "default"}, builder, broadcaster, changes, &dirty)
+	}()
+
+	// Startup build => build.complete + command.reload
+	startupBuild := waitForBroadcast(t, broadcaster, 2*time.Second)
+	if startupBuild.Name != protocol.MessageBuildComplete {
+		t.Fatalf("expected startup build.complete, got %q", startupBuild.Name)
+	}
+	startupReload := waitForBroadcast(t, broadcaster, 2*time.Second)
+	if startupReload.Name != protocol.MessageCommandReload {
+		t.Fatalf("expected startup command.reload, got %q", startupReload.Name)
+	}
+
+	// Dirty flag was set before the loop started, so a missed-changes build should follow.
+	missedBuild := waitForBroadcast(t, broadcaster, 2*time.Second)
+	if missedBuild.Name != protocol.MessageBuildComplete {
+		t.Fatalf("expected missed-changes build.complete, got %q", missedBuild.Name)
+	}
+	missedReload := waitForBroadcast(t, broadcaster, 2*time.Second)
+	if missedReload.Name != protocol.MessageCommandReload {
+		t.Fatalf("expected missed-changes command.reload, got %q", missedReload.Name)
+	}
+	missedReloadPayload, ok := missedReload.Data.(protocol.CommandReload)
+	if !ok {
+		t.Fatalf("unexpected payload type: got %T", missedReload.Data)
+	}
+	if missedReloadPayload.Reason != "missed-changes" {
+		t.Fatalf("unexpected reload reason: got %q, want %q", missedReloadPayload.Reason, "missed-changes")
+	}
+
+	if dirty.Load() {
+		t.Fatal("expected dirty flag to be cleared after recovery build")
+	}
+
+	cancel()
+	select {
+	case err := <-done:
+		if err != nil {
+			t.Fatalf("runBuildLoop() returned error: %v", err)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("timed out waiting for build loop shutdown")
+	}
+}
+
+func TestRunBuildLoopDirtyFlagTriggersRebuildAfterFileChange(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	changes := make(chan daemon.FileChangeEvent, 1)
+	broadcaster := &fakeBroadcaster{}
+	var dirty atomic.Bool
+	var buildCalls int
+	builder := fakeBuildRunner{
+		build: func(_ context.Context, changedPaths []string) (build.Result, error) {
+			buildCalls++
+			// Simulate overflow during the second build (the file-change triggered one).
+			if buildCalls == 2 {
+				dirty.Store(true)
+			}
+			return build.Result{
+				BuildID:      fmt.Sprintf("build-%d", buildCalls),
+				Success:      true,
+				DurationMS:   5,
+				ChangedFiles: changedPaths,
+			}, nil
+		},
+	}
+
+	done := make(chan error, 1)
+	go func() {
+		done <- runBuildLoop(ctx, extensionTarget{ID: "default"}, builder, broadcaster, changes, &dirty)
+	}()
+
+	// Drain startup build + reload
+	_ = waitForBroadcast(t, broadcaster, 2*time.Second) // build.complete
+	_ = waitForBroadcast(t, broadcaster, 2*time.Second) // command.reload
+
+	// Trigger a file-change build; the builder stub sets dirty during this build.
+	changes <- daemon.FileChangeEvent{Paths: []string{"src/app.ts"}, OccurredAt: time.Now()}
+
+	// The file-change build
+	_ = waitForBroadcast(t, broadcaster, 2*time.Second) // build.complete
+	_ = waitForBroadcast(t, broadcaster, 2*time.Second) // command.reload
+
+	// The dirty-flag recovery build should follow automatically.
+	recoveryBuild := waitForBroadcast(t, broadcaster, 2*time.Second)
+	if recoveryBuild.Name != protocol.MessageBuildComplete {
+		t.Fatalf("expected recovery build.complete, got %q", recoveryBuild.Name)
+	}
+	recoveryReload := waitForBroadcast(t, broadcaster, 2*time.Second)
+	if recoveryReload.Name != protocol.MessageCommandReload {
+		t.Fatalf("expected recovery command.reload, got %q", recoveryReload.Name)
+	}
+	recoveryPayload, ok := recoveryReload.Data.(protocol.CommandReload)
+	if !ok {
+		t.Fatalf("unexpected payload type: got %T", recoveryReload.Data)
+	}
+	if recoveryPayload.Reason != "missed-changes" {
+		t.Fatalf("unexpected recovery reload reason: got %q, want %q", recoveryPayload.Reason, "missed-changes")
+	}
+
+	if dirty.Load() {
+		t.Fatal("expected dirty flag to be cleared after recovery build")
 	}
 
 	cancel()
