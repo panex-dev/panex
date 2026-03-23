@@ -69,7 +69,7 @@ jobs:
       - name: Audit production JavaScript dependencies
         run: pnpm audit --audit-level high --prod
 
-  lint-and-test:
+  lint:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
@@ -87,7 +87,28 @@ jobs:
           version: v1.64.5
           install-mode: goinstall
 
-      - name: Run tests
+  go-test:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.25.8"
+          cache: true
+
+      - name: Run tests (make)
+        if: runner.os != 'Windows'
+        run: make test-go
+
+      - name: Run tests (go test)
+        if: runner.os == 'Windows'
         run: go test -race -count=1 ./...
 
       - name: Build daemon
