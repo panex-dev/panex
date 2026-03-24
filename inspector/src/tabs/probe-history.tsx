@@ -14,7 +14,7 @@ interface ReplayTabProps {
   sendRuntimeMessage: (message: unknown) => boolean;
 }
 
-export function ReplayTab(props: ReplayTabProps): JSX.Element {
+export function ProbeHistoryTab(props: ReplayTabProps): JSX.Element {
   const [feedback, setFeedback] = createSignal<string | null>(null);
   const entries = createMemo(() => summarizeReplayHistory(props.timeline()));
   const replayFamily = replayFamilies[0];
@@ -22,7 +22,7 @@ export function ReplayTab(props: ReplayTabProps): JSX.Element {
   return (
     <section class="panel replay-panel">
       <div class="panel-header">
-        <h2>Replay</h2>
+        <h2>Probe History</h2>
         <p>{`${entries().length} replayable ${replayFamily.payloadLabel}`}</p>
       </div>
 

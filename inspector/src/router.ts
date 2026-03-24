@@ -1,13 +1,13 @@
 import { createSignal, onCleanup, type Accessor } from "solid-js";
 
-export type InspectorTab = "timeline" | "storage" | "workbench" | "replay";
+export type InspectorTab = "timeline" | "storage" | "workbench" | "probe-history";
 
 export interface InspectorRouter {
   activeTab: Accessor<InspectorTab>;
   navigate: (tab: InspectorTab) => void;
 }
 
-const knownTabs = new Set<InspectorTab>(["timeline", "storage", "workbench", "replay"]);
+const knownTabs = new Set<InspectorTab>(["timeline", "storage", "workbench", "probe-history"]);
 
 export function createInspectorRouter(defaultTab: InspectorTab = "timeline"): InspectorRouter {
   const [activeTab, setActiveTab] = createSignal<InspectorTab>(readHash(defaultTab));
