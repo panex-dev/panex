@@ -218,7 +218,7 @@ func TestWebSocketCapabilityEnforcementRejectsUnnegotiatedMessage(t *testing.T) 
 	}
 
 	// The server should close the connection since the capability is not negotiated.
-	conn.SetReadDeadline(time.Now().Add(2 * time.Second))
+	_ = conn.SetReadDeadline(time.Now().Add(2 * time.Second))
 	_, _, readErr := conn.ReadMessage()
 	if readErr == nil {
 		t.Fatal("expected connection to be closed after sending unnegotiated capability message")
