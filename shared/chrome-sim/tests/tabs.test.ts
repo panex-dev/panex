@@ -25,6 +25,9 @@ describe("tabs namespace", () => {
       status: () => "open",
       subscribeEvents() {
         return () => {};
+      },
+      subscribeStorageDiff() {
+        return () => {};
       }
     };
 
@@ -51,6 +54,9 @@ describe("tabs namespace", () => {
       close() {},
       status: () => "open",
       subscribeEvents() {
+        return () => {};
+      },
+      subscribeStorageDiff() {
         return () => {};
       }
     };

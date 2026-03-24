@@ -17,6 +17,9 @@ describe("runtime namespace", () => {
       status: () => "open",
       subscribeEvents() {
         return () => {};
+      },
+      subscribeStorageDiff() {
+        return () => {};
       }
     };
 
@@ -46,6 +49,9 @@ describe("runtime namespace", () => {
         return () => {
           eventHandler = undefined;
         };
+      },
+      subscribeStorageDiff() {
+        return () => {};
       }
     };
 

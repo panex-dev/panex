@@ -1,6 +1,6 @@
 import { resolveChromeSimBootstrapValues } from "./bootstrap";
 import { createRuntimeNamespace } from "./runtime";
-import { createStorageArea } from "./storage";
+import { createStorageArea, createStorageOnChanged, type StorageOnChangedEvent } from "./storage";
 import { createTabsNamespace } from "./tabs";
 import { createChromeSimTransport, type ChromeSimTransport, type ChromeSimTransportOptions } from "./transport";
 
@@ -10,6 +10,7 @@ export interface SimulatedChrome {
     local: ReturnType<typeof createStorageArea>;
     sync: ReturnType<typeof createStorageArea>;
     session: ReturnType<typeof createStorageArea>;
+    onChanged: StorageOnChangedEvent;
   };
   tabs: ReturnType<typeof createTabsNamespace>;
 }
@@ -50,7 +51,8 @@ export function installChromeSim(options: InstallChromeSimOptions = {}): ChromeS
     ...currentStorage,
     local: createStorageArea("local", transport),
     sync: createStorageArea("sync", transport),
-    session: createStorageArea("session", transport)
+    session: createStorageArea("session", transport),
+    onChanged: createStorageOnChanged(transport)
   };
   const simulatedRuntime = {
     ...currentRuntime,

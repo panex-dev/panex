@@ -24,6 +24,9 @@ describe("installChromeSim", () => {
       status: () => "open",
       subscribeEvents() {
         return () => {};
+      },
+      subscribeStorageDiff() {
+        return () => {};
       }
     };
 
@@ -35,6 +38,7 @@ describe("installChromeSim", () => {
       assert.equal(typeof chrome.storage.local.get, "function");
       assert.equal(typeof chrome.storage.sync.get, "function");
       assert.equal(typeof chrome.storage.session.get, "function");
+      assert.equal(typeof chrome.storage.onChanged.addListener, "function");
       assert.equal(typeof chrome.runtime.sendMessage, "function");
       assert.equal(typeof chrome.tabs.query, "function");
       assert.equal(chrome.runtime.id, "ext-query");
@@ -57,6 +61,9 @@ describe("installChromeSim", () => {
       close() {},
       status: () => "open",
       subscribeEvents() {
+        return () => {};
+      },
+      subscribeStorageDiff() {
         return () => {};
       }
     };
@@ -102,6 +109,9 @@ describe("installChromeSim", () => {
       close() {},
       status: () => "open",
       subscribeEvents() {
+        return () => {};
+      },
+      subscribeStorageDiff() {
         return () => {};
       }
     };

@@ -1,3 +1,4 @@
+import type { StorageChange } from "@panex/protocol";
 import type { ChromeSimTransport } from "./transport";
 
 export type StorageArea = "local" | "sync" | "session";
@@ -37,6 +38,54 @@ export function createStorageArea(area: StorageArea, transport: ChromeSimTranspo
       const args = typeof selection === "undefined" ? [] : [selection];
       const result = await transport.call(namespace, "getBytesInUse", args);
       return asNumber(result);
+    }
+  };
+}
+
+export type ChromeStorageChanges = Record<string, { oldValue?: unknown; newValue?: unknown }>;
+export type OnChangedListener = (changes: ChromeStorageChanges, areaName: string) => void;
+
+export interface StorageOnChangedEvent {
+  addListener(listener: OnChangedListener): void;
+  removeListener(listener: OnChangedListener): void;
+  hasListener(listener: OnChangedListener): boolean;
+}
+
+export function createStorageOnChanged(transport: ChromeSimTransport): StorageOnChangedEvent {
+  const listeners = new Set<OnChangedListener>();
+
+  transport.subscribeStorageDiff((event) => {
+    const { area, changes } = event.data;
+    if (!Array.isArray(changes) || changes.length === 0) {
+      return;
+    }
+
+    const chromeChanges: ChromeStorageChanges = {};
+    for (const change of changes as StorageChange[]) {
+      const entry: { oldValue?: unknown; newValue?: unknown } = {};
+      if ("old_value" in change) {
+        entry.oldValue = change.old_value;
+      }
+      if ("new_value" in change) {
+        entry.newValue = change.new_value;
+      }
+      chromeChanges[change.key] = entry;
+    }
+
+    for (const listener of listeners) {
+      listener(chromeChanges, area);
+    }
+  });
+
+  return {
+    addListener(listener: OnChangedListener) {
+      listeners.add(listener);
+    },
+    removeListener(listener: OnChangedListener) {
+      listeners.delete(listener);
+    },
+    hasListener(listener: OnChangedListener) {
+      return listeners.has(listener);
     }
   };
 }

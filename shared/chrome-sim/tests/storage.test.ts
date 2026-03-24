@@ -1,7 +1,8 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
-import { createStorageArea } from "../src/storage";
+import type { Envelope, StorageDiff } from "@panex/protocol";
+import { createStorageArea, createStorageOnChanged } from "../src/storage";
 import type { ChromeSimTransport } from "../src/transport";
 
 describe("storage area adapter", () => {
@@ -22,6 +23,9 @@ describe("storage area adapter", () => {
       close() {},
       status: () => "open",
       subscribeEvents() {
+        return () => {};
+      },
+      subscribeStorageDiff() {
         return () => {};
       }
     };
@@ -53,6 +57,9 @@ describe("storage area adapter", () => {
       status: () => "open",
       subscribeEvents() {
         return () => {};
+      },
+      subscribeStorageDiff() {
+        return () => {};
       }
     };
 
@@ -69,10 +76,107 @@ describe("storage area adapter", () => {
       status: () => "open",
       subscribeEvents() {
         return () => {};
+      },
+      subscribeStorageDiff() {
+        return () => {};
       }
     };
 
     const local = createStorageArea("local", transport);
     await assert.rejects(async () => local.getBytesInUse(), /expected numeric getBytesInUse result/);
+  });
+});
+
+describe("storage onChanged", () => {
+  it("fires listeners when storage.diff arrives via transport", () => {
+    let diffHandler: ((event: Envelope<StorageDiff>) => void) | undefined;
+    const transport: ChromeSimTransport = {
+      call() {
+        return Promise.resolve(undefined);
+      },
+      close() {},
+      status: () => "open",
+      subscribeEvents() {
+        return () => {};
+      },
+      subscribeStorageDiff(handler) {
+        diffHandler = handler;
+        return () => {
+          diffHandler = undefined;
+        };
+      }
+    };
+
+    const onChanged = createStorageOnChanged(transport);
+    const received: Array<{ changes: Record<string, unknown>; area: string }> = [];
+    const listener = (changes: Record<string, unknown>, area: string) => {
+      received.push({ changes, area });
+    };
+
+    onChanged.addListener(listener);
+    assert.equal(onChanged.hasListener(listener), true);
+
+    diffHandler?.({
+      v: 1,
+      t: "event",
+      name: "storage.diff",
+      src: { role: "daemon", id: "daemon-1" },
+      data: {
+        area: "local",
+        changes: [
+          { key: "theme", old_value: "light", new_value: "dark" },
+          { key: "count", new_value: 1 }
+        ]
+      }
+    });
+
+    assert.equal(received.length, 1);
+    assert.equal(received[0].area, "local");
+    assert.deepEqual(received[0].changes, {
+      theme: { oldValue: "light", newValue: "dark" },
+      count: { newValue: 1 }
+    });
+
+    onChanged.removeListener(listener);
+    assert.equal(onChanged.hasListener(listener), false);
+  });
+
+  it("does not fire listeners for empty change arrays", () => {
+    let diffHandler: ((event: Envelope<StorageDiff>) => void) | undefined;
+    const transport: ChromeSimTransport = {
+      call() {
+        return Promise.resolve(undefined);
+      },
+      close() {},
+      status: () => "open",
+      subscribeEvents() {
+        return () => {};
+      },
+      subscribeStorageDiff(handler) {
+        diffHandler = handler;
+        return () => {
+          diffHandler = undefined;
+        };
+      }
+    };
+
+    const onChanged = createStorageOnChanged(transport);
+    let called = false;
+    onChanged.addListener(() => {
+      called = true;
+    });
+
+    diffHandler?.({
+      v: 1,
+      t: "event",
+      name: "storage.diff",
+      src: { role: "daemon", id: "daemon-1" },
+      data: {
+        area: "local",
+        changes: []
+      }
+    });
+
+    assert.equal(called, false);
   });
 });
