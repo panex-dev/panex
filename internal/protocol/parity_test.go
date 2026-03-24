@@ -168,7 +168,6 @@ func TestPayloadFieldShapeParity(t *testing.T) {
 		"Hello":              reflect.TypeOf(Hello{}),
 		"HelloAck":           reflect.TypeOf(HelloAck{}),
 		"BuildComplete":      reflect.TypeOf(BuildComplete{}),
-		"ContextLog":         reflect.TypeOf(ContextLog{}),
 		"CommandReload":      reflect.TypeOf(CommandReload{}),
 		"QueryEvents":        reflect.TypeOf(QueryEvents{}),
 		"EventSnapshot":      reflect.TypeOf(EventSnapshot{}),
