@@ -21,6 +21,24 @@ Browser-side shim for routing `chrome.*` calls to the Panex daemon over WebSocke
 - Entrypoint injection helper via `@panex/chrome-sim/bootstrap`
 - Extension-aware hello handshake and reload targeting via `extension_id`
 
+## Status: transport only
+
+chrome-sim provides API shims and WebSocket transport. It does **not** provide:
+
+- A rendering host (no Vite subprocess, no dev server proxy)
+- Iframe embedding of extension UI surfaces
+- Surface discovery (popup, side panel, options page enumeration)
+- Any visual preview of extension pages in the inspector
+
+Preview Mode -- rendering extension HTML surfaces inside the inspector --
+is not implemented. The workbench tab in the inspector is a diagnostics
+panel for transport, storage, and runtime probing; it is not a preview
+surface.
+
+Contributors should not attempt to wire up iframe rendering or Vite
+integration against chrome-sim. When preview mode is eventually built it
+will require its own explicit design and build-pipeline support.
+
 ## Local checks
 
 ```bash

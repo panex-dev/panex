@@ -48,8 +48,9 @@ export function WorkbenchTab(props: WorkbenchTabProps): JSX.Element {
 
       <div class="workbench-intro">
         <p>
-          Workbench now exposes constrained storage and runtime actions on top of existing transport.
-          Both tools stay namespaced and reversible so the surface can grow without widening backend
+          Diagnostics panel for transport, storage, and runtime probing.
+          This is not a preview surface — there is no iframe rendering or Vite integration.
+          All tools stay namespaced and reversible so the surface can grow without widening backend
           contracts prematurely.
         </p>
       </div>
