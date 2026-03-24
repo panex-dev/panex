@@ -1109,10 +1109,10 @@ func TestRunBuildLoopDirtyFlagTriggersRebuild(t *testing.T) {
 		build: func(_ context.Context, changedPaths []string) (build.Result, error) {
 			buildCalls++
 			return build.Result{
-				BuildID:      fmt.Sprintf("build-%d", buildCalls),
-				Success:      true,
-				DurationMS:   5,
-				ChangedFiles: changedPaths,
+				BuildID:         fmt.Sprintf("build-%d", buildCalls),
+				Success:         true,
+				DurationMS:      5,
+				TriggeringFiles: changedPaths,
 			}, nil
 		},
 	}
@@ -1183,10 +1183,10 @@ func TestRunBuildLoopDirtyFlagTriggersRebuildAfterFileChange(t *testing.T) {
 				dirty.Store(true)
 			}
 			return build.Result{
-				BuildID:      fmt.Sprintf("build-%d", buildCalls),
-				Success:      true,
-				DurationMS:   5,
-				ChangedFiles: changedPaths,
+				BuildID:         fmt.Sprintf("build-%d", buildCalls),
+				Success:         true,
+				DurationMS:      5,
+				TriggeringFiles: changedPaths,
 			}, nil
 		},
 	}
