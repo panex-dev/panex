@@ -276,6 +276,7 @@ func startDevServer(cfg panexconfig.Config, stdout io.Writer) error {
 		builder      buildRunner
 		watcher      runtimeRunner
 		changeEvents chan daemon.FileChangeEvent
+		dirty        *atomic.Bool
 	}
 
 	runtimes := make([]extensionRuntime, 0, len(targets))
@@ -296,6 +297,7 @@ func startDevServer(cfg panexconfig.Config, stdout io.Writer) error {
 			return fmt.Errorf("configure esbuild for extension %q: %w", target.ID, err)
 		}
 
+		var dirtyFlag atomic.Bool
 		changeEvents := make(chan daemon.FileChangeEvent, 64)
 		watcher, err := newFileWatcher(
 			target.SourceDir,
@@ -304,6 +306,8 @@ func startDevServer(cfg panexconfig.Config, stdout io.Writer) error {
 				select {
 				case changeEvents <- event:
 				default:
+					dirtyFlag.Store(true)
+					_ = writef(os.Stderr, "warning: file change event dropped (build in progress), will rebuild after current build\n")
 				}
 			},
 		)
@@ -316,6 +320,7 @@ func startDevServer(cfg panexconfig.Config, stdout io.Writer) error {
 			builder:      builder,
 			watcher:      watcher,
 			changeEvents: changeEvents,
+			dirty:        &dirtyFlag,
 		})
 	}
 
@@ -329,7 +334,7 @@ func startDevServer(cfg panexconfig.Config, stdout io.Writer) error {
 			runErrCh <- runtime.watcher.Run(ctx)
 		}(runtime)
 		go func(runtime extensionRuntime) {
-			runErrCh <- runBuildLoop(ctx, runtime.target, runtime.builder, server, runtime.changeEvents)
+			runErrCh <- runBuildLoop(ctx, runtime.target, runtime.builder, server, runtime.changeEvents, runtime.dirty)
 		}(runtime)
 	}
 
@@ -354,6 +359,7 @@ func runBuildLoop(
 	builder buildRunner,
 	server envelopeBroadcaster,
 	changeEvents <-chan daemon.FileChangeEvent,
+	dirty *atomic.Bool,
 ) error {
 	runBuild := func(changedPaths []string, reloadReason string) {
 		result, err := builder.Build(ctx, changedPaths)
@@ -413,6 +419,9 @@ func runBuildLoop(
 	}
 
 	runBuild(nil, "startup")
+	if dirty.CompareAndSwap(true, false) {
+		runBuild(nil, "missed-changes")
+	}
 
 	for {
 		select {
@@ -424,6 +433,9 @@ func runBuildLoop(
 			}
 
 			runBuild(event.Paths, "build.complete")
+			if dirty.CompareAndSwap(true, false) {
+				runBuild(nil, "missed-changes")
+			}
 		}
 	}
 }
