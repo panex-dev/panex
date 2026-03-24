@@ -15,12 +15,13 @@ import (
 
 var storageAreaOrder = []string{"local", "sync", "session"}
 
-func (s *SQLiteEventStore) StorageSnapshots(ctx context.Context, area string) ([]protocol.StorageSnapshot, error) {
+func (s *SQLiteEventStore) StorageSnapshots(ctx context.Context, area string, extensionID string) ([]protocol.StorageSnapshot, error) {
+	extID := normalizeExtensionIDParam(extensionID)
 	trimmed := strings.TrimSpace(area)
 	if trimmed == "" {
 		snapshots := make([]protocol.StorageSnapshot, 0, len(storageAreaOrder))
 		for _, storageArea := range storageAreaOrder {
-			items, err := s.loadStorageItems(ctx, storageArea)
+			items, err := s.loadStorageItems(ctx, storageArea, extID)
 			if err != nil {
 				return nil, err
 			}
@@ -37,7 +38,7 @@ func (s *SQLiteEventStore) StorageSnapshots(ctx context.Context, area string) ([
 		return nil, err
 	}
 
-	items, err := s.loadStorageItems(ctx, normalizedArea)
+	items, err := s.loadStorageItems(ctx, normalizedArea, extID)
 	if err != nil {
 		return nil, err
 	}
@@ -54,11 +55,13 @@ func (s *SQLiteEventStore) SetStorageItem(
 	area string,
 	key string,
 	value any,
+	extensionID string,
 ) (protocol.Envelope, error) {
 	normalizedArea, normalizedKey, err := normalizeStorageTarget(area, key)
 	if err != nil {
 		return protocol.Envelope{}, err
 	}
+	extID := normalizeExtensionIDParam(extensionID)
 
 	encodedValue, err := msgpack.Marshal(value)
 	if err != nil {
@@ -78,7 +81,8 @@ func (s *SQLiteEventStore) SetStorageItem(
 	)
 	err = tx.QueryRowContext(
 		ctx,
-		`SELECT value FROM storage_items WHERE area = ? AND key = ?;`,
+		`SELECT value FROM storage_items WHERE extension_id = ? AND area = ? AND key = ?;`,
+		extID,
 		normalizedArea,
 		normalizedKey,
 	).Scan(&rawOldValue)
@@ -97,8 +101,9 @@ func (s *SQLiteEventStore) SetStorageItem(
 
 	if _, err := tx.ExecContext(
 		ctx,
-		`INSERT INTO storage_items(area, key, value) VALUES(?, ?, ?)
-		 ON CONFLICT(area, key) DO UPDATE SET value = excluded.value;`,
+		`INSERT INTO storage_items(extension_id, area, key, value) VALUES(?, ?, ?, ?)
+		 ON CONFLICT(extension_id, area, key) DO UPDATE SET value = excluded.value;`,
+		extID,
 		normalizedArea,
 		normalizedKey,
 		encodedValue,
@@ -118,7 +123,7 @@ func (s *SQLiteEventStore) SetStorageItem(
 		Area:    normalizedArea,
 		Changes: []protocol.StorageChange{change},
 	})
-	if err := appendEventTx(ctx, tx, diff); err != nil {
+	if err := appendEventTx(ctx, tx, diff, extID); err != nil {
 		return protocol.Envelope{}, err
 	}
 	if err := tx.Commit(); err != nil {
@@ -133,11 +138,13 @@ func (s *SQLiteEventStore) RemoveStorageItem(
 	source protocol.Source,
 	area string,
 	key string,
+	extensionID string,
 ) (protocol.Envelope, bool, error) {
 	normalizedArea, normalizedKey, err := normalizeStorageTarget(area, key)
 	if err != nil {
 		return protocol.Envelope{}, false, err
 	}
+	extID := normalizeExtensionIDParam(extensionID)
 
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
@@ -148,7 +155,8 @@ func (s *SQLiteEventStore) RemoveStorageItem(
 	var rawOldValue []byte
 	err = tx.QueryRowContext(
 		ctx,
-		`SELECT value FROM storage_items WHERE area = ? AND key = ?;`,
+		`SELECT value FROM storage_items WHERE extension_id = ? AND area = ? AND key = ?;`,
+		extID,
 		normalizedArea,
 		normalizedKey,
 	).Scan(&rawOldValue)
@@ -166,7 +174,8 @@ func (s *SQLiteEventStore) RemoveStorageItem(
 
 	if _, err := tx.ExecContext(
 		ctx,
-		`DELETE FROM storage_items WHERE area = ? AND key = ?;`,
+		`DELETE FROM storage_items WHERE extension_id = ? AND area = ? AND key = ?;`,
+		extID,
 		normalizedArea,
 		normalizedKey,
 	); err != nil {
@@ -180,7 +189,7 @@ func (s *SQLiteEventStore) RemoveStorageItem(
 			OldValue: oldValue,
 		}},
 	})
-	if err := appendEventTx(ctx, tx, diff); err != nil {
+	if err := appendEventTx(ctx, tx, diff, extID); err != nil {
 		return protocol.Envelope{}, false, err
 	}
 	if err := tx.Commit(); err != nil {
@@ -194,11 +203,13 @@ func (s *SQLiteEventStore) ClearStorageArea(
 	ctx context.Context,
 	source protocol.Source,
 	area string,
+	extensionID string,
 ) (protocol.Envelope, bool, error) {
 	normalizedArea, err := normalizeStorageArea(area)
 	if err != nil {
 		return protocol.Envelope{}, false, err
 	}
+	extID := normalizeExtensionIDParam(extensionID)
 
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
@@ -208,7 +219,8 @@ func (s *SQLiteEventStore) ClearStorageArea(
 
 	rows, err := tx.QueryContext(
 		ctx,
-		`SELECT key, value FROM storage_items WHERE area = ? ORDER BY key;`,
+		`SELECT key, value FROM storage_items WHERE extension_id = ? AND area = ? ORDER BY key;`,
+		extID,
 		normalizedArea,
 	)
 	if err != nil {
@@ -249,7 +261,8 @@ func (s *SQLiteEventStore) ClearStorageArea(
 
 	if _, err := tx.ExecContext(
 		ctx,
-		`DELETE FROM storage_items WHERE area = ?;`,
+		`DELETE FROM storage_items WHERE extension_id = ? AND area = ?;`,
+		extID,
 		normalizedArea,
 	); err != nil {
 		return protocol.Envelope{}, false, fmt.Errorf("clear storage area: %w", err)
@@ -259,7 +272,7 @@ func (s *SQLiteEventStore) ClearStorageArea(
 		Area:    normalizedArea,
 		Changes: changes,
 	})
-	if err := appendEventTx(ctx, tx, diff); err != nil {
+	if err := appendEventTx(ctx, tx, diff, extID); err != nil {
 		return protocol.Envelope{}, false, err
 	}
 	if err := tx.Commit(); err != nil {
@@ -269,10 +282,11 @@ func (s *SQLiteEventStore) ClearStorageArea(
 	return diff, true, nil
 }
 
-func (s *SQLiteEventStore) loadStorageItems(ctx context.Context, area string) (map[string]any, error) {
+func (s *SQLiteEventStore) loadStorageItems(ctx context.Context, area string, extensionID string) (map[string]any, error) {
 	rows, err := s.db.QueryContext(
 		ctx,
-		`SELECT key, value FROM storage_items WHERE area = ? ORDER BY key;`,
+		`SELECT key, value FROM storage_items WHERE extension_id = ? AND area = ? ORDER BY key;`,
+		extensionID,
 		area,
 	)
 	if err != nil {
@@ -304,7 +318,7 @@ func (s *SQLiteEventStore) loadStorageItems(ctx context.Context, area string) (m
 	return items, nil
 }
 
-func appendEventTx(ctx context.Context, tx *sql.Tx, envelope protocol.Envelope) error {
+func appendEventTx(ctx context.Context, tx *sql.Tx, envelope protocol.Envelope, extensionID string) error {
 	encoded, err := protocol.Encode(envelope)
 	if err != nil {
 		return fmt.Errorf("encode event envelope: %w", err)
@@ -312,8 +326,9 @@ func appendEventTx(ctx context.Context, tx *sql.Tx, envelope protocol.Envelope) 
 
 	if _, err := tx.ExecContext(
 		ctx,
-		`INSERT INTO protocol_events(recorded_at_ms, envelope) VALUES(?, ?);`,
+		`INSERT INTO protocol_events(recorded_at_ms, extension_id, envelope) VALUES(?, ?, ?);`,
 		time.Now().UnixMilli(),
+		extensionID,
 		encoded,
 	); err != nil {
 		return fmt.Errorf("insert event envelope: %w", err)

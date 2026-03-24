@@ -685,10 +685,10 @@ func TestWebSocketQueryStorageReturnsMutatedStateByArea(t *testing.T) {
 	server := newTestServer(t)
 	defer server.httpServer.Close()
 
-	if err := server.ws.SetStorageItem(context.Background(), "local", "theme", "dark"); err != nil {
+	if err := server.ws.SetStorageItem(context.Background(), "local", "theme", "dark", "default"); err != nil {
 		t.Fatalf("SetStorageItem(local theme) returned error: %v", err)
 	}
-	if err := server.ws.SetStorageItem(context.Background(), "sync", "beta", true); err != nil {
+	if err := server.ws.SetStorageItem(context.Background(), "sync", "beta", true, "default"); err != nil {
 		t.Fatalf("SetStorageItem(sync beta) returned error: %v", err)
 	}
 
@@ -750,7 +750,7 @@ func TestWebSocketStorageMutationBroadcastsDiff(t *testing.T) {
 	_ = mustHandshake(t, conn)
 	waitForConnectionCount(t, server.ws, 1)
 
-	if err := server.ws.SetStorageItem(context.Background(), "local", "feature", "on"); err != nil {
+	if err := server.ws.SetStorageItem(context.Background(), "local", "feature", "on", "default"); err != nil {
 		t.Fatalf("SetStorageItem(local feature) returned error: %v", err)
 	}
 
@@ -860,7 +860,7 @@ func TestWebSocketStorageRemoveCommandAppliesMutationAndBroadcastsDiff(t *testin
 	server := newTestServer(t)
 	defer server.httpServer.Close()
 
-	if err := server.ws.SetStorageItem(context.Background(), "local", "theme", "dark"); err != nil {
+	if err := server.ws.SetStorageItem(context.Background(), "local", "theme", "dark", "default"); err != nil {
 		t.Fatalf("SetStorageItem(local theme) returned error: %v", err)
 	}
 
@@ -939,10 +939,10 @@ func TestWebSocketStorageClearCommandAppliesMutationAndBroadcastsDiff(t *testing
 	server := newTestServer(t)
 	defer server.httpServer.Close()
 
-	if err := server.ws.SetStorageItem(context.Background(), "local", "one", 1); err != nil {
+	if err := server.ws.SetStorageItem(context.Background(), "local", "one", 1, "default"); err != nil {
 		t.Fatalf("SetStorageItem(local one) returned error: %v", err)
 	}
-	if err := server.ws.SetStorageItem(context.Background(), "local", "two", 2); err != nil {
+	if err := server.ws.SetStorageItem(context.Background(), "local", "two", 2, "default"); err != nil {
 		t.Fatalf("SetStorageItem(local two) returned error: %v", err)
 	}
 
@@ -1165,7 +1165,7 @@ func TestWebSocketChromeAPICallGetBytesInUseAndDefaults(t *testing.T) {
 	_ = mustHandshake(t, conn)
 	waitForConnectionCount(t, server.ws, 1)
 
-	if err := server.ws.SetStorageItem(context.Background(), "sync", "theme", "dark"); err != nil {
+	if err := server.ws.SetStorageItem(context.Background(), "sync", "theme", "dark", "default"); err != nil {
 		t.Fatalf("SetStorageItem(sync theme) returned error: %v", err)
 	}
 
@@ -1558,19 +1558,19 @@ func TestWebSocketStorageMutationValidation(t *testing.T) {
 	server := newTestServer(t)
 	defer server.httpServer.Close()
 
-	if err := server.ws.SetStorageItem(context.Background(), "cookies", "x", "1"); err == nil {
+	if err := server.ws.SetStorageItem(context.Background(), "cookies", "x", "1", "default"); err == nil {
 		t.Fatal("expected SetStorageItem invalid area error, got nil")
 	}
-	if err := server.ws.SetStorageItem(context.Background(), "local", "", "1"); err == nil {
+	if err := server.ws.SetStorageItem(context.Background(), "local", "", "1", "default"); err == nil {
 		t.Fatal("expected SetStorageItem empty key error, got nil")
 	}
-	if err := server.ws.RemoveStorageItem(context.Background(), "cookies", "x"); err == nil {
+	if err := server.ws.RemoveStorageItem(context.Background(), "cookies", "x", "default"); err == nil {
 		t.Fatal("expected RemoveStorageItem invalid area error, got nil")
 	}
-	if err := server.ws.RemoveStorageItem(context.Background(), "local", ""); err == nil {
+	if err := server.ws.RemoveStorageItem(context.Background(), "local", "", "default"); err == nil {
 		t.Fatal("expected RemoveStorageItem empty key error, got nil")
 	}
-	if err := server.ws.ClearStorageArea(context.Background(), "cookies"); err == nil {
+	if err := server.ws.ClearStorageArea(context.Background(), "cookies", "default"); err == nil {
 		t.Fatal("expected ClearStorageArea invalid area error, got nil")
 	}
 }
@@ -1965,18 +1965,18 @@ type blockingRecentEventStore struct {
 	recentCanceled chan struct{}
 }
 
-func (s *blockingRecentEventStore) Append(context.Context, protocol.Envelope) error {
+func (s *blockingRecentEventStore) Append(context.Context, protocol.Envelope, string) error {
 	return nil
 }
 
-func (s *blockingRecentEventStore) Recent(ctx context.Context, _ int, _ int64) ([]store.Record, bool, error) {
+func (s *blockingRecentEventStore) Recent(ctx context.Context, _ int, _ int64, _ string) ([]store.Record, bool, error) {
 	close(s.recentStarted)
 	<-ctx.Done()
 	close(s.recentCanceled)
 	return nil, false, ctx.Err()
 }
 
-func (s *blockingRecentEventStore) StorageSnapshots(context.Context, string) ([]protocol.StorageSnapshot, error) {
+func (s *blockingRecentEventStore) StorageSnapshots(context.Context, string, string) ([]protocol.StorageSnapshot, error) {
 	return []protocol.StorageSnapshot{{Area: "local", Items: map[string]any{}}}, nil
 }
 
@@ -1986,6 +1986,7 @@ func (s *blockingRecentEventStore) SetStorageItem(
 	string,
 	string,
 	any,
+	string,
 ) (protocol.Envelope, error) {
 	return protocol.Envelope{}, nil
 }
@@ -1995,6 +1996,7 @@ func (s *blockingRecentEventStore) RemoveStorageItem(
 	protocol.Source,
 	string,
 	string,
+	string,
 ) (protocol.Envelope, bool, error) {
 	return protocol.Envelope{}, false, nil
 }
@@ -2002,6 +2004,7 @@ func (s *blockingRecentEventStore) RemoveStorageItem(
 func (s *blockingRecentEventStore) ClearStorageArea(
 	context.Context,
 	protocol.Source,
+	string,
 	string,
 ) (protocol.Envelope, bool, error) {
 	return protocol.Envelope{}, false, nil
