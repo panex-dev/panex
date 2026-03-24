@@ -12,7 +12,7 @@ export interface AgentConfig {
 
 export const defaultConfig: AgentConfig = {
   wsUrl: "ws://127.0.0.1:4317/ws",
-  token: "dev-token",
+  token: "",
   agentId: "dev-agent-1",
   extensionId: "default",
   diagnosticLogging: false

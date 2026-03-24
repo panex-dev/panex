@@ -7,7 +7,7 @@ describe("resolveConnectionParamsFromSearch", () => {
   it("uses loopback defaults when no overrides are present", () => {
     assert.deepEqual(resolveConnectionParamsFromSearch(""), {
       wsURL: "ws://127.0.0.1:4317/ws",
-      token: "dev-token"
+      token: ""
     });
   });
 
@@ -43,7 +43,7 @@ describe("resolveConnectionParamsFromSearch", () => {
       ),
       {
         wsURL: "ws://127.0.0.1:4317/ws",
-        token: "dev-token"
+        token: ""
       }
     );
   });
