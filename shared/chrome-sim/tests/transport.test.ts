@@ -182,6 +182,42 @@ describe("chrome-sim transport", () => {
     transport.close();
   });
 
+  it("rejects when daemon reports a mismatched protocol version", async () => {
+    const sockets: FakeSocket[] = [];
+    const transport = createChromeSimTransport({
+      daemonURL: "ws://127.0.0.1:4317/ws",
+      handshakeTimeoutMS: 100,
+      webSocketFactory: (url) => {
+        const socket = new FakeSocket(url);
+        sockets.push(socket);
+        return socket;
+      }
+    });
+
+    const pending = transport.call("storage.local", "get");
+    const socket = sockets[0];
+    socket.open();
+
+    const mismatchedAck: Envelope = {
+      v: PROTOCOL_VERSION,
+      t: "lifecycle",
+      name: "hello.ack",
+      src: { role: "daemon", id: "daemon-1" },
+      data: {
+        protocol_version: 99,
+        daemon_version: "test",
+        session_id: "sess-mismatch",
+        auth_ok: true,
+        capabilities_supported: ["chrome.api.call", "chrome.api.result", "chrome.api.event"]
+      }
+    };
+
+    socket.messageEnvelope(mismatchedAck);
+
+    await assert.rejects(async () => pending, /protocol version mismatch/);
+    transport.close();
+  });
+
   it("closes the socket when an inbound websocket frame exceeds the browser-side limit", async () => {
     const sockets: FakeSocket[] = [];
     const transport = createChromeSimTransport({

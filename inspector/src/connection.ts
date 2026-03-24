@@ -287,6 +287,12 @@ export function ConnectionProvider(props: ParentProps) {
       }
 
       if (isHelloAck(decoded)) {
+        if (decoded.data.protocol_version !== PROTOCOL_VERSION) {
+          setLastError("protocol version mismatch");
+          next.close();
+          return;
+        }
+
         if (!decoded.data.auth_ok) {
           setLastError("handshake rejected by daemon");
           next.close();

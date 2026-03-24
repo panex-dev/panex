@@ -72,6 +72,26 @@ describe("handleDaemonEnvelope", () => {
     assert.equal(state.capabilitiesSupported.has("command.reload"), true);
   });
 
+  it("closes when the daemon reports a mismatched protocol version", () => {
+    const state = createAgentHandshakeState();
+    const closed: Array<{ code?: number; reason?: string }> = [];
+
+    const result = handleDaemonEnvelope(helloAckEnvelope({ protocol_version: 99 }), state, {
+      runtimeReload: () => {
+        throw new Error("unexpected reload");
+      },
+      closeSocket: (code?: number, reason?: string) => {
+        closed.push({ code, reason });
+      }
+    });
+
+    assert.equal(result, "closed");
+    assert.equal(state.complete, false);
+    assert.equal(closed.length, 1);
+    assert.equal(closed[0].code, 1002);
+    assert.match(closed[0].reason!, /protocol version mismatch/);
+  });
+
   it("closes when the daemon rejects the handshake", () => {
     const state = createAgentHandshakeState();
     const closed: Array<{ code?: number; reason?: string }> = [];

@@ -242,6 +242,12 @@ export function createChromeSimTransport(options: ChromeSimTransportOptions = {}
 
         if (isHelloAck(decoded)) {
           clearTimeout(handshakeTimer);
+          if (decoded.data.protocol_version !== PROTOCOL_VERSION) {
+            rejectOnce(new Error("protocol version mismatch"));
+            nextSocket.close();
+            return;
+          }
+
           if (!decoded.data.auth_ok) {
             rejectOnce(new Error("daemon rejected chrome-sim handshake"));
             nextSocket.close();

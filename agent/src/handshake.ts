@@ -68,6 +68,12 @@ export function handleDaemonEnvelope(
       return "closed";
     }
 
+    if (envelope.data.protocol_version !== PROTOCOL_VERSION) {
+      resetAgentHandshakeState(state);
+      hooks.closeSocket(closeProtocolError, "protocol version mismatch");
+      return "closed";
+    }
+
     if (!envelope.data.auth_ok) {
       resetAgentHandshakeState(state);
       hooks.closeSocket(closePolicyViolation, "daemon rejected handshake");
