@@ -16,7 +16,6 @@ func TestMessageTypeForName(t *testing.T) {
 		{name: MessageHello, want: TypeLifecycle, wantOK: true, caseTag: "hello"},
 		{name: MessageHelloAck, want: TypeLifecycle, wantOK: true, caseTag: "hello.ack"},
 		{name: MessageBuildComplete, want: TypeEvent, wantOK: true, caseTag: "build.complete"},
-		{name: MessageContextLog, want: TypeEvent, wantOK: true, caseTag: "context.log"},
 		{name: MessageCommandReload, want: TypeCommand, wantOK: true, caseTag: "command.reload"},
 		{name: MessageQueryEvents, want: TypeCommand, wantOK: true, caseTag: "query.events"},
 		{name: MessageQueryResult, want: TypeEvent, wantOK: true, caseTag: "query.events.result"},
@@ -213,13 +212,6 @@ func TestConstructors(t *testing.T) {
 			wantType:     TypeEvent,
 			wantName:     MessageBuildComplete,
 			wantDataType: BuildComplete{},
-		},
-		{
-			name:         "context.log",
-			got:          NewContextLog(src, ContextLog{ContextID: "background", Level: "info", Message: "ok", TimestampMS: 10000}),
-			wantType:     TypeEvent,
-			wantName:     MessageContextLog,
-			wantDataType: ContextLog{},
 		},
 		{
 			name:         "command.reload",

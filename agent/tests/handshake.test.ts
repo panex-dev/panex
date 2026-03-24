@@ -179,7 +179,7 @@ describe("handleDaemonEnvelope", () => {
       }
     });
 
-    const result = handleDaemonEnvelope(contextLogEnvelope(), state, {
+    const result = handleDaemonEnvelope(buildCompleteEnvelope(), state, {
       runtimeReload: () => {
         reloaded += 1;
       },
@@ -222,12 +222,12 @@ function reloadEnvelope(extensionID?: string): Envelope {
   };
 }
 
-function contextLogEnvelope(): Envelope {
+function buildCompleteEnvelope(): Envelope {
   return {
     v: 1,
     t: "event",
-    name: "context.log",
+    name: "build.complete",
     src: { role: "daemon", id: "daemon-1" },
-    data: { context_id: "ctx-1", level: "info", message: "hello", timestamp_ms: 1000 }
+    data: { build_id: "b1", success: true, duration_ms: 10 }
   };
 }
