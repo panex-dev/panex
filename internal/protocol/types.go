@@ -108,11 +108,11 @@ type HelloAck struct {
 }
 
 type BuildComplete struct {
-	BuildID      string   `msgpack:"build_id"`
-	Success      bool     `msgpack:"success"`
-	DurationMS   int64    `msgpack:"duration_ms"`
-	ExtensionID  string   `msgpack:"extension_id,omitempty"`
-	ChangedFiles []string `msgpack:"changed_files,omitempty"`
+	BuildID         string   `msgpack:"build_id"`
+	Success         bool     `msgpack:"success"`
+	DurationMS      int64    `msgpack:"duration_ms"`
+	ExtensionID     string   `msgpack:"extension_id,omitempty"`
+	TriggeringFiles []string `msgpack:"triggering_files,omitempty"`
 }
 
 type CommandReload struct {

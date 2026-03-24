@@ -22,11 +22,11 @@ type EsbuildBuilder struct {
 }
 
 type Result struct {
-	BuildID      string
-	Success      bool
-	DurationMS   int64
-	ChangedFiles []string
-	Errors       []string
+	BuildID         string
+	Success         bool
+	DurationMS      int64
+	TriggeringFiles []string
+	Errors          []string
 }
 
 type ChromeSimInjectionOptions struct {
@@ -195,11 +195,11 @@ func (b *EsbuildBuilder) Build(ctx context.Context, changedPaths []string) (Resu
 
 	if len(result.Errors) > 0 {
 		return Result{
-			BuildID:      buildID,
-			Success:      false,
-			DurationMS:   durationMS,
-			ChangedFiles: normalizedChanges,
-			Errors:       collectMessages(result.Errors),
+			BuildID:         buildID,
+			Success:         false,
+			DurationMS:      durationMS,
+			TriggeringFiles: normalizedChanges,
+			Errors:          collectMessages(result.Errors),
 		}, nil
 	}
 
@@ -211,10 +211,10 @@ func (b *EsbuildBuilder) Build(ctx context.Context, changedPaths []string) (Resu
 	}
 
 	return Result{
-		BuildID:      buildID,
-		Success:      true,
-		DurationMS:   durationMS,
-		ChangedFiles: normalizedChanges,
+		BuildID:         buildID,
+		Success:         true,
+		DurationMS:      durationMS,
+		TriggeringFiles: normalizedChanges,
 	}, nil
 }
 

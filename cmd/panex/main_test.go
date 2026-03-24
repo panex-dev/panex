@@ -578,10 +578,10 @@ func TestStartDevServerCoordinatesStartupLifecycle(t *testing.T) {
 				buildCalls = append(buildCalls, append([]string(nil), changedPaths...))
 				signalCancel()
 				return build.Result{
-					BuildID:      "build-startup",
-					Success:      true,
-					DurationMS:   12,
-					ChangedFiles: changedPaths,
+					BuildID:         "build-startup",
+					Success:         true,
+					DurationMS:      12,
+					TriggeringFiles: changedPaths,
 				}, nil
 			},
 		}, nil
@@ -758,10 +758,10 @@ func TestStartDevServerStartsOneBuilderAndWatcherPerExtension(t *testing.T) {
 					signalCancel()
 				}
 				return build.Result{
-					BuildID:      "build-" + extensionID,
-					Success:      true,
-					DurationMS:   9,
-					ChangedFiles: changedPaths,
+					BuildID:         "build-" + extensionID,
+					Success:         true,
+					DurationMS:      9,
+					TriggeringFiles: changedPaths,
 				}, nil
 			},
 		}, nil
@@ -823,10 +823,10 @@ func TestRunBuildLoopBroadcastsBuildComplete(t *testing.T) {
 		build: func(_ context.Context, changedPaths []string) (build.Result, error) {
 			buildCalls++
 			return build.Result{
-				BuildID:      fmt.Sprintf("build-123-%d", buildCalls),
-				Success:      true,
-				DurationMS:   21,
-				ChangedFiles: changedPaths,
+				BuildID:         fmt.Sprintf("build-123-%d", buildCalls),
+				Success:         true,
+				DurationMS:      21,
+				TriggeringFiles: changedPaths,
 			}, nil
 		},
 	}
@@ -848,8 +848,8 @@ func TestRunBuildLoopBroadcastsBuildComplete(t *testing.T) {
 	if startupPayload.BuildID != "build-123-1" {
 		t.Fatalf("unexpected startup build id: got %q, want %q", startupPayload.BuildID, "build-123-1")
 	}
-	if len(startupPayload.ChangedFiles) != 0 {
-		t.Fatalf("expected no startup changed files, got %v", startupPayload.ChangedFiles)
+	if len(startupPayload.TriggeringFiles) != 0 {
+		t.Fatalf("expected no startup triggering files, got %v", startupPayload.TriggeringFiles)
 	}
 
 	startupReloadEvent := waitForBroadcast(t, broadcaster, 2*time.Second)
@@ -885,8 +885,8 @@ func TestRunBuildLoopBroadcastsBuildComplete(t *testing.T) {
 	if payload.BuildID != "build-123-2" {
 		t.Fatalf("unexpected build id: got %q, want %q", payload.BuildID, "build-123-2")
 	}
-	if len(payload.ChangedFiles) != 1 || payload.ChangedFiles[0] != "src/index.ts" {
-		t.Fatalf("unexpected changed files: %v", payload.ChangedFiles)
+	if len(payload.TriggeringFiles) != 1 || payload.TriggeringFiles[0] != "src/index.ts" {
+		t.Fatalf("unexpected triggering files: %v", payload.TriggeringFiles)
 	}
 	if payload.ExtensionID != "default" {
 		t.Fatalf("unexpected extension id: got %q, want %q", payload.ExtensionID, "default")
@@ -934,10 +934,10 @@ func TestRunBuildLoopBuilderErrorStillBroadcastsFailure(t *testing.T) {
 			buildCalls++
 			if buildCalls == 1 {
 				return build.Result{
-					BuildID:      "build-startup-1",
-					Success:      true,
-					DurationMS:   12,
-					ChangedFiles: changedPaths,
+					BuildID:         "build-startup-1",
+					Success:         true,
+					DurationMS:      12,
+					TriggeringFiles: changedPaths,
 				}, nil
 			}
 			return build.Result{}, errors.New("boom")
@@ -975,8 +975,8 @@ func TestRunBuildLoopBuilderErrorStillBroadcastsFailure(t *testing.T) {
 	if !strings.HasPrefix(payload.BuildID, "build-failed-") {
 		t.Fatalf("unexpected failure build id: %q", payload.BuildID)
 	}
-	if len(payload.ChangedFiles) != 1 || payload.ChangedFiles[0] != "src/invalid.ts" {
-		t.Fatalf("unexpected changed files: %v", payload.ChangedFiles)
+	if len(payload.TriggeringFiles) != 1 || payload.TriggeringFiles[0] != "src/invalid.ts" {
+		t.Fatalf("unexpected triggering files: %v", payload.TriggeringFiles)
 	}
 	if payload.ExtensionID != "default" {
 		t.Fatalf("unexpected failure extension id: got %q, want %q", payload.ExtensionID, "default")

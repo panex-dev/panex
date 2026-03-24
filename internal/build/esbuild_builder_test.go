@@ -104,11 +104,11 @@ func TestBuildSuccess(t *testing.T) {
 	if result.DurationMS < 0 {
 		t.Fatalf("unexpected negative duration: %d", result.DurationMS)
 	}
-	if len(result.ChangedFiles) != 2 {
-		t.Fatalf("unexpected changed file count: got %d, want 2", len(result.ChangedFiles))
+	if len(result.TriggeringFiles) != 2 {
+		t.Fatalf("unexpected triggering file count: got %d, want 2", len(result.TriggeringFiles))
 	}
-	if result.ChangedFiles[0] != "index.ts" || result.ChangedFiles[1] != "nested/util.ts" {
-		t.Fatalf("unexpected changed files: %v", result.ChangedFiles)
+	if result.TriggeringFiles[0] != "index.ts" || result.TriggeringFiles[1] != "nested/util.ts" {
+		t.Fatalf("unexpected triggering files: %v", result.TriggeringFiles)
 	}
 
 	if _, err := os.Stat(filepath.Join(outDir, "index.js")); err != nil {

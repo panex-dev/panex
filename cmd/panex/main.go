@@ -355,11 +355,11 @@ func runBuildLoop(
 		result, err := builder.Build(ctx, changedPaths)
 		if err != nil {
 			result = build.Result{
-				BuildID:      fmt.Sprintf("build-failed-%d", atomic.AddUint64(&buildFailureSeq, 1)),
-				Success:      false,
-				DurationMS:   0,
-				ChangedFiles: changedPaths,
-				Errors:       []string{err.Error()},
+				BuildID:         fmt.Sprintf("build-failed-%d", atomic.AddUint64(&buildFailureSeq, 1)),
+				Success:         false,
+				DurationMS:      0,
+				TriggeringFiles: changedPaths,
+				Errors:          []string{err.Error()},
 			}
 		}
 
@@ -370,11 +370,11 @@ func runBuildLoop(
 					ID:   "daemon-1",
 				},
 				protocol.BuildComplete{
-					BuildID:      result.BuildID,
-					Success:      result.Success,
-					DurationMS:   result.DurationMS,
-					ExtensionID:  target.ID,
-					ChangedFiles: result.ChangedFiles,
+					BuildID:         result.BuildID,
+					Success:         result.Success,
+					DurationMS:      result.DurationMS,
+					ExtensionID:     target.ID,
+					TriggeringFiles: result.TriggeringFiles,
 				},
 			),
 		); broadcastErr != nil && !errors.Is(ctx.Err(), context.Canceled) {
