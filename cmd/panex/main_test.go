@@ -1137,6 +1137,7 @@ func newCLIConfigFixture(t *testing.T) panexconfig.Config {
 		}},
 		Server: panexconfig.Server{
 			Port:           4317,
+			BindAddress:    panexconfig.DefaultBindAddress,
 			AuthToken:      "dev-token",
 			EventStorePath: filepath.Join(root, "events.db"),
 		},
