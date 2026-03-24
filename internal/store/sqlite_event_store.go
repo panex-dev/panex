@@ -97,7 +97,10 @@ func (s *SQLiteEventStore) migrateProtocolEventsExtensionID() error {
 	err := s.db.QueryRow(
 		`SELECT COUNT(*) FROM pragma_table_info('protocol_events') WHERE name = 'extension_id';`,
 	).Scan(&count)
-	if err != nil || count > 0 {
+	if err != nil {
+		return fmt.Errorf("check protocol_events extension_id column: %w", err)
+	}
+	if count > 0 {
 		return nil
 	}
 	if _, err := s.db.Exec(`ALTER TABLE protocol_events ADD COLUMN extension_id TEXT NOT NULL DEFAULT 'default';`); err != nil {
@@ -111,7 +114,10 @@ func (s *SQLiteEventStore) migrateStorageItemsExtensionID() error {
 	err := s.db.QueryRow(
 		`SELECT COUNT(*) FROM pragma_table_info('storage_items') WHERE name = 'extension_id';`,
 	).Scan(&count)
-	if err != nil || count > 0 {
+	if err != nil {
+		return fmt.Errorf("check storage_items extension_id column: %w", err)
+	}
+	if count > 0 {
 		return nil
 	}
 	// Recreate table with new primary key since SQLite can't alter PKs.
