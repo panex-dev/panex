@@ -114,8 +114,8 @@ func TestWebSocketHandshakeSendsHelloAckAndTracksConnection(t *testing.T) {
 	if helloAck.DaemonVersion != "test-version" {
 		t.Fatalf("unexpected daemon version: got %q, want %q", helloAck.DaemonVersion, "test-version")
 	}
-	if len(helloAck.CapabilitiesSupported) != 1 || helloAck.CapabilitiesSupported[0] != "command.reload" {
-		t.Fatalf("unexpected supported capabilities: %v", helloAck.CapabilitiesSupported)
+	if len(helloAck.CapabilitiesSupported) != len(daemonCapabilities) {
+		t.Fatalf("expected all daemon capabilities when none requested, got: %v", helloAck.CapabilitiesSupported)
 	}
 
 	waitForConnectionCount(t, server.ws, 1)
@@ -167,6 +167,61 @@ func TestWebSocketHandshakeNegotiatesCapabilities(t *testing.T) {
 	}
 	if len(payload.CapabilitiesSupported) != 1 || payload.CapabilitiesSupported[0] != "query.events" {
 		t.Fatalf("unexpected supported capabilities: %v", payload.CapabilitiesSupported)
+	}
+}
+
+func TestWebSocketCapabilityEnforcementRejectsUnnegotiatedMessage(t *testing.T) {
+	server := newTestServer(t)
+	defer server.httpServer.Close()
+
+	conn := dialAuthorizedConnection(t, server.wsURL, server.token)
+	t.Cleanup(func() {
+		_ = conn.Close()
+	})
+
+	// Negotiate only "command.reload" — no query capabilities.
+	hello := protocol.NewHello(
+		protocol.Source{
+			Role: protocol.SourceDevAgent,
+			ID:   "agent-limited",
+		},
+		protocol.Hello{
+			ProtocolVersion:       protocol.CurrentVersion,
+			AuthToken:             server.token,
+			ClientKind:            "dev-agent",
+			ClientVersion:         "dev",
+			CapabilitiesRequested: []string{"command.reload"},
+		},
+	)
+	rawHello, err := protocol.Encode(hello)
+	if err != nil {
+		t.Fatalf("Encode(hello) returned error: %v", err)
+	}
+	if err := conn.WriteMessage(websocket.BinaryMessage, rawHello); err != nil {
+		t.Fatalf("WriteMessage(hello) returned error: %v", err)
+	}
+	_ = mustReadEnvelope(t, conn) // consume hello.ack
+
+	waitForConnectionCount(t, server.ws, 1)
+
+	// Send a query.events message — capability not negotiated, should be rejected.
+	queryMsg := protocol.NewQueryEvents(
+		protocol.Source{Role: protocol.SourceInspector, ID: "agent-limited"},
+		protocol.QueryEvents{Limit: 10},
+	)
+	rawQuery, err := protocol.Encode(queryMsg)
+	if err != nil {
+		t.Fatalf("Encode(query.events) returned error: %v", err)
+	}
+	if err := conn.WriteMessage(websocket.BinaryMessage, rawQuery); err != nil {
+		t.Fatalf("WriteMessage(query.events) returned error: %v", err)
+	}
+
+	// The server should close the connection since the capability is not negotiated.
+	_ = conn.SetReadDeadline(time.Now().Add(2 * time.Second))
+	_, _, readErr := conn.ReadMessage()
+	if readErr == nil {
+		t.Fatal("expected connection to be closed after sending unnegotiated capability message")
 	}
 }
 
@@ -1853,11 +1908,10 @@ func mustHandshakeWithToken(t *testing.T, conn *websocket.Conn, token string) pr
 			ID:   "agent-1",
 		},
 		protocol.Hello{
-			ProtocolVersion:       protocol.CurrentVersion,
-			AuthToken:             token,
-			ClientKind:            "dev-agent",
-			ClientVersion:         "dev",
-			CapabilitiesRequested: []string{"command.reload"},
+			ProtocolVersion: protocol.CurrentVersion,
+			AuthToken:       token,
+			ClientKind:      "dev-agent",
+			ClientVersion:   "dev",
 		},
 	)
 	rawHello, err := protocol.Encode(hello)
