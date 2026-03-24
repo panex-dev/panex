@@ -62,6 +62,12 @@ func (b *EsbuildBuilder) processHTMLAssets(assets []string) error {
 		return err
 	}
 
+	if b.options.chromeSim != nil {
+		if err := writeBootstrapConfig(b.outDir, *b.options.chromeSim); err != nil {
+			return fmt.Errorf("write bootstrap config: %w", err)
+		}
+	}
+
 	for _, relPath := range assets {
 		sourcePath := filepath.Join(b.sourceDir, filepath.FromSlash(relPath))
 		rawHTML, err := os.ReadFile(sourcePath)
@@ -125,8 +131,9 @@ func (b *EsbuildBuilder) renderHTMLAsset(relPath string, markup string) (string,
 		return rewritten, nil
 	}
 
+	bootstrapTag := bootstrapScriptTag(relPath)
 	moduleURL := relativeModuleURL(relPath, config.ModuleOutputName)
-	return injectChromeSimScriptTag(rewritten, chromeSimScriptTag(moduleURL, *config))
+	return injectChromeSimScriptTag(rewritten, bootstrapTag+"\n  "+chromeSimScriptTag(moduleURL, *config))
 }
 
 func rewriteScriptSources(markup string) string {
@@ -217,14 +224,38 @@ func chromeSimScriptTag(moduleURL string, config ChromeSimInjectionOptions) stri
 		fmt.Sprintf(`data-panex-ws="%s"`, html.EscapeString(config.DaemonURL)),
 	}
 
-	if token := strings.TrimSpace(config.AuthToken); token != "" {
-		attrs = append(attrs, fmt.Sprintf(`data-panex-token="%s"`, html.EscapeString(token)))
-	}
 	if extensionID := strings.TrimSpace(config.ExtensionID); extensionID != "" {
 		attrs = append(attrs, fmt.Sprintf(`data-panex-extension-id="%s"`, html.EscapeString(extensionID)))
 	}
 
 	return "<script " + strings.Join(attrs, " ") + "></script>"
+}
+
+const bootstrapFileName = "__panex_bootstrap__.js"
+
+func writeBootstrapConfig(outDir string, config ChromeSimInjectionOptions) error {
+	var lines []string
+	if token := strings.TrimSpace(config.AuthToken); token != "" {
+		lines = append(lines, fmt.Sprintf("window.__PANEX_DAEMON_TOKEN__=%q;", token))
+	}
+	if daemonURL := strings.TrimSpace(config.DaemonURL); daemonURL != "" {
+		lines = append(lines, fmt.Sprintf("window.__PANEX_DAEMON_URL__=%q;", daemonURL))
+	}
+	if extensionID := strings.TrimSpace(config.ExtensionID); extensionID != "" {
+		lines = append(lines, fmt.Sprintf("window.__PANEX_EXTENSION_ID__=%q;", extensionID))
+	}
+	if len(lines) == 0 {
+		return nil
+	}
+
+	content := strings.Join(lines, "\n") + "\n"
+	outPath := filepath.Join(outDir, bootstrapFileName)
+	return os.WriteFile(outPath, []byte(content), 0o600)
+}
+
+func bootstrapScriptTag(relHTMLPath string) string {
+	moduleURL := relativeModuleURL(relHTMLPath, bootstrapFileName)
+	return fmt.Sprintf(`<script src="%s"></script>`, html.EscapeString(moduleURL))
 }
 
 func errorsForBuildMessages(message string) error {

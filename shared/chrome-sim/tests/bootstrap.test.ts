@@ -34,6 +34,29 @@ describe("chrome-sim bootstrap helpers", () => {
     assert.equal(values.extensionID, "script-ext");
   });
 
+  it("does not read token from script dataset (only from globals and query params)", () => {
+    const values = resolveChromeSimBootstrapValues({
+      __PANEX_DAEMON_TOKEN__: "global-token",
+      document: {
+        createElement() {
+          throw new Error("not used");
+        },
+        currentScript: {
+          type: "module",
+          src: "/chrome-sim.js",
+          dataset: {
+            panexChromeSim: "1",
+            panexWs: "ws://script/ws",
+            panexToken: "script-token-should-be-ignored",
+            panexExtensionId: "script-ext"
+          }
+        }
+      }
+    });
+
+    assert.equal(values.authToken, "global-token");
+  });
+
   it("injects module script with bootstrap dataset", () => {
     const appended: Array<{ type: string; src: string; dataset: Record<string, string | undefined> }> = [];
     const fakeDocument = {
@@ -62,7 +85,7 @@ describe("chrome-sim bootstrap helpers", () => {
     assert.equal(script?.src, "/chrome-sim-entry.js");
     assert.equal(script?.dataset.panexChromeSim, "1");
     assert.equal(script?.dataset.panexWs, "ws://127.0.0.1:4317/ws");
-    assert.equal(script?.dataset.panexToken, "dev-token");
+    assert.equal(script?.dataset.panexToken, undefined);
     assert.equal(script?.dataset.panexExtensionId, "ext-123");
     assert.equal(appended.length, 1);
   });

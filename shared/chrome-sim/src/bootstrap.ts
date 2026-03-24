@@ -71,11 +71,6 @@ export function injectChromeSimEntrypoint(
   script.dataset.panexChromeSim = "1";
   script.dataset.panexWs = options.daemonURL;
 
-  const token = normalizeString(options.authToken);
-  if (token) {
-    script.dataset.panexToken = token;
-  }
-
   const extensionID = normalizeString(options.extensionID);
   if (extensionID) {
     script.dataset.panexExtensionId = extensionID;
@@ -97,7 +92,6 @@ function resolveScriptBootstrapValues(doc: DocumentLike | undefined): ChromeSimB
 
   return {
     daemonURL: normalizeString(candidate.dataset.panexWs),
-    authToken: normalizeString(candidate.dataset.panexToken),
     extensionID: normalizeString(candidate.dataset.panexExtensionId)
   };
 }
