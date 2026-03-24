@@ -75,7 +75,9 @@ auth_token = "dev-token"
 event_store_path = ".panex/events.db"
 ```
 
-Multi-extension config:
+Multi-extension config (**partial support**):
+
+> **Experimental.** Build, watch, and reload targeting work per-extension. However, per-extension runtime and storage isolation is not complete yet — the inspector still shows one shared event stream and events from different extensions share the same store. Set up multi-extension configs with this limitation in mind.
 
 ```toml
 [[extensions]]
@@ -174,12 +176,6 @@ Validation rules:
 - `source_dir` and `out_dir` cannot be the same directory or nested inside each other.
 - Multi-extension targets must use unique IDs.
 - Multi-extension source and output paths must not overlap each other.
-
-Current multi-extension scope:
-
-- build, watch, and reload targeting are extension-aware
-- the inspector still shows one shared event stream
-- broader per-extension runtime and storage isolation is not complete yet
 
 ## Release Verification
 
