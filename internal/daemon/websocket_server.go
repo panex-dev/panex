@@ -1402,17 +1402,6 @@ func (s *WebSocketServer) sessionExtensionID(sessionID string) string {
 	return session.extensionID
 }
 
-func (s *WebSocketServer) sessionHasCapability(sessionID, capability string) bool {
-	s.mu.RLock()
-	session, ok := s.sessions[sessionID]
-	s.mu.RUnlock()
-	if !ok {
-		return false
-	}
-	_, has := session.capabilities[capability]
-	return has
-}
-
 func (s *WebSocketServer) writeSessionMessage(sessionID string, encoded []byte) error {
 	s.mu.RLock()
 	session, ok := s.sessions[sessionID]

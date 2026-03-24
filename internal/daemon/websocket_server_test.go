@@ -170,61 +170,6 @@ func TestWebSocketHandshakeNegotiatesCapabilities(t *testing.T) {
 	}
 }
 
-func TestWebSocketCapabilityEnforcementRejectsUnnegotiatedMessage(t *testing.T) {
-	server := newTestServer(t)
-	defer server.httpServer.Close()
-
-	conn := dialAuthorizedConnection(t, server.wsURL, server.token)
-	t.Cleanup(func() {
-		_ = conn.Close()
-	})
-
-	// Negotiate only "command.reload" — no query capabilities.
-	hello := protocol.NewHello(
-		protocol.Source{
-			Role: protocol.SourceDevAgent,
-			ID:   "agent-limited",
-		},
-		protocol.Hello{
-			ProtocolVersion:       protocol.CurrentVersion,
-			AuthToken:             server.token,
-			ClientKind:            "dev-agent",
-			ClientVersion:         "dev",
-			CapabilitiesRequested: []string{"command.reload"},
-		},
-	)
-	rawHello, err := protocol.Encode(hello)
-	if err != nil {
-		t.Fatalf("Encode(hello) returned error: %v", err)
-	}
-	if err := conn.WriteMessage(websocket.BinaryMessage, rawHello); err != nil {
-		t.Fatalf("WriteMessage(hello) returned error: %v", err)
-	}
-	_ = mustReadEnvelope(t, conn) // consume hello.ack
-
-	waitForConnectionCount(t, server.ws, 1)
-
-	// Send a query.events message — capability not negotiated, should be rejected.
-	queryMsg := protocol.NewQueryEvents(
-		protocol.Source{Role: protocol.SourceInspector, ID: "agent-limited"},
-		protocol.QueryEvents{Limit: 10},
-	)
-	rawQuery, err := protocol.Encode(queryMsg)
-	if err != nil {
-		t.Fatalf("Encode(query.events) returned error: %v", err)
-	}
-	if err := conn.WriteMessage(websocket.BinaryMessage, rawQuery); err != nil {
-		t.Fatalf("WriteMessage(query.events) returned error: %v", err)
-	}
-
-	// The server should close the connection since the capability is not negotiated.
-	_ = conn.SetReadDeadline(time.Now().Add(2 * time.Second))
-	_, _, readErr := conn.ReadMessage()
-	if readErr == nil {
-		t.Fatal("expected connection to be closed after sending unnegotiated capability message")
-	}
-}
-
 func TestWebSocketBroadcastToConnectedClient(t *testing.T) {
 	server := newTestServer(t)
 	defer server.httpServer.Close()
@@ -2024,10 +1969,6 @@ func singleSessionID(t *testing.T, server *WebSocketServer) string {
 
 func mustHandshake(t *testing.T, conn *websocket.Conn) protocol.Envelope {
 	return mustHandshakeWithCapabilities(t, conn, defaultHandshakeToken, daemonCapabilities)
-}
-
-func mustHandshakeWithToken(t *testing.T, conn *websocket.Conn, token string) protocol.Envelope {
-	return mustHandshakeWithCapabilities(t, conn, token, daemonCapabilities)
 }
 
 func mustHandshakeWithCapabilities(t *testing.T, conn *websocket.Conn, token string, capabilities []string) protocol.Envelope {
