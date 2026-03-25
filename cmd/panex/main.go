@@ -403,9 +403,11 @@ func runBuildLoop(
 		}
 
 		if result.Success {
-			// Reload commands are emitted only after successful builds so clients can treat reload as a
-			// strong signal that new artifacts exist in the output directory.
-			if broadcastErr := server.Broadcast(ctx,
+			// Verify output directory contains manifest.json before signaling reload.
+			manifestPath := filepath.Join(target.OutDir, "manifest.json")
+			if _, statErr := os.Stat(manifestPath); statErr != nil {
+				_ = writef(os.Stderr, "warning: build succeeded but %s not found, skipping reload\n", manifestPath)
+			} else if broadcastErr := server.Broadcast(ctx,
 				protocol.NewCommandReload(
 					protocol.Source{
 						Role: protocol.SourceDaemon,
