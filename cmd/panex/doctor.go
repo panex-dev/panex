@@ -5,6 +5,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 
 	panexconfig "github.com/panex-dev/panex/internal/config"
@@ -123,6 +124,9 @@ func writeDoctorSummary(w io.Writer, issues int) error {
 }
 
 func isWSL() bool {
+	if runtime.GOOS != "linux" {
+		return false
+	}
 	data := readProcVersion()
 	lower := strings.ToLower(string(data))
 	return strings.Contains(lower, "microsoft") || strings.Contains(lower, "wsl")
