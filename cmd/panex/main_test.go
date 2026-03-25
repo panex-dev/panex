@@ -647,6 +647,7 @@ func TestCLIErrorErrorReturnsMessage(t *testing.T) {
 
 func TestStartDevServerCoordinatesStartupLifecycle(t *testing.T) {
 	cfg := newCLIConfigFixture(t)
+	writeManifestJSON(t, cfg.Extensions[0].OutDir)
 
 	signalCtx, signalCancel := context.WithCancel(context.Background())
 	t.Cleanup(signalCancel)
@@ -822,6 +823,8 @@ func TestStartDevServerStartsOneBuilderAndWatcherPerExtension(t *testing.T) {
 		SourceDir: secondSourceDir,
 		OutDir:    secondOutDir,
 	})
+	writeManifestJSON(t, cfg.Extensions[0].OutDir)
+	writeManifestJSON(t, secondOutDir)
 
 	signalCtx, signalCancel := context.WithCancel(context.Background())
 	t.Cleanup(signalCancel)
@@ -916,6 +919,9 @@ func TestRunBuildLoopBroadcastsBuildComplete(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
+	outDir := t.TempDir()
+	writeManifestJSON(t, outDir)
+
 	changes := make(chan daemon.FileChangeEvent, 1)
 	broadcaster := &fakeBroadcaster{}
 	var buildCalls int
@@ -934,7 +940,7 @@ func TestRunBuildLoopBroadcastsBuildComplete(t *testing.T) {
 	var noDirty atomic.Bool
 	done := make(chan error, 1)
 	go func() {
-		done <- runBuildLoop(ctx, extensionTarget{ID: "default"}, builder, broadcaster, changes, &noDirty)
+		done <- runBuildLoop(ctx, extensionTarget{ID: "default", OutDir: outDir}, builder, broadcaster, changes, &noDirty)
 	}()
 
 	startupBuildEvent := waitForBroadcast(t, broadcaster, 2*time.Second)
@@ -1027,6 +1033,9 @@ func TestRunBuildLoopBuilderErrorStillBroadcastsFailure(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
+	outDir := t.TempDir()
+	writeManifestJSON(t, outDir)
+
 	changes := make(chan daemon.FileChangeEvent, 1)
 	broadcaster := &fakeBroadcaster{}
 	var buildCalls int
@@ -1048,7 +1057,7 @@ func TestRunBuildLoopBuilderErrorStillBroadcastsFailure(t *testing.T) {
 	var noDirty2 atomic.Bool
 	done := make(chan error, 1)
 	go func() {
-		done <- runBuildLoop(ctx, extensionTarget{ID: "default"}, builder, broadcaster, changes, &noDirty2)
+		done <- runBuildLoop(ctx, extensionTarget{ID: "default", OutDir: outDir}, builder, broadcaster, changes, &noDirty2)
 	}()
 
 	startupBuildEvent := waitForBroadcast(t, broadcaster, 2*time.Second)
@@ -1098,9 +1107,61 @@ func TestRunBuildLoopBuilderErrorStillBroadcastsFailure(t *testing.T) {
 	}
 }
 
+func TestRunBuildLoopSkipsReloadWhenManifestMissing(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	// OutDir exists but has no manifest.json.
+	outDir := t.TempDir()
+
+	changes := make(chan daemon.FileChangeEvent, 1)
+	broadcaster := &fakeBroadcaster{}
+	builder := fakeBuildRunner{
+		build: func(_ context.Context, changedPaths []string) (build.Result, error) {
+			return build.Result{
+				BuildID:         "build-no-manifest",
+				Success:         true,
+				DurationMS:      3,
+				TriggeringFiles: changedPaths,
+			}, nil
+		},
+	}
+
+	var noDirty atomic.Bool
+	done := make(chan error, 1)
+	go func() {
+		done <- runBuildLoop(ctx, extensionTarget{ID: "default", OutDir: outDir}, builder, broadcaster, changes, &noDirty)
+	}()
+
+	// Startup build should broadcast build.complete but NOT command.reload.
+	startupBuild := waitForBroadcast(t, broadcaster, 2*time.Second)
+	if startupBuild.Name != protocol.MessageBuildComplete {
+		t.Fatalf("expected startup build.complete, got %q", startupBuild.Name)
+	}
+
+	// Give a short window to confirm no reload is sent.
+	time.Sleep(100 * time.Millisecond)
+	if countBroadcastsByName(broadcaster, protocol.MessageCommandReload) != 0 {
+		t.Fatal("did not expect command.reload when manifest.json is missing")
+	}
+
+	cancel()
+	select {
+	case err := <-done:
+		if err != nil {
+			t.Fatalf("runBuildLoop() returned error: %v", err)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("timed out waiting for build loop shutdown")
+	}
+}
+
 func TestRunBuildLoopDirtyFlagTriggersRebuild(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
+
+	outDir := t.TempDir()
+	writeManifestJSON(t, outDir)
 
 	changes := make(chan daemon.FileChangeEvent, 1)
 	broadcaster := &fakeBroadcaster{}
@@ -1122,7 +1183,7 @@ func TestRunBuildLoopDirtyFlagTriggersRebuild(t *testing.T) {
 
 	done := make(chan error, 1)
 	go func() {
-		done <- runBuildLoop(ctx, extensionTarget{ID: "default"}, builder, broadcaster, changes, &dirty)
+		done <- runBuildLoop(ctx, extensionTarget{ID: "default", OutDir: outDir}, builder, broadcaster, changes, &dirty)
 	}()
 
 	// Startup build => build.complete + command.reload
@@ -1171,6 +1232,9 @@ func TestRunBuildLoopDirtyFlagTriggersRebuildAfterFileChange(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
+	outDir := t.TempDir()
+	writeManifestJSON(t, outDir)
+
 	changes := make(chan daemon.FileChangeEvent, 1)
 	broadcaster := &fakeBroadcaster{}
 	var dirty atomic.Bool
@@ -1193,7 +1257,7 @@ func TestRunBuildLoopDirtyFlagTriggersRebuildAfterFileChange(t *testing.T) {
 
 	done := make(chan error, 1)
 	go func() {
-		done <- runBuildLoop(ctx, extensionTarget{ID: "default"}, builder, broadcaster, changes, &dirty)
+		done <- runBuildLoop(ctx, extensionTarget{ID: "default", OutDir: outDir}, builder, broadcaster, changes, &dirty)
 	}()
 
 	// Drain startup build + reload
@@ -1258,6 +1322,16 @@ func requireCLIError(t *testing.T, err error) *cliError {
 	}
 
 	return cliErr
+}
+
+func writeManifestJSON(t *testing.T, dir string) {
+	t.Helper()
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatalf("create manifest dir: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "manifest.json"), []byte(`{"manifest_version":3}`), 0o644); err != nil {
+		t.Fatalf("write manifest.json: %v", err)
+	}
 }
 
 func writePanexConfig(t *testing.T, path, content string) {
