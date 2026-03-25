@@ -1159,6 +1159,126 @@ func TestRunBuildLoopSkipsReloadWhenManifestMissing(t *testing.T) {
 	}
 }
 
+// TestE2ERealBuildTriggersReload exercises the critical developer workflow
+// with a real esbuild builder: file change event → esbuild runs → output
+// written to disk → build.complete broadcast → command.reload broadcast.
+//
+// This closes the test gap identified in PX-DRIFT-008: no single test
+// previously exercised the build pipeline end-to-end with real artifacts.
+func TestE2ERealBuildTriggersReload(t *testing.T) {
+	root := t.TempDir()
+	sourceDir := filepath.Join(root, "src")
+	outDir := filepath.Join(root, "dist")
+	if err := os.MkdirAll(sourceDir, 0o755); err != nil {
+		t.Fatalf("create source dir: %v", err)
+	}
+
+	// Seed a minimal extension: manifest.json + background.js entry point.
+	if err := os.WriteFile(filepath.Join(sourceDir, "manifest.json"), []byte(`{"manifest_version":3,"name":"test","version":"0.0.1"}`), 0o644); err != nil {
+		t.Fatalf("write manifest.json: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(sourceDir, "background.js"), []byte(`console.log("v1");`), 0o644); err != nil {
+		t.Fatalf("write background.js: %v", err)
+	}
+
+	builder, err := build.NewEsbuildBuilder(sourceDir, outDir)
+	if err != nil {
+		t.Fatalf("create esbuild builder: %v", err)
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	changes := make(chan daemon.FileChangeEvent, 1)
+	broadcaster := &fakeBroadcaster{}
+	var noDirty atomic.Bool
+
+	done := make(chan error, 1)
+	go func() {
+		done <- runBuildLoop(ctx, extensionTarget{ID: "default", SourceDir: sourceDir, OutDir: outDir}, builder, broadcaster, changes, &noDirty)
+	}()
+
+	// --- Startup build ---
+	startupBuild := waitForBroadcast(t, broadcaster, 5*time.Second)
+	if startupBuild.Name != protocol.MessageBuildComplete {
+		t.Fatalf("startup: expected build.complete, got %q", startupBuild.Name)
+	}
+	startupPayload, ok := startupBuild.Data.(protocol.BuildComplete)
+	if !ok {
+		t.Fatalf("startup: unexpected payload type: %T", startupBuild.Data)
+	}
+	if !startupPayload.Success {
+		t.Fatal("startup: expected successful build")
+	}
+
+	startupReload := waitForBroadcast(t, broadcaster, 5*time.Second)
+	if startupReload.Name != protocol.MessageCommandReload {
+		t.Fatalf("startup: expected command.reload, got %q", startupReload.Name)
+	}
+
+	// Verify real output files exist after startup build.
+	if _, err := os.Stat(filepath.Join(outDir, "manifest.json")); err != nil {
+		t.Fatalf("startup: manifest.json missing from output: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(outDir, "background.js")); err != nil {
+		t.Fatalf("startup: background.js missing from output: %v", err)
+	}
+
+	// --- Simulate file change (edit background.js) ---
+	if err := os.WriteFile(filepath.Join(sourceDir, "background.js"), []byte(`console.log("v2");`), 0o644); err != nil {
+		t.Fatalf("write updated background.js: %v", err)
+	}
+	changes <- daemon.FileChangeEvent{Paths: []string{"background.js"}, OccurredAt: time.Now()}
+
+	// --- Rebuild ---
+	rebuildEvent := waitForBroadcast(t, broadcaster, 5*time.Second)
+	if rebuildEvent.Name != protocol.MessageBuildComplete {
+		t.Fatalf("rebuild: expected build.complete, got %q", rebuildEvent.Name)
+	}
+	rebuildPayload, ok := rebuildEvent.Data.(protocol.BuildComplete)
+	if !ok {
+		t.Fatalf("rebuild: unexpected payload type: %T", rebuildEvent.Data)
+	}
+	if !rebuildPayload.Success {
+		t.Fatalf("rebuild: expected successful build")
+	}
+	if len(rebuildPayload.TriggeringFiles) != 1 || rebuildPayload.TriggeringFiles[0] != "background.js" {
+		t.Fatalf("rebuild: unexpected triggering files: %v", rebuildPayload.TriggeringFiles)
+	}
+
+	// --- Reload ---
+	reloadEvent := waitForBroadcast(t, broadcaster, 5*time.Second)
+	if reloadEvent.Name != protocol.MessageCommandReload {
+		t.Fatalf("rebuild: expected command.reload, got %q", reloadEvent.Name)
+	}
+	reloadPayload, ok := reloadEvent.Data.(protocol.CommandReload)
+	if !ok {
+		t.Fatalf("rebuild: unexpected reload payload type: %T", reloadEvent.Data)
+	}
+	if reloadPayload.BuildID != rebuildPayload.BuildID {
+		t.Fatalf("reload build id mismatch: reload=%q, build=%q", reloadPayload.BuildID, rebuildPayload.BuildID)
+	}
+
+	// Verify output was updated.
+	outputContent, err := os.ReadFile(filepath.Join(outDir, "background.js"))
+	if err != nil {
+		t.Fatalf("read rebuilt output: %v", err)
+	}
+	if !strings.Contains(string(outputContent), "v2") {
+		t.Fatalf("output does not contain updated content: %s", outputContent)
+	}
+
+	cancel()
+	select {
+	case err := <-done:
+		if err != nil {
+			t.Fatalf("runBuildLoop() returned error: %v", err)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("timed out waiting for build loop shutdown")
+	}
+}
+
 func TestRunBuildLoopDirtyFlagTriggersRebuild(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
