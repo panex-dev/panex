@@ -86,7 +86,8 @@ func loadSharedProtocolSource(t *testing.T) string {
 		t.Fatalf("read shared protocol source %q: %v", tsPath, err)
 	}
 
-	return string(raw)
+	// Normalize Windows \r\n line endings so regexes using $ anchors match.
+	return strings.ReplaceAll(string(raw), "\r\n", "\n")
 }
 
 func parseTSProtocolVersion(t *testing.T, source string) int {

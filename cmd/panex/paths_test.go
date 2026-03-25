@@ -9,7 +9,7 @@ import (
 )
 
 func TestPathsWithPanexToml(t *testing.T) {
-	tempDir := t.TempDir()
+	tempDir := evalSymlinks(t, t.TempDir())
 	writePanexConfig(t, filepath.Join(tempDir, "panex.toml"), `
 [extension]
 source_dir = "./src"
@@ -64,7 +64,7 @@ func TestPathsWithManifestJSON(t *testing.T) {
 	if !strings.Contains(output, "out_dir=") {
 		t.Fatalf("missing out_dir: %q", output)
 	}
-	if !strings.Contains(output, ".panex/dist") {
+	if !strings.Contains(output, filepath.Join(".panex", "dist")) {
 		t.Fatalf("expected default .panex/dist out_dir: %q", output)
 	}
 }
@@ -144,4 +144,16 @@ func TestPathsViaRunCommand(t *testing.T) {
 	if !strings.Contains(out.String(), "source_dir=") {
 		t.Fatalf("expected paths output: %q", out.String())
 	}
+}
+
+// evalSymlinks resolves symlinks in a temp directory path so that
+// filepath.Abs inside os.Getwd (which resolves symlinks) matches the
+// expected path. On macOS /var → /private/var causes mismatches otherwise.
+func evalSymlinks(t *testing.T, path string) string {
+	t.Helper()
+	resolved, err := filepath.EvalSymlinks(path)
+	if err != nil {
+		t.Fatalf("eval symlinks %q: %v", path, err)
+	}
+	return resolved
 }
