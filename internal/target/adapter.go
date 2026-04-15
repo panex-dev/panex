@@ -127,3 +127,40 @@ type ArtifactRecord struct {
 	BuildFingerprint    string `json:"build_fingerprint"`
 	ProducedAt          string `json:"produced_at"`
 }
+
+// Registry holds named adapters and provides lookup by name.
+type Registry struct {
+	adapters map[string]Adapter
+}
+
+// NewRegistry returns an empty adapter registry.
+func NewRegistry() *Registry {
+	return &Registry{adapters: make(map[string]Adapter)}
+}
+
+// Register adds an adapter keyed by its Name().
+func (r *Registry) Register(a Adapter) {
+	r.adapters[a.Name()] = a
+}
+
+// Get returns the adapter for the given name and whether it was found.
+func (r *Registry) Get(name string) (Adapter, bool) {
+	a, ok := r.adapters[name]
+	return a, ok
+}
+
+// All returns a snapshot of all registered adapters keyed by name.
+func (r *Registry) All() map[string]Adapter {
+	out := make(map[string]Adapter, len(r.adapters))
+	for k, v := range r.adapters {
+		out[k] = v
+	}
+	return out
+}
+
+// DefaultRegistry returns a registry pre-populated with the Chrome adapter.
+func DefaultRegistry() *Registry {
+	r := NewRegistry()
+	r.Register(NewChrome())
+	return r
+}

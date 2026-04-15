@@ -185,9 +185,9 @@ func validTransition(from, to Status) bool {
 	allowed := map[Status][]Status{
 		StatusCreated:        {StatusPlanned, StatusRunning, StatusFailed, StatusCancelled},
 		StatusPlanned:        {StatusRunning, StatusFailed, StatusCancelled},
-		StatusRunning:        {StatusSucceeded, StatusFailed, StatusPaused, StatusAwaitingPolicy, StatusRollingBack},
-		StatusPaused:         {StatusRunning, StatusFailed, StatusCancelled},
-		StatusAwaitingPolicy: {StatusRunning, StatusFailed, StatusCancelled},
+		StatusRunning:        {StatusSucceeded, StatusFailed, StatusPaused, StatusAwaitingPolicy, StatusRollingBack, StatusExpired},
+		StatusPaused:         {StatusRunning, StatusFailed, StatusCancelled, StatusExpired},
+		StatusAwaitingPolicy: {StatusRunning, StatusFailed, StatusCancelled, StatusExpired},
 		StatusRollingBack:    {StatusFailed, StatusSucceeded},
 	}
 	valid, ok := allowed[from]

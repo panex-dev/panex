@@ -7,7 +7,10 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"time"
 )
+
+const staleLockThreshold = 1 * time.Hour
 
 // Diagnosis is a single detected issue.
 type Diagnosis struct {
@@ -206,13 +209,14 @@ func checkStaleLocks(projectDir string, r *Report) {
 			if err != nil {
 				continue
 			}
-			// Lock files older than 1 hour are likely stale
-			age := os.NewFile(0, "").Name() // placeholder — use real time check
-			_ = age
+			age := time.Since(info.ModTime())
+			if age < staleLockThreshold {
+				continue // recent lock, not stale
+			}
 			r.Diagnoses = append(r.Diagnoses, Diagnosis{
 				Code:       "STALE_LOCK",
 				Severity:   "warning",
-				Message:    fmt.Sprintf("lock file %s exists (size: %d bytes) — may be stale", e.Name(), info.Size()),
+				Message:    fmt.Sprintf("lock file %s is %s old (size: %d bytes) — likely stale", e.Name(), age.Truncate(time.Second), info.Size()),
 				Component:  "concurrency",
 				Repairable: true,
 				RecipeID:   "remove_stale_lock",
@@ -276,10 +280,16 @@ func repairRemoveStaleLock(projectDir, _ string) error {
 	if err != nil {
 		return err
 	}
+	var errs []string
 	for _, e := range entries {
 		if !e.IsDir() {
-			os.Remove(filepath.Join(locksDir, e.Name()))
+			if err := os.Remove(filepath.Join(locksDir, e.Name())); err != nil {
+				errs = append(errs, err.Error())
+			}
 		}
+	}
+	if len(errs) > 0 {
+		return fmt.Errorf("failed to remove locks: %s", errs[0])
 	}
 	return nil
 }

@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 )
 
 func TestRun_EmptyDir(t *testing.T) {
@@ -82,7 +83,11 @@ func TestRun_StaleLock(t *testing.T) {
 	setupPanexDir(t, dir)
 	locksDir := filepath.Join(dir, ".panex", "locks")
 	os.MkdirAll(locksDir, 0o755)
-	os.WriteFile(filepath.Join(locksDir, "project.lock"), []byte("pid:1234"), 0o644)
+	lockPath := filepath.Join(locksDir, "project.lock")
+	os.WriteFile(lockPath, []byte("pid:1234"), 0o644)
+	// Backdate the lock file so it exceeds the stale threshold
+	staleTime := time.Now().Add(-2 * time.Hour)
+	os.Chtimes(lockPath, staleTime, staleTime)
 
 	r := Run(Options{ProjectDir: dir})
 
@@ -117,6 +122,8 @@ func TestRun_Fix_RemoveStaleLock(t *testing.T) {
 	os.MkdirAll(locksDir, 0o755)
 	lockPath := filepath.Join(locksDir, "project.lock")
 	os.WriteFile(lockPath, []byte("pid:1234"), 0o644)
+	staleTime := time.Now().Add(-2 * time.Hour)
+	os.Chtimes(lockPath, staleTime, staleTime)
 
 	r := Run(Options{ProjectDir: dir, Fix: true})
 
