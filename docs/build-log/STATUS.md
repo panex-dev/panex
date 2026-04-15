@@ -107,6 +107,7 @@ As of 2026-04-15.
 | 106 | Unify ContextLog timestamp to milliseconds | `docs/build-log/2026-03-17-pr-106-timestamp-ms-consistency.md` |
 | — | Phase 1 foundation: 11 core Go packages | `docs/build-log/2026-04-15-core-phase1-foundation.md` |
 | — | Phase 1 remaining: configloader, manifest, plan, lock, session, mcp, CLI extensions | `docs/build-log/2026-04-15-core-phase1-remaining.md` |
+| — | Phase 1 CLI + MCP wiring: all commands routable, all MCP handlers complete | `docs/build-log/2026-04-15-phase1-cli-mcp-wiring.md` |
 
 ## In progress
 - Phase 1 completion — agent loop operational through CLI and MCP surfaces.

@@ -291,6 +291,97 @@ func TestUnknownTool(t *testing.T) {
 	}
 }
 
+func TestToolRepair(t *testing.T) {
+	dir := t.TempDir()
+	srv := NewServerWithIO(dir, nil, nil)
+
+	params, _ := json.Marshal(map[string]any{"name": "repair_failure", "arguments": map[string]any{}})
+	resp := srv.HandleSingleRequest(context.Background(), Request{
+		JSONRPC: "2.0",
+		ID:      13,
+		Method:  "tools/call",
+		Params:  params,
+	})
+
+	if resp.Error != nil {
+		t.Fatalf("error: %v", resp.Error)
+	}
+
+	result := resp.Result.(map[string]any)
+	if result["isError"] != nil {
+		t.Errorf("tool returned error: %v", result)
+	}
+}
+
+func TestToolResume_NoRun(t *testing.T) {
+	dir := t.TempDir()
+	root, err := fsmodel.NewRoot(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := root.Init(); err != nil {
+		t.Fatal(err)
+	}
+
+	srv := NewServerWithIO(dir, nil, nil)
+
+	params, _ := json.Marshal(map[string]any{"name": "resume_run", "arguments": map[string]any{}})
+	resp := srv.HandleSingleRequest(context.Background(), Request{
+		JSONRPC: "2.0",
+		ID:      14,
+		Method:  "tools/call",
+		Params:  params,
+	})
+
+	// Should return an error since there's no run to resume
+	result := resp.Result.(map[string]any)
+	if result["isError"] != true {
+		t.Error("expected error for no run to resume")
+	}
+}
+
+func TestToolStartDevSession(t *testing.T) {
+	dir := t.TempDir()
+	root, err := fsmodel.NewRoot(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := root.Init(); err != nil {
+		t.Fatal(err)
+	}
+
+	srv := NewServerWithIO(dir, nil, nil)
+
+	params, _ := json.Marshal(map[string]any{
+		"name":      "start_dev_session",
+		"arguments": map[string]any{"target": "chrome"},
+	})
+	resp := srv.HandleSingleRequest(context.Background(), Request{
+		JSONRPC: "2.0",
+		ID:      15,
+		Method:  "tools/call",
+		Params:  params,
+	})
+
+	if resp.Error != nil {
+		t.Fatalf("error: %v", resp.Error)
+	}
+
+	result := resp.Result.(map[string]any)
+	if result["isError"] != nil {
+		t.Errorf("tool returned error: %v", result)
+	}
+
+	// Verify session dir was created
+	sessions, err := os.ReadDir(filepath.Join(dir, ".panex", "sessions"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(sessions) == 0 {
+		t.Error("expected session directory to be created")
+	}
+}
+
 // --- helpers ---
 
 func setupProject(t *testing.T, dir string) {

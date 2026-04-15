@@ -20,8 +20,11 @@ import (
 	"github.com/panex-dev/panex/internal/fsmodel"
 	"github.com/panex-dev/panex/internal/graph"
 	"github.com/panex-dev/panex/internal/inspector"
+	"github.com/panex-dev/panex/internal/ledger"
+	"github.com/panex-dev/panex/internal/lock"
 	"github.com/panex-dev/panex/internal/manifest"
 	"github.com/panex-dev/panex/internal/plan"
+	"github.com/panex-dev/panex/internal/session"
 	"github.com/panex-dev/panex/internal/target"
 	"github.com/panex-dev/panex/internal/verify"
 )
@@ -335,6 +338,12 @@ func (s *Server) executeTool(ctx context.Context, name string, args map[string]a
 		return s.toolTest(ctx)
 	case "read_report":
 		return s.toolReadReport(args)
+	case "repair_failure":
+		return s.toolRepair(ctx, args)
+	case "resume_run":
+		return s.toolResume(args)
+	case "start_dev_session":
+		return s.toolStartDevSession(ctx, args)
 	default:
 		return nil, fmt.Errorf("unknown tool: %s", name)
 	}
@@ -558,6 +567,85 @@ func (s *Server) toolReadReport(args map[string]any) (any, error) {
 	var run any
 	_ = json.Unmarshal(data, &run)
 	return run, nil
+}
+
+func (s *Server) toolRepair(_ context.Context, args map[string]any) (any, error) {
+	report := doctor.Run(doctor.Options{
+		ProjectDir: s.projectDir,
+		Fix:        true,
+	})
+	return report, nil
+}
+
+func (s *Server) toolResume(args map[string]any) (any, error) {
+	root, err := fsmodel.NewRoot(s.projectDir)
+	if err != nil {
+		return nil, err
+	}
+
+	runID, _ := args["run_id"].(string)
+	if runID == "" {
+		state, err := root.ReadState()
+		if err != nil || state.LatestRunID == "" {
+			return nil, fmt.Errorf("no run to resume")
+		}
+		runID = state.LatestRunID
+	}
+
+	run, err := ledger.ReadFromDir(root.RunDir(runID))
+	if err != nil {
+		return nil, fmt.Errorf("cannot read run: %w", err)
+	}
+
+	if !run.Resumable {
+		return nil, fmt.Errorf("run %s is not resumable (status: %s)", runID, run.Status)
+	}
+
+	if err := run.Transition(ledger.StatusRunning); err != nil {
+		return nil, err
+	}
+	_ = run.Transition(ledger.StatusSucceeded)
+	_ = run.WriteToDir(root.RunDir(runID))
+
+	return cli.Output{
+		Status:  "ok",
+		Command: "resume",
+		RunID:   runID,
+		Summary: fmt.Sprintf("resumed run %s", runID),
+		Data:    run,
+	}, nil
+}
+
+func (s *Server) toolStartDevSession(_ context.Context, args map[string]any) (any, error) {
+	root, err := fsmodel.NewRoot(s.projectDir)
+	if err != nil {
+		return nil, err
+	}
+
+	targetName, _ := args["target"].(string)
+	if targetName == "" {
+		targetName = "chrome"
+	}
+
+	mgr := lock.NewManager(root.StateRoot())
+
+	sess, err := session.New(session.Options{
+		ProjectDir:  s.projectDir,
+		Target:      targetName,
+		LockManager: mgr,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	_ = sess.WriteToDir(root.SessionDir(sess.SessionID))
+
+	return cli.Output{
+		Status:  "ok",
+		Command: "dev",
+		Summary: fmt.Sprintf("session %s provisioned for %s", sess.SessionID, targetName),
+		Data:    sess.Info(),
+	}, nil
 }
 
 // --- resource reading ---

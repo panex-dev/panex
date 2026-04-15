@@ -24,10 +24,19 @@ const usageText = `panex - development runtime for Chrome extensions
 
 Usage:
   panex version
-  panex init [--force]
+  panex init [--name name] [--target target]
+  panex inspect
+  panex plan
+  panex apply [--force]
   panex dev [--config path/to/panex.toml] [--open]
-  panex doctor
+  panex test
+  panex verify
+  panex package [--version v0.1.0]
+  panex report [--run-id id]
+  panex resume [--run-id id]
+  panex doctor [--fix]
   panex paths
+  panex mcp
 `
 
 // This is overridden in release builds via -ldflags "-X main.version=<semver>".
@@ -111,12 +120,30 @@ func run(args []string, stdout io.Writer) error {
 		return writef(stdout, "panex %s\n", version)
 	case "init":
 		return runInit(args[1:], stdout)
+	case "inspect":
+		return runCoreInspect()
+	case "plan":
+		return runCorePlan()
+	case "apply":
+		return runCoreApply(args[1:])
 	case "dev":
 		return runDev(args[1:], stdout)
+	case "test":
+		return runCoreTest()
+	case "verify":
+		return runCoreVerify()
+	case "package":
+		return runCorePackage(args[1:])
+	case "report":
+		return runCoreReport(args[1:])
+	case "resume":
+		return runCoreResume(args[1:])
 	case "doctor":
 		return runDoctor(stdout)
 	case "paths":
 		return runPaths(stdout)
+	case "mcp":
+		return runMCP()
 	case "help", "-h", "--help":
 		return writeString(stdout, usageText)
 	default:
