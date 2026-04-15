@@ -381,9 +381,9 @@ func (ins *Inspector) detectEntrypointsFromManifest(r *Report, manifestPath stri
 	// Background
 	if raw, ok := m["background"]; ok {
 		var bg struct {
-			ServiceWorker string `json:"service_worker"`
+			ServiceWorker string   `json:"service_worker"`
 			Scripts       []string `json:"scripts"`
-			Page          string `json:"page"`
+			Page          string   `json:"page"`
 		}
 		if json.Unmarshal(raw, &bg) == nil {
 			if bg.ServiceWorker != "" {

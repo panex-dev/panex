@@ -11,22 +11,22 @@ import (
 
 // Graph is the normalized internal representation of the extension project.
 type Graph struct {
-	SchemaVersion    int                `json:"schema_version"`
-	Project          ProjectIdentity    `json:"project"`
-	SourceRoot       string             `json:"source_root"`
-	PackageManager   string             `json:"package_manager"`
-	WorkspaceType    string             `json:"workspace_type"`
-	Framework        DetectedFact       `json:"framework"`
-	Bundler          DetectedFact       `json:"bundler"`
-	Language         DetectedFact       `json:"language"`
-	Entries          map[string]Entry   `json:"entries"`
-	TargetsRequested []string           `json:"targets_requested"`
-	TargetsResolved  []string           `json:"targets_resolved"`
-	Capabilities     map[string]any     `json:"capabilities"`
-	Dependencies     map[string]string  `json:"dependencies"`
-	StateDir         string             `json:"state_dir"`
-	ConfigHash       string             `json:"config_hash"`
-	GraphHash        string             `json:"graph_hash"`
+	SchemaVersion    int               `json:"schema_version"`
+	Project          ProjectIdentity   `json:"project"`
+	SourceRoot       string            `json:"source_root"`
+	PackageManager   string            `json:"package_manager"`
+	WorkspaceType    string            `json:"workspace_type"`
+	Framework        DetectedFact      `json:"framework"`
+	Bundler          DetectedFact      `json:"bundler"`
+	Language         DetectedFact      `json:"language"`
+	Entries          map[string]Entry  `json:"entries"`
+	TargetsRequested []string          `json:"targets_requested"`
+	TargetsResolved  []string          `json:"targets_resolved"`
+	Capabilities     map[string]any    `json:"capabilities"`
+	Dependencies     map[string]string `json:"dependencies"`
+	StateDir         string            `json:"state_dir"`
+	ConfigHash       string            `json:"config_hash"`
+	GraphHash        string            `json:"graph_hash"`
 }
 
 // ProjectIdentity is the stable project identity.

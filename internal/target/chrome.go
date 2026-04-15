@@ -28,31 +28,31 @@ func (c *Chrome) Catalog() CapabilityCatalog {
 		Target: "chrome",
 		Capabilities: map[string]CapabilitySupport{
 			"tabs":                {State: "native", Permission: "tabs"},
-			"windows":            {State: "native", Permission: "windows"}, //nolint:misspell
-			"storage":            {State: "native", Permission: "storage"},
-			"scripting":          {State: "native", Permission: "scripting"},
-			"content":            {State: "native"},
-			"commands":           {State: "native"},
-			"alarms":             {State: "native", Permission: "alarms"},
-			"notifications":      {State: "native", Permission: "notifications"},
-			"downloads":          {State: "native", Permission: "downloads"},
-			"clipboard":          {State: "native", Permission: "clipboardRead"},
-			"contextMenus":       {State: "native", Permission: "contextMenus"},
-			"identity":           {State: "native", Permission: "identity"},
-			"networkRules":       {State: "native", Permission: "declarativeNetRequest"},
-			"devtools":           {State: "native", Permission: "devtools"},
-			"omnibox":            {State: "native"},
-			"sideSurface":        {State: "native", Permission: "sidePanel"},
-			"sidebarSurface":     {State: "blocked", Notes: "Chrome uses sidePanel, not sidebar"},
-			"offscreenExecution": {State: "native", Permission: "offscreen"},
-			"nativeMessaging":    {State: "native", Permission: "nativeMessaging"},
-			"hostAccess":         {State: "native"},
+			"windows":             {State: "native", Permission: "windows"}, //nolint:misspell
+			"storage":             {State: "native", Permission: "storage"},
+			"scripting":           {State: "native", Permission: "scripting"},
+			"content":             {State: "native"},
+			"commands":            {State: "native"},
+			"alarms":              {State: "native", Permission: "alarms"},
+			"notifications":       {State: "native", Permission: "notifications"},
+			"downloads":           {State: "native", Permission: "downloads"},
+			"clipboard":           {State: "native", Permission: "clipboardRead"},
+			"contextMenus":        {State: "native", Permission: "contextMenus"},
+			"identity":            {State: "native", Permission: "identity"},
+			"networkRules":        {State: "native", Permission: "declarativeNetRequest"},
+			"devtools":            {State: "native", Permission: "devtools"},
+			"omnibox":             {State: "native"},
+			"sideSurface":         {State: "native", Permission: "sidePanel"},
+			"sidebarSurface":      {State: "blocked", Notes: "Chrome uses sidePanel, not sidebar"},
+			"offscreenExecution":  {State: "native", Permission: "offscreen"},
+			"nativeMessaging":     {State: "native", Permission: "nativeMessaging"},
+			"hostAccess":          {State: "native"},
 			"backgroundExecution": {State: "native", Notes: "service worker model (MV3)"},
-			"sessionState":       {State: "native", Permission: "storage"},
-			"capture":            {State: "native", Permission: "tabCapture"},
-			"cookies":            {State: "native", Permission: "cookies"},
-			"history":            {State: "native", Permission: "history"},
-			"bookmarks":          {State: "native", Permission: "bookmarks"},
+			"sessionState":        {State: "native", Permission: "storage"},
+			"capture":             {State: "native", Permission: "tabCapture"},
+			"cookies":             {State: "native", Permission: "cookies"},
+			"history":             {State: "native", Permission: "history"},
+			"bookmarks":           {State: "native", Permission: "bookmarks"},
 		},
 	}
 }
@@ -63,13 +63,13 @@ func (c *Chrome) InspectEnvironment(ctx context.Context) (EnvironmentInfo, Resul
 	if binary == "" {
 		info.Reason = "no Chrome binary found"
 		return info, Result{
-			Adapter:   "chrome",
-			Operation: "inspectEnvironment",
-			Outcome:   EnvironmentMissing,
-			Reason:    "no Chrome binary found in standard locations",
-			ReasonCode: "chrome_not_found",
+			Adapter:     "chrome",
+			Operation:   "inspectEnvironment",
+			Outcome:     EnvironmentMissing,
+			Reason:      "no Chrome binary found in standard locations",
+			ReasonCode:  "chrome_not_found",
 			Suggestions: []string{"install Google Chrome", "set CHROME_PATH environment variable"},
-			Repairable: false,
+			Repairable:  false,
 		}
 	}
 
@@ -159,8 +159,8 @@ func (c *Chrome) CompileManifest(opts ManifestCompileOptions) (ManifestOutput, R
 	// Options
 	if entry, ok := opts.Entries["options"]; ok {
 		manifest["options_ui"] = map[string]any{
-			"page":            entry.Path,
-			"open_in_tab":     false,
+			"page":        entry.Path,
+			"open_in_tab": false,
 		}
 	}
 

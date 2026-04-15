@@ -164,17 +164,17 @@ func TestWriteAndReadGraph(t *testing.T) {
 	path := filepath.Join(dir, "graph.json")
 
 	g := &Graph{
-		SchemaVersion: 1,
-		Project:       ProjectIdentity{ID: "acme.test", Name: "test"},
-		SourceRoot:    "/project",
-		PackageManager: "npm",
-		Language:       DetectedFact{Name: "typescript", Confidence: 0.99},
-		Entries:        map[string]Entry{"background": {Path: "bg.ts", Type: "service-worker"}},
+		SchemaVersion:   1,
+		Project:         ProjectIdentity{ID: "acme.test", Name: "test"},
+		SourceRoot:      "/project",
+		PackageManager:  "npm",
+		Language:        DetectedFact{Name: "typescript", Confidence: 0.99},
+		Entries:         map[string]Entry{"background": {Path: "bg.ts", Type: "service-worker"}},
 		TargetsResolved: []string{"chrome"},
-		Capabilities:   map[string]any{},
-		Dependencies:   map[string]string{},
-		StateDir:       ".panex",
-		GraphHash:      "sha256:abc",
+		Capabilities:    map[string]any{},
+		Dependencies:    map[string]string{},
+		StateDir:        ".panex",
+		GraphHash:       "sha256:abc",
 	}
 
 	if err := WriteToFile(g, path); err != nil {

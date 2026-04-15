@@ -47,8 +47,8 @@ type EntryCandidate struct {
 
 // Conflict represents conflicting inspector findings.
 type Conflict struct {
-	Field    string   `json:"field"`
-	Values   []string `json:"values"`
-	Sources  []string `json:"sources"`
-	Message  string   `json:"message"`
+	Field   string   `json:"field"`
+	Values  []string `json:"values"`
+	Sources []string `json:"sources"`
+	Message string   `json:"message"`
 }

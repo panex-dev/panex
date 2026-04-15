@@ -45,9 +45,9 @@ func TestChrome_ResolveCapabilities(t *testing.T) {
 	c := NewChrome()
 
 	caps := map[string]any{
-		"tabs":    "read-write",
-		"storage": map[string]string{"mode": "sync"},
-		"sideSurface": "preferred",
+		"tabs":           "read-write",
+		"storage":        map[string]string{"mode": "sync"},
+		"sideSurface":    "preferred",
 		"sidebarSurface": "preferred",
 	}
 

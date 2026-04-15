@@ -11,12 +11,12 @@ import (
 
 // Diagnosis is a single detected issue.
 type Diagnosis struct {
-	Code       string   `json:"code"`
-	Severity   string   `json:"severity"` // "error", "warning", "info"
-	Message    string   `json:"message"`
-	Component  string   `json:"component"`
-	Repairable bool     `json:"repairable"`
-	RecipeID   string   `json:"recipe_id,omitempty"`
+	Code       string `json:"code"`
+	Severity   string `json:"severity"` // "error", "warning", "info"
+	Message    string `json:"message"`
+	Component  string `json:"component"`
+	Repairable bool   `json:"repairable"`
+	RecipeID   string `json:"recipe_id,omitempty"`
 }
 
 // Report is the full doctor output.
@@ -171,10 +171,10 @@ func checkStateIntegrity(projectDir string, r *Report) {
 	data, err := os.ReadFile(statePath)
 	if err != nil {
 		r.Diagnoses = append(r.Diagnoses, Diagnosis{
-			Code:     "STATE_UNREADABLE",
-			Severity: "error",
-			Message:  fmt.Sprintf("cannot read state.json: %v", err),
-			Component: "fsmodel",
+			Code:       "STATE_UNREADABLE",
+			Severity:   "error",
+			Message:    fmt.Sprintf("cannot read state.json: %v", err),
+			Component:  "fsmodel",
 			Repairable: true,
 			RecipeID:   "reset_state",
 		})

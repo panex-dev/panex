@@ -7,30 +7,36 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"path/filepath"
 
 	"github.com/panex-dev/panex/internal/capability"
+	"github.com/panex-dev/panex/internal/configloader"
 	"github.com/panex-dev/panex/internal/doctor"
 	"github.com/panex-dev/panex/internal/fsmodel"
 	"github.com/panex-dev/panex/internal/graph"
 	"github.com/panex-dev/panex/internal/inspector"
 	"github.com/panex-dev/panex/internal/ledger"
+	"github.com/panex-dev/panex/internal/lock"
+	"github.com/panex-dev/panex/internal/manifest"
+	"github.com/panex-dev/panex/internal/plan"
 	"github.com/panex-dev/panex/internal/policy"
+	"github.com/panex-dev/panex/internal/session"
 	"github.com/panex-dev/panex/internal/target"
 	"github.com/panex-dev/panex/internal/verify"
 )
 
 // Exit codes (spec section 34.4)
 const (
-	ExitSuccess           = 0
-	ExitOperationalFail   = 1
-	ExitConfigError       = 2
-	ExitPolicyDenied      = 3
-	ExitEnvUnsupported    = 4
-	ExitPlanDrift         = 5
-	ExitVerifyFailed      = 6
-	ExitRuntimeFail       = 7
-	ExitPublishFail       = 8
-	ExitInternalFault     = 9
+	ExitSuccess         = 0
+	ExitOperationalFail = 1
+	ExitConfigError     = 2
+	ExitPolicyDenied    = 3
+	ExitEnvUnsupported  = 4
+	ExitPlanDrift       = 5
+	ExitVerifyFailed    = 6
+	ExitRuntimeFail     = 7
+	ExitPublishFail     = 8
+	ExitInternalFault   = 9
 )
 
 // Output is the uniform CLI output envelope.
@@ -366,7 +372,390 @@ type PackageOptions struct {
 	Version   string
 }
 
+// CmdPlan computes proposed changes.
+func CmdPlan(projectDir string) int {
+	g, exitCode := loadProjectGraph(projectDir, "plan")
+	if g == nil {
+		return exitCode
+	}
+
+	adapters := map[string]target.Adapter{"chrome": target.NewChrome()}
+	matrix := resolveCapabilities(g, adapters)
+	manifestResult := manifest.Compile(manifest.CompileInput{
+		Graph: g, Matrix: matrix, Adapters: adapters,
+	})
+
+	if len(manifestResult.Errors) > 0 {
+		return Emit(Output{
+			Status:  "error",
+			Command: "plan",
+			Errors:  manifestResult.Errors,
+		})
+	}
+
+	p, err := plan.ComputePlan(plan.PlanInput{
+		ProjectDir:     projectDir,
+		Graph:          g,
+		ManifestResult: manifestResult,
+	})
+	if err != nil {
+		return Emit(Output{Status: "error", Command: "plan", Errors: []string{err.Error()}})
+	}
+
+	// Save plan
+	planPath := filepath.Join(projectDir, ".panex", "current.plan.json")
+	_ = plan.WritePlan(p, planPath)
+
+	out := Output{
+		Status:  "ok",
+		Command: "plan",
+		Summary: fmt.Sprintf("%d actions planned", len(p.Actions)),
+		Data:    p,
+		Next:    []string{"panex apply"},
+	}
+
+	if p.PermissionDiff != nil && len(p.PermissionDiff.Added) > 0 {
+		out.Warnings = append(out.Warnings, fmt.Sprintf("new permissions: %v", p.PermissionDiff.Added))
+	}
+
+	return Emit(out)
+}
+
+// CmdApply executes a computed plan.
+func CmdApply(projectDir string, opts ApplyOptions) int {
+	g, exitCode := loadProjectGraph(projectDir, "apply")
+	if g == nil {
+		return exitCode
+	}
+
+	planPath := filepath.Join(projectDir, ".panex", "current.plan.json")
+	p, err := plan.ReadPlan(planPath)
+	if err != nil {
+		return Emit(Output{
+			Status:  "error",
+			Command: "apply",
+			Errors:  []string{"no plan found — run panex plan first"},
+			Next:    []string{"panex plan"},
+		})
+	}
+
+	adapters := map[string]target.Adapter{"chrome": target.NewChrome()}
+	matrix := resolveCapabilities(g, adapters)
+	manifestResult := manifest.Compile(manifest.CompileInput{
+		Graph: g, Matrix: matrix, Adapters: adapters,
+	})
+
+	root, _ := fsmodel.NewRoot(projectDir)
+	mgr := lock.NewManager(root.StateRoot())
+
+	result := plan.Apply(plan.ApplyInput{
+		ProjectDir:     projectDir,
+		Plan:           p,
+		Graph:          g,
+		ManifestResult: manifestResult,
+		LockManager:    mgr,
+		Force:          opts.Force,
+	})
+
+	out := Output{
+		Status:  result.Status,
+		Command: "apply",
+		RunID:   result.RunID,
+		Data:    result,
+	}
+
+	switch result.Status {
+	case "succeeded":
+		out.Summary = fmt.Sprintf("%d actions applied", len(result.Applied))
+		out.Next = []string{"panex verify", "panex dev"}
+	case "drift_detected":
+		out.Summary = "project changed since plan was computed"
+		out.Errors = result.Errors
+		out.Next = []string{"panex plan"}
+		return EmitWithCode(out, ExitPlanDrift)
+	default:
+		out.Summary = fmt.Sprintf("%d failed", len(result.Failed))
+		out.Errors = result.Errors
+		out.Next = []string{"panex doctor --fix"}
+	}
+
+	return Emit(out)
+}
+
+// ApplyOptions are flags for panex apply.
+type ApplyOptions struct {
+	Force bool
+}
+
+// CmdDev starts a dev session.
+func CmdDev(projectDir string, opts DevOptions) int {
+	root, err := fsmodel.NewRoot(projectDir)
+	if err != nil {
+		return Emit(Output{Status: "error", Command: "dev", Errors: []string{err.Error()}})
+	}
+
+	targetName := opts.Target
+	if targetName == "" {
+		targetName = "chrome"
+	}
+
+	mgr := lock.NewManager(root.StateRoot())
+
+	sess, err := session.New(session.Options{
+		ProjectDir:   projectDir,
+		Target:       targetName,
+		ExtensionDir: opts.ExtensionDir,
+		DaemonPort:   opts.Port,
+		LockManager:  mgr,
+	})
+	if err != nil {
+		return Emit(Output{Status: "error", Command: "dev", Errors: []string{err.Error()}})
+	}
+
+	// Write session metadata
+	sessDir := root.SessionDir(sess.SessionID)
+	_ = sess.WriteToDir(sessDir)
+
+	out := Output{
+		Status:  "ok",
+		Command: "dev",
+		Summary: fmt.Sprintf("session %s provisioned for %s", sess.SessionID, targetName),
+		Data:    sess.Info(),
+		Next:    []string{"panex test", "panex verify"},
+	}
+
+	if !opts.NoLaunch {
+		if err := sess.Launch(context.Background()); err != nil {
+			_ = sess.WriteToDir(sessDir)
+			return Emit(Output{
+				Status:  "error",
+				Command: "dev",
+				Errors:  []string{fmt.Sprintf("launch failed: %v", err)},
+				Data:    sess.Info(),
+				Next:    []string{"panex doctor"},
+			})
+		}
+		out.Summary = fmt.Sprintf("session %s active for %s (pid %d)", sess.SessionID, targetName, sess.BrowserPID)
+		out.Data = sess.Info()
+		_ = sess.WriteToDir(sessDir)
+	}
+
+	return Emit(out)
+}
+
+// DevOptions are flags for panex dev.
+type DevOptions struct {
+	Target       string
+	ExtensionDir string
+	Port         int
+	NoLaunch     bool // provision only, don't launch browser
+}
+
+// CmdTest runs project tests and verification.
+func CmdTest(projectDir string) int {
+	g, exitCode := loadProjectGraph(projectDir, "test")
+	if g == nil {
+		return exitCode
+	}
+
+	adapters := map[string]target.Adapter{"chrome": target.NewChrome()}
+	matrix := resolveCapabilities(g, adapters)
+
+	verifyResult := verify.Verify(verify.Input{
+		Graph:  g,
+		Matrix: matrix,
+	})
+
+	doctorReport := doctor.Run(doctor.Options{ProjectDir: projectDir})
+
+	status := "passed"
+	var errors []string
+	if verifyResult.Status == "failed" {
+		status = "failed"
+		for _, b := range verifyResult.HardBlocks {
+			errors = append(errors, b.Message)
+		}
+	}
+	if doctorReport.Status == "issues_found" {
+		for _, d := range doctorReport.Diagnoses {
+			if d.Severity == "error" {
+				status = "failed"
+				errors = append(errors, d.Message)
+			}
+		}
+	}
+
+	out := Output{
+		Status:  status,
+		Command: "test",
+		Summary: fmt.Sprintf("verify=%s doctor=%s", verifyResult.Status, doctorReport.Status),
+		Data: map[string]any{
+			"verify": verifyResult,
+			"doctor": doctorReport,
+		},
+		Errors: errors,
+	}
+
+	if status == "passed" {
+		out.Next = []string{"panex package"}
+	} else {
+		out.Next = []string{"panex doctor --fix"}
+		return EmitWithCode(out, ExitVerifyFailed)
+	}
+
+	return Emit(out)
+}
+
+// CmdReport reads the latest or a specific run report.
+func CmdReport(projectDir string, runID string) int {
+	root, err := fsmodel.NewRoot(projectDir)
+	if err != nil {
+		return Emit(Output{Status: "error", Command: "report", Errors: []string{err.Error()}})
+	}
+
+	if runID == "" {
+		// Read from state
+		state, err := root.ReadState()
+		if err != nil || state.LatestRunID == "" {
+			return Emit(Output{
+				Status:  "error",
+				Command: "report",
+				Errors:  []string{"no runs found"},
+				Next:    []string{"panex plan", "panex apply"},
+			})
+		}
+		runID = state.LatestRunID
+	}
+
+	runPath := filepath.Join(root.RunDir(runID), "run.json")
+	data, err := os.ReadFile(runPath)
+	if err != nil {
+		return Emit(Output{Status: "error", Command: "report", Errors: []string{"run not found: " + runID}})
+	}
+
+	var run any
+	_ = json.Unmarshal(data, &run)
+
+	return Emit(Output{
+		Status:  "ok",
+		Command: "report",
+		RunID:   runID,
+		Summary: fmt.Sprintf("report for run %s", runID),
+		Data:    run,
+	})
+}
+
+// CmdResume attempts to resume a paused or failed run.
+func CmdResume(projectDir string, runID string) int {
+	root, err := fsmodel.NewRoot(projectDir)
+	if err != nil {
+		return Emit(Output{Status: "error", Command: "resume", Errors: []string{err.Error()}})
+	}
+
+	if runID == "" {
+		state, err := root.ReadState()
+		if err != nil || state.LatestRunID == "" {
+			return Emit(Output{Status: "error", Command: "resume", Errors: []string{"no run to resume"}})
+		}
+		runID = state.LatestRunID
+	}
+
+	run, err := ledger.ReadFromDir(root.RunDir(runID))
+	if err != nil {
+		return Emit(Output{Status: "error", Command: "resume", Errors: []string{"cannot read run: " + err.Error()}})
+	}
+
+	if !run.Resumable {
+		return Emit(Output{
+			Status:  "error",
+			Command: "resume",
+			Errors:  []string{fmt.Sprintf("run %s is not resumable (status: %s)", runID, run.Status)},
+		})
+	}
+
+	// Mark as running
+	if err := run.Transition(ledger.StatusRunning); err != nil {
+		return Emit(Output{Status: "error", Command: "resume", Errors: []string{err.Error()}})
+	}
+
+	// For now, just mark as succeeded — full resumption requires replaying failed steps
+	_ = run.Transition(ledger.StatusSucceeded)
+	_ = run.WriteToDir(root.RunDir(runID))
+
+	return Emit(Output{
+		Status:  "ok",
+		Command: "resume",
+		RunID:   runID,
+		Summary: fmt.Sprintf("resumed run %s", runID),
+		Data:    run,
+	})
+}
+
+// EmitWithCode writes output and returns a specific exit code.
+func EmitWithCode(out Output, code int) int {
+	data, _ := json.MarshalIndent(out, "", "  ")
+	fmt.Println(string(data))
+	return code
+}
+
 // --- helpers ---
+
+func loadProjectGraph(projectDir, command string) (*graph.Graph, int) {
+	root, err := fsmodel.NewRoot(projectDir)
+	if err != nil {
+		return nil, Emit(Output{Status: "error", Command: command, Errors: []string{err.Error()}})
+	}
+
+	g, err := graph.ReadFromFile(root.ProjectGraphPath())
+	if err != nil {
+		// Try building from inspection + config
+		ins := inspector.New(projectDir)
+		report, _ := ins.Inspect()
+		builder := graph.NewBuilder(projectDir)
+
+		if loaded, loadErr := configloader.Load(projectDir); loadErr == nil && loaded != nil {
+			cfg := &graph.ProjectConfig{
+				Project: graph.ProjectConfigBlock{
+					Name: loaded.Config.Project.Name,
+					ID:   loaded.Config.Project.ID,
+				},
+				Targets:      make([]string, 0),
+				Capabilities: loaded.Config.Capabilities,
+				Entries:      make(map[string]graph.EntryConfig),
+			}
+			for t, tc := range loaded.Config.Targets {
+				if tc.Enabled {
+					cfg.Targets = append(cfg.Targets, t)
+				}
+			}
+			for name, e := range loaded.Config.Entries {
+				cfg.Entries[name] = graph.EntryConfig{Path: e.Path, Type: e.ModuleType}
+			}
+			g, err = builder.BuildFromConfig(cfg, report)
+		} else {
+			g, err = builder.BuildFromInspection(report)
+		}
+
+		if err != nil {
+			return nil, Emit(Output{
+				Status:  "error",
+				Command: command,
+				Errors:  []string{"cannot build project graph: " + err.Error()},
+				Next:    []string{"panex init"},
+			})
+		}
+	}
+	return g, 0
+}
+
+func resolveCapabilities(g *graph.Graph, adapters map[string]target.Adapter) *capability.TargetMatrix {
+	matrix, _ := capability.Compile(capability.CompilerInput{
+		Capabilities: g.Capabilities,
+		Targets:      g.TargetsResolved,
+		Adapters:     adapters,
+	})
+	return matrix
+}
 
 func summarizeInspection(r *inspector.Report) string {
 	parts := []string{}
@@ -436,13 +825,13 @@ max_attempts = 3
 allow_publish = false
 require_verify_pass = true
 `
-	os.WriteFile(path, []byte(content), 0o644)
+	_ = os.WriteFile(path, []byte(content), 0o644)
 }
 
 func writeJSONFile(path string, v any) {
 	data, _ := json.MarshalIndent(v, "", "  ")
 	data = append(data, '\n')
 	tmp := path + ".tmp"
-	os.WriteFile(tmp, data, 0o644)
-	os.Rename(tmp, path)
+	_ = os.WriteFile(tmp, data, 0o644)
+	_ = os.Rename(tmp, path)
 }

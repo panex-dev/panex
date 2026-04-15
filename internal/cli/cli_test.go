@@ -137,6 +137,131 @@ func TestCmdPackage(t *testing.T) {
 	}
 }
 
+func TestCmdPlan(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, filepath.Join(dir, "background.js"), "// bg")
+
+	captureExitCode(func() int {
+		return CmdInit(dir, InitOptions{Name: "test", Targets: []string{"chrome"}})
+	})
+
+	code := captureExitCode(func() int { return CmdPlan(dir) })
+	if code != ExitSuccess {
+		t.Errorf("expected exit 0, got %d", code)
+	}
+
+	// Plan should be saved
+	if _, err := os.Stat(filepath.Join(dir, ".panex", "current.plan.json")); err != nil {
+		t.Error("expected plan file")
+	}
+}
+
+func TestCmdApply(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, filepath.Join(dir, "background.js"), "// bg")
+
+	captureExitCode(func() int {
+		return CmdInit(dir, InitOptions{Name: "test", Targets: []string{"chrome"}})
+	})
+	captureExitCode(func() int { return CmdPlan(dir) })
+
+	code := captureExitCode(func() int { return CmdApply(dir, ApplyOptions{}) })
+	if code != ExitSuccess {
+		t.Errorf("expected exit 0, got %d", code)
+	}
+}
+
+func TestCmdApply_NoPlan(t *testing.T) {
+	dir := t.TempDir()
+	captureExitCode(func() int {
+		return CmdInit(dir, InitOptions{Name: "test", Targets: []string{"chrome"}})
+	})
+
+	code := captureExitCode(func() int { return CmdApply(dir, ApplyOptions{}) })
+	if code == ExitSuccess {
+		t.Error("expected failure when no plan exists")
+	}
+}
+
+func TestCmdDev_NoLaunch(t *testing.T) {
+	dir := t.TempDir()
+	captureExitCode(func() int {
+		return CmdInit(dir, InitOptions{Name: "test", Targets: []string{"chrome"}})
+	})
+
+	code := captureExitCode(func() int {
+		return CmdDev(dir, DevOptions{NoLaunch: true})
+	})
+	if code != ExitSuccess {
+		t.Errorf("expected exit 0, got %d", code)
+	}
+
+	// Session should be written
+	sessionsDir := filepath.Join(dir, ".panex", "sessions")
+	entries, _ := os.ReadDir(sessionsDir)
+	if len(entries) == 0 {
+		t.Error("expected session dir")
+	}
+}
+
+func TestCmdTest(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, filepath.Join(dir, "background.js"), "// bg")
+
+	captureExitCode(func() int {
+		return CmdInit(dir, InitOptions{Name: "test", Targets: []string{"chrome"}})
+	})
+
+	code := captureExitCode(func() int { return CmdTest(dir) })
+	// May fail or pass depending on entry validation
+	if code == ExitInternalFault {
+		t.Error("internal fault during test")
+	}
+}
+
+func TestCmdReport_NoRuns(t *testing.T) {
+	dir := t.TempDir()
+	captureExitCode(func() int {
+		return CmdInit(dir, InitOptions{Name: "test"})
+	})
+
+	code := captureExitCode(func() int { return CmdReport(dir, "") })
+	if code == ExitSuccess {
+		t.Error("expected failure with no runs")
+	}
+}
+
+func TestCmdReport_AfterPackage(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, filepath.Join(dir, "manifest.json"), `{"manifest_version":3,"name":"Test","version":"1.0.0"}`)
+	writeFile(t, filepath.Join(dir, "background.js"), "// bg")
+	writeFile(t, filepath.Join(dir, "package.json"), `{"name":"test"}`)
+
+	captureExitCode(func() int {
+		return CmdInit(dir, InitOptions{Name: "test", Targets: []string{"chrome"}})
+	})
+	captureExitCode(func() int {
+		return CmdPackage(dir, PackageOptions{SourceDir: dir, Version: "1.0.0"})
+	})
+
+	code := captureExitCode(func() int { return CmdReport(dir, "") })
+	if code != ExitSuccess {
+		t.Errorf("expected exit 0, got %d", code)
+	}
+}
+
+func TestCmdResume_NoRun(t *testing.T) {
+	dir := t.TempDir()
+	captureExitCode(func() int {
+		return CmdInit(dir, InitOptions{Name: "test"})
+	})
+
+	code := captureExitCode(func() int { return CmdResume(dir, "") })
+	if code == ExitSuccess {
+		t.Error("expected failure with no run to resume")
+	}
+}
+
 func TestOutput_JSON(t *testing.T) {
 	out := Output{
 		Status:  "ok",
@@ -163,8 +288,12 @@ func TestOutput_JSON(t *testing.T) {
 
 func writeFile(t *testing.T, path, content string) {
 	t.Helper()
-	os.MkdirAll(filepath.Dir(path), 0o755)
-	os.WriteFile(path, []byte(content), 0o644)
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+		t.Fatal(err)
+	}
 }
 
 // captureExitCode runs a function that returns an exit code,

@@ -38,27 +38,27 @@ type CapabilityCatalog struct {
 
 // CapabilitySupport describes how a capability maps to this target.
 type CapabilitySupport struct {
-	State       string `json:"state"` // native, adapted, degraded, blocked
-	Permission  string `json:"permission,omitempty"`
-	Notes       string `json:"notes,omitempty"`
+	State      string `json:"state"` // native, adapted, degraded, blocked
+	Permission string `json:"permission,omitempty"`
+	Notes      string `json:"notes,omitempty"`
 }
 
 // ManifestOutput is the output of manifest compilation for a target.
 type ManifestOutput struct {
-	Manifest        map[string]any   `json:"manifest"`
-	Permissions     []string         `json:"permissions"`
-	HostPermissions []string         `json:"host_permissions"`
-	Warnings        []string         `json:"warnings"`
+	Manifest        map[string]any `json:"manifest"`
+	Permissions     []string       `json:"permissions"`
+	HostPermissions []string       `json:"host_permissions"`
+	Warnings        []string       `json:"warnings"`
 }
 
 // EnvironmentInfo describes the detected environment for a target.
 type EnvironmentInfo struct {
-	Available   bool   `json:"available"`
-	BinaryPath  string `json:"binary_path,omitempty"`
-	Version     string `json:"version,omitempty"`
-	Channel     string `json:"channel,omitempty"`
-	Launchable  bool   `json:"launchable"`
-	Reason      string `json:"reason,omitempty"`
+	Available  bool   `json:"available"`
+	BinaryPath string `json:"binary_path,omitempty"`
+	Version    string `json:"version,omitempty"`
+	Channel    string `json:"channel,omitempty"`
+	Launchable bool   `json:"launchable"`
+	Reason     string `json:"reason,omitempty"`
 }
 
 // Adapter is the interface every target must implement.
@@ -86,19 +86,19 @@ type Adapter interface {
 
 // CapabilityResolution is the resolved state of a capability for a target.
 type CapabilityResolution struct {
-	State       string `json:"state"` // native, adapted, degraded, blocked, optional-fallback
-	Reason      string `json:"reason,omitempty"`
+	State       string   `json:"state"` // native, adapted, degraded, blocked, optional-fallback
+	Reason      string   `json:"reason,omitempty"`
 	Permissions []string `json:"permissions,omitempty"`
 }
 
 // ManifestCompileOptions are inputs for manifest compilation.
 type ManifestCompileOptions struct {
-	ProjectName     string                        `json:"project_name"`
-	ProjectVersion  string                        `json:"project_version"`
-	Entries         map[string]EntrySpec           `json:"entries"`
+	ProjectName     string                          `json:"project_name"`
+	ProjectVersion  string                          `json:"project_version"`
+	Entries         map[string]EntrySpec            `json:"entries"`
 	Capabilities    map[string]CapabilityResolution `json:"capabilities"`
-	Permissions     []string                       `json:"permissions"`
-	HostPermissions []string                       `json:"host_permissions"`
+	Permissions     []string                        `json:"permissions"`
+	HostPermissions []string                        `json:"host_permissions"`
 }
 
 // EntrySpec is a resolved entry for manifest compilation.
@@ -109,21 +109,21 @@ type EntrySpec struct {
 
 // PackageOptions are inputs for artifact packaging.
 type PackageOptions struct {
-	SourceDir        string `json:"source_dir"`
-	OutputDir        string `json:"output_dir"`
-	ArtifactName     string `json:"artifact_name"`
-	Version          string `json:"version"`
-	ManifestPath     string `json:"manifest_path"`
+	SourceDir    string `json:"source_dir"`
+	OutputDir    string `json:"output_dir"`
+	ArtifactName string `json:"artifact_name"`
+	Version      string `json:"version"`
+	ManifestPath string `json:"manifest_path"`
 }
 
 // ArtifactRecord describes a packaged artifact.
 type ArtifactRecord struct {
-	Target             string `json:"target"`
-	ArtifactType       string `json:"artifact_type"`
-	FilePath           string `json:"file_path"`
-	FileSize           int64  `json:"file_size"`
-	SHA256             string `json:"sha256"`
+	Target              string `json:"target"`
+	ArtifactType        string `json:"artifact_type"`
+	FilePath            string `json:"file_path"`
+	FileSize            int64  `json:"file_size"`
+	SHA256              string `json:"sha256"`
 	ManifestFingerprint string `json:"manifest_fingerprint"`
-	BuildFingerprint   string `json:"build_fingerprint"`
-	ProducedAt         string `json:"produced_at"`
+	BuildFingerprint    string `json:"build_fingerprint"`
+	ProducedAt          string `json:"produced_at"`
 }

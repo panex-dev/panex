@@ -24,7 +24,7 @@ const (
 	StatusRollingBack    Status = "rolling-back"
 	StatusSucceeded      Status = "succeeded"
 	StatusFailed         Status = "failed"
-	StatusCancelled      Status = "cancelled"
+	StatusCancelled      Status = "canceled"
 	StatusExpired        Status = "expired"
 )
 
@@ -39,19 +39,19 @@ const (
 
 // Run is the durable record of a Panex operation.
 type Run struct {
-	RunID       string   `json:"run_id"`
-	Operation   string   `json:"operation"`
-	Status      Status   `json:"status"`
-	ProjectHash string   `json:"project_hash"`
-	ConfigHash  string   `json:"config_hash"`
-	PolicyHash  string   `json:"policy_hash"`
-	StartedAt   string   `json:"started_at"`
-	CompletedAt string   `json:"completed_at,omitempty"`
-	Actor       Actor    `json:"actor"`
-	Steps       []Step   `json:"steps"`
-	Artifacts   []string `json:"artifacts"`
-	Reports     []string `json:"reports"`
-	Resumable   bool     `json:"resumable"`
+	RunID       string    `json:"run_id"`
+	Operation   string    `json:"operation"`
+	Status      Status    `json:"status"`
+	ProjectHash string    `json:"project_hash"`
+	ConfigHash  string    `json:"config_hash"`
+	PolicyHash  string    `json:"policy_hash"`
+	StartedAt   string    `json:"started_at"`
+	CompletedAt string    `json:"completed_at,omitempty"`
+	Actor       Actor     `json:"actor"`
+	Steps       []Step    `json:"steps"`
+	Artifacts   []string  `json:"artifacts"`
+	Reports     []string  `json:"reports"`
+	Resumable   bool      `json:"resumable"`
 	Error       *RunError `json:"error,omitempty"`
 }
 

@@ -10,11 +10,11 @@ import (
 
 // Result is the verification outcome.
 type Result struct {
-	Status          string           `json:"status"` // "passed" or "failed"
-	HardBlocks      []Block          `json:"hard_blocks"`
-	Warnings        []string         `json:"warnings"`
-	Info            []string         `json:"info"`
-	PermissionDiff  *PermissionDiff  `json:"permission_diff,omitempty"`
+	Status           string          `json:"status"` // "passed" or "failed"
+	HardBlocks       []Block         `json:"hard_blocks"`
+	Warnings         []string        `json:"warnings"`
+	Info             []string        `json:"info"`
+	PermissionDiff   *PermissionDiff `json:"permission_diff,omitempty"`
 	SuggestedRepairs []string        `json:"suggested_repairs,omitempty"`
 }
 
@@ -35,10 +35,10 @@ type PermissionDiff struct {
 
 // Input is everything the verifier needs.
 type Input struct {
-	Graph                *graph.Graph
-	Matrix               *capability.TargetMatrix
-	PreviousPermissions  []string
-	PreviousHostPerms    []string
+	Graph               *graph.Graph
+	Matrix              *capability.TargetMatrix
+	PreviousPermissions []string
+	PreviousHostPerms   []string
 }
 
 // Verify runs all verification checks and returns a Result.

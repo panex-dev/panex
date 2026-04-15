@@ -158,11 +158,11 @@ func ReadFromFile(path string) (*Graph, error) {
 // ProjectConfig is the parsed representation of panex.config.ts.
 // In Phase 1 this is loaded from JSON; TS evaluation comes later.
 type ProjectConfig struct {
-	Project      ProjectConfigBlock        `json:"project"`
-	Entries      map[string]EntryConfig    `json:"entries"`
-	Targets      []string                  `json:"targets"`
-	Capabilities map[string]any            `json:"capabilities"`
-	Hash         string                    `json:"-"`
+	Project      ProjectConfigBlock     `json:"project"`
+	Entries      map[string]EntryConfig `json:"entries"`
+	Targets      []string               `json:"targets"`
+	Capabilities map[string]any         `json:"capabilities"`
+	Hash         string                 `json:"-"`
 }
 
 type ProjectConfigBlock struct {

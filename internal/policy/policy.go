@@ -23,12 +23,12 @@ type Policy struct {
 }
 
 type MutationPolicy struct {
-	AllowFileCreation     bool `yaml:"allow_file_creation"     toml:"allow_file_creation"`
-	AllowFileUpdate       bool `yaml:"allow_file_update"       toml:"allow_file_update"`
-	AllowFileDeletion     bool `yaml:"allow_file_deletion"     toml:"allow_file_deletion"`
+	AllowFileCreation      bool `yaml:"allow_file_creation"     toml:"allow_file_creation"`
+	AllowFileUpdate        bool `yaml:"allow_file_update"       toml:"allow_file_update"`
+	AllowFileDeletion      bool `yaml:"allow_file_deletion"     toml:"allow_file_deletion"`
 	AllowDependencyInstall bool `yaml:"allow_dependency_install" toml:"allow_dependency_install"`
-	AllowLockfileChanges  bool `yaml:"allow_lockfile_changes"  toml:"allow_lockfile_changes"`
-	AllowBundlerRewrite   bool `yaml:"allow_bundler_rewrite"   toml:"allow_bundler_rewrite"`
+	AllowLockfileChanges   bool `yaml:"allow_lockfile_changes"  toml:"allow_lockfile_changes"`
+	AllowBundlerRewrite    bool `yaml:"allow_bundler_rewrite"   toml:"allow_bundler_rewrite"`
 }
 
 type TargetsPolicy struct {
@@ -36,9 +36,9 @@ type TargetsPolicy struct {
 }
 
 type PermPolicy struct {
-	AllowNewPermissions        bool `yaml:"allow_new_permissions"          toml:"allow_new_permissions"`
-	AllowNewHostPermissions    bool `yaml:"allow_new_host_permissions"     toml:"allow_new_host_permissions"`
-	RequirePermDiffReview      bool `yaml:"require_permission_diff_review" toml:"require_permission_diff_review"`
+	AllowNewPermissions     bool `yaml:"allow_new_permissions"          toml:"allow_new_permissions"`
+	AllowNewHostPermissions bool `yaml:"allow_new_host_permissions"     toml:"allow_new_host_permissions"`
+	RequirePermDiffReview   bool `yaml:"require_permission_diff_review" toml:"require_permission_diff_review"`
 }
 
 type RuntimePolicy struct {
