@@ -30,4 +30,6 @@ cd <package> && pnpm run check && pnpm run test && pnpm run build
 
 ## Build Logs
 
-Every PR gets a build log in `docs/build-log/` and an entry in `docs/build-log/STATUS.md`.
+Every push must include a build log in `docs/build-log/` and an entry in `docs/build-log/STATUS.md`. This is enforced by the `pre-push` git hook (`scripts/ensure-build-log.sh`).
+
+Build log format: `docs/build-log/YYYY-MM-DD-<slug>.md` with sections: What, Why, Impact, Quality.

@@ -45,3 +45,12 @@ panex-roadmap.md
 panex-inspector.md
 panex-engineering-plan.md
 panex-engineering-plan-final.md
+
+# Internal specs and planning (IP-sensitive)
+new-panex.md
+newpanexdocs/
+Panex Installation & Onboarding Plan*.md
+apt-repository-plan.md
+false-completeness-audit.md
+docs/install-and-onboarding-plan.md
+docs/execution-drift-audit-*.md

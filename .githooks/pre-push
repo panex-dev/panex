@@ -4,4 +4,10 @@ set -euo pipefail
 repo_root="$(git rev-parse --show-toplevel)"
 cd "$repo_root"
 
+# Capture stdin (ref info from git) before any script consumes it
+push_info="$(cat)"
+
 ./scripts/pr-ensure-rebased.sh
+
+# Ensure every push includes a build-log entry
+echo "$push_info" | ./scripts/ensure-build-log.sh

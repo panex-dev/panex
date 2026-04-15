@@ -1,6 +1,6 @@
 # Build Status Tracker
 
-As of 2026-03-17.
+As of 2026-04-15.
 
 ## Completed
 | PR | Scope | Evidence |
@@ -105,12 +105,14 @@ As of 2026-03-17.
 | 104 | Fix type: operator inconsistency and reject privileged ports | `docs/build-log/2026-03-17-pr-104-search-port-fixes.md` |
 | 105 | Deduplicate daemon URL utilities into shared/protocol | `docs/build-log/2026-03-17-pr-105-deduplicate-daemon-url.md` |
 | 106 | Unify ContextLog timestamp to milliseconds | `docs/build-log/2026-03-17-pr-106-timestamp-ms-consistency.md` |
+| — | Phase 1 foundation: 11 core Go packages | `docs/build-log/2026-04-15-core-phase1-foundation.md` |
+| — | Phase 1 remaining: configloader, manifest, plan, lock, session, mcp, CLI extensions | `docs/build-log/2026-04-15-core-phase1-remaining.md` |
 
 ## In progress
-- None.
+- Phase 1 completion — agent loop operational through CLI and MCP surfaces.
 
 ## Next
-- Tech debt tracker clear. All known issues resolved or mitigated.
+- Phase 2 planning and implementation.
 
 ## Queued Follow-Ons
 - None.
