@@ -153,7 +153,7 @@ func TestPathAccessors(t *testing.T) {
 	}{
 		{"StateRoot", root.StateRoot(), filepath.FromSlash("/project/.panex")},
 		{"ConfigFilePath", root.ConfigFilePath(), filepath.FromSlash("/project/panex.config.ts")},
-		{"PolicyFilePath", root.PolicyFilePath(), filepath.FromSlash("/project/panex.policy.yaml")},
+		{"PolicyFilePath", root.PolicyFilePath(), filepath.FromSlash("/project/panex.policy.toml")},
 		{"StatePath", root.StatePath(), filepath.FromSlash("/project/.panex/state.json")},
 		{"ConfigLockPath", root.ConfigLockPath(), filepath.FromSlash("/project/.panex/config.lock.json")},
 		{"ProjectGraphPath", root.ProjectGraphPath(), filepath.FromSlash("/project/.panex/project.graph.json")},
@@ -171,5 +171,35 @@ func TestPathAccessors(t *testing.T) {
 				t.Errorf("got %s, want %s", tt.got, tt.expected)
 			}
 		})
+	}
+}
+
+func TestEnsureRunDirs(t *testing.T) {
+	dir := t.TempDir()
+	root, _ := NewRoot(dir)
+	if err := root.Init(); err != nil {
+		t.Fatal(err)
+	}
+
+	runID := "run_test_001"
+	targets := []string{"chrome", "firefox"}
+
+	if err := root.EnsureRunDirs(runID, targets); err != nil {
+		t.Fatalf("EnsureRunDirs: %v", err)
+	}
+
+	expectedDirs := []string{
+		root.RunDir(runID),
+		filepath.Join(root.RunDir(runID), "trace"),
+		root.RunManifestDir(runID, "chrome"),
+		root.RunManifestDir(runID, "firefox"),
+	}
+	for _, d := range expectedDirs {
+		info, err := os.Stat(d)
+		if err != nil {
+			t.Errorf("expected %s to exist: %v", d, err)
+		} else if !info.IsDir() {
+			t.Errorf("expected %s to be a directory", d)
+		}
 	}
 }

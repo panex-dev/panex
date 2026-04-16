@@ -768,23 +768,7 @@ func LoadProjectGraph(projectDir string) (*graph.Graph, error) {
 		builder := graph.NewBuilder(projectDir)
 
 		if loaded, loadErr := configloader.Load(projectDir); loadErr == nil && loaded != nil {
-			cfg := &graph.ProjectConfig{
-				Project: graph.ProjectConfigBlock{
-					Name: loaded.Config.Project.Name,
-					ID:   loaded.Config.Project.ID,
-				},
-				Targets:      make([]string, 0),
-				Capabilities: loaded.Config.Capabilities,
-				Entries:      make(map[string]graph.EntryConfig),
-			}
-			for t, tc := range loaded.Config.Targets {
-				if tc.Enabled {
-					cfg.Targets = append(cfg.Targets, t)
-				}
-			}
-			for name, e := range loaded.Config.Entries {
-				cfg.Entries[name] = graph.EntryConfig{Path: e.Path, Type: e.ModuleType}
-			}
+			cfg := graph.ProjectConfigFromLoaded(loaded)
 			g, err = builder.BuildFromConfig(cfg, report)
 		} else {
 			g, err = builder.BuildFromInspection(report)
