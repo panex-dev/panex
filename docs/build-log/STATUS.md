@@ -109,9 +109,10 @@ As of 2026-04-15.
 | — | Phase 1 remaining: configloader, manifest, plan, lock, session, mcp, CLI extensions | `docs/build-log/2026-04-15-core-phase1-remaining.md` |
 | — | Phase 1 CLI + MCP wiring: all commands routable, all MCP handlers complete | `docs/build-log/2026-04-15-phase1-cli-mcp-wiring.md` |
 | — | Phase 1 audit: critical correctness fixes (adapter registry, dedup, doctor, errors, lint) | `docs/build-log/2026-04-15-phase1-audit-critical.md` |
+| — | Phase 1 audit: important design issues (config dedup, run dirs, policy tags, integration test) | `docs/build-log/2026-04-16-phase1-audit-important.md` |
 
 ## In progress
-- Phase 1 audit — design issues and spec gap documentation remaining.
+- Phase 1 audit — spec gap documentation remaining.
 
 ## Next
 - Phase 2 planning and implementation.
