@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/panex-dev/panex/internal/configloader"
 	"github.com/panex-dev/panex/internal/inspector"
 )
 
@@ -173,6 +174,38 @@ type ProjectConfigBlock struct {
 type EntryConfig struct {
 	Path string `json:"path"`
 	Type string `json:"type"`
+}
+
+// ProjectConfigFromLoaded converts a configloader.Loaded into the
+// graph.ProjectConfig that BuildFromConfig expects. This is the single
+// conversion point between the two type hierarchies.
+func ProjectConfigFromLoaded(loaded *configloader.Loaded) *ProjectConfig {
+	if loaded == nil || loaded.Config == nil {
+		return nil
+	}
+	cfg := loaded.Config
+
+	gc := &ProjectConfig{
+		Project: ProjectConfigBlock{
+			Name: cfg.Project.Name,
+			ID:   cfg.Project.ID,
+		},
+		Targets:      make([]string, 0),
+		Capabilities: cfg.Capabilities,
+		Entries:      make(map[string]EntryConfig),
+		Hash:         loaded.ConfigHash,
+	}
+
+	for t, tc := range cfg.Targets {
+		if tc.Enabled {
+			gc.Targets = append(gc.Targets, t)
+		}
+	}
+	for name, e := range cfg.Entries {
+		gc.Entries[name] = EntryConfig{Path: e.Path, Type: e.ModuleType}
+	}
+
+	return gc
 }
 
 // LoadProjectConfig reads a panex config from a JSON file.

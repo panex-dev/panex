@@ -14,7 +14,7 @@ import (
 const (
 	StateDir     = ".panex"
 	ConfigFile   = "panex.config.ts"
-	PolicyFile   = "panex.policy.yaml"
+	PolicyFile   = "panex.policy.toml"
 	StateName    = "state.json"
 	ConfigLock   = "config.lock.json"
 	ProjectGraph = "project.graph.json"
@@ -168,6 +168,25 @@ func (r *Root) RunManifestDir(runID, target string) string {
 // RunTracePath returns the trace events path for a run.
 func (r *Root) RunTracePath(runID string) string {
 	return filepath.Join(r.RunDir(runID), TraceDir, "events.jsonl")
+}
+
+// EnsureRunDirs creates the subdirectory tree for a specific run,
+// including the generated manifests and trace directories. Call this
+// before writing run artifacts.
+func (r *Root) EnsureRunDirs(runID string, targets []string) error {
+	dirs := []string{
+		r.RunDir(runID),
+		filepath.Join(r.RunDir(runID), TraceDir),
+	}
+	for _, t := range targets {
+		dirs = append(dirs, r.RunManifestDir(runID, t))
+	}
+	for _, d := range dirs {
+		if err := os.MkdirAll(d, 0o755); err != nil {
+			return fmt.Errorf("create run dir %s: %w", d, err)
+		}
+	}
+	return nil
 }
 
 // SessionDir returns the directory for a specific session.

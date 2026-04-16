@@ -539,7 +539,7 @@ func (ins *Inspector) computeRecommendations(r *Report) {
 	if !fileExists(filepath.Join(ins.root, "panex.config.ts")) {
 		r.Recommended = append(r.Recommended, "generate_panex_config")
 	}
-	if !fileExists(filepath.Join(ins.root, "panex.policy.yaml")) {
+	if !fileExists(filepath.Join(ins.root, "panex.policy.toml")) {
 		r.Recommended = append(r.Recommended, "generate_panex_policy")
 	}
 

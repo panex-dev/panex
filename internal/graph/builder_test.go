@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/panex-dev/panex/internal/configloader"
 	"github.com/panex-dev/panex/internal/inspector"
 )
 
@@ -194,6 +195,56 @@ func TestWriteAndReadGraph(t *testing.T) {
 	}
 	if len(got.Entries) != 1 {
 		t.Errorf("entries: got %d, want 1", len(got.Entries))
+	}
+}
+
+func TestProjectConfigFromLoaded(t *testing.T) {
+	loaded := &configloader.Loaded{
+		Config: &configloader.Config{
+			Project: configloader.ProjectConfig{
+				Name: "test-ext",
+				ID:   "com.test",
+			},
+			Entries: map[string]configloader.EntryConfig{
+				"background": {Path: "src/bg.ts", ModuleType: "esm"},
+			},
+			Targets: configloader.TargetConfigMap{
+				"chrome":  {Enabled: true},
+				"firefox": {Enabled: true},
+				"safari":  {Enabled: false},
+			},
+			Capabilities: map[string]any{"tabs": "read"},
+		},
+		ConfigHash: "sha256:test123",
+	}
+
+	cfg := ProjectConfigFromLoaded(loaded)
+	if cfg == nil {
+		t.Fatal("expected non-nil config")
+	}
+	if cfg.Project.Name != "test-ext" {
+		t.Errorf("name: got %s", cfg.Project.Name)
+	}
+	if cfg.Project.ID != "com.test" {
+		t.Errorf("id: got %s", cfg.Project.ID)
+	}
+	if len(cfg.Targets) != 2 {
+		t.Errorf("targets: got %d (expected 2 enabled)", len(cfg.Targets))
+	}
+	if bg, ok := cfg.Entries["background"]; !ok || bg.Path != "src/bg.ts" || bg.Type != "esm" {
+		t.Errorf("entry: got %+v", cfg.Entries["background"])
+	}
+	if cfg.Hash != "sha256:test123" {
+		t.Errorf("hash: got %s", cfg.Hash)
+	}
+}
+
+func TestProjectConfigFromLoaded_Nil(t *testing.T) {
+	if cfg := ProjectConfigFromLoaded(nil); cfg != nil {
+		t.Error("expected nil for nil input")
+	}
+	if cfg := ProjectConfigFromLoaded(&configloader.Loaded{}); cfg != nil {
+		t.Error("expected nil for empty loaded")
 	}
 }
 
