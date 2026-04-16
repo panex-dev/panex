@@ -237,9 +237,8 @@ func CmdVerify(projectDir string) int {
 		return Emit(Output{Status: "error", Command: "verify", Errors: []string{"cannot read project graph: " + err.Error()}, Next: []string{"panex init"}})
 	}
 
-	// Resolve capabilities through Chrome adapter
-	chrome := target.NewChrome()
-	adapters := map[string]target.Adapter{"chrome": chrome}
+	// Resolve capabilities through registered adapters
+	adapters := target.DefaultRegistry().All()
 
 	matrix, err := capability.Compile(capability.CompilerInput{
 		Capabilities: g.Capabilities,
@@ -295,8 +294,7 @@ func CmdPackage(projectDir string, opts PackageOptions) int {
 
 	runDir := root.RunDir(run.RunID)
 
-	chrome := target.NewChrome()
-	adapters := map[string]target.Adapter{"chrome": chrome}
+	adapters := target.DefaultRegistry().All()
 
 	var artifacts []target.ArtifactRecord
 	var errors []string
@@ -333,17 +331,27 @@ func CmdPackage(projectDir string, opts PackageOptions) int {
 	}
 
 	if len(errors) > 0 {
-		_ = run.Transition(ledger.StatusFailed)
+		if err := run.Transition(ledger.StatusFailed); err != nil {
+			errors = append(errors, fmt.Sprintf("ledger transition: %v", err))
+		}
 	} else {
-		_ = run.Transition(ledger.StatusSucceeded)
+		if err := run.Transition(ledger.StatusSucceeded); err != nil {
+			errors = append(errors, fmt.Sprintf("ledger transition: %v", err))
+		}
 	}
 
-	_ = run.WriteToDir(runDir)
+	if err := run.WriteToDir(runDir); err != nil {
+		errors = append(errors, fmt.Sprintf("write run: %v", err))
+	}
 
 	// Update state
-	state, _ := root.ReadState()
-	state.LatestRunID = run.RunID
-	_ = root.WriteState(state)
+	state, stateErr := root.ReadState()
+	if stateErr == nil {
+		state.LatestRunID = run.RunID
+		if err := root.WriteState(state); err != nil {
+			errors = append(errors, fmt.Sprintf("write state: %v", err))
+		}
+	}
 
 	out := Output{
 		Command: "package",
@@ -379,7 +387,7 @@ func CmdPlan(projectDir string) int {
 		return exitCode
 	}
 
-	adapters := map[string]target.Adapter{"chrome": target.NewChrome()}
+	adapters := target.DefaultRegistry().All()
 	matrix := resolveCapabilities(g, adapters)
 	manifestResult := manifest.Compile(manifest.CompileInput{
 		Graph: g, Matrix: matrix, Adapters: adapters,
@@ -404,7 +412,13 @@ func CmdPlan(projectDir string) int {
 
 	// Save plan
 	planPath := filepath.Join(projectDir, ".panex", "current.plan.json")
-	_ = plan.WritePlan(p, planPath)
+	if err := plan.WritePlan(p, planPath); err != nil {
+		return Emit(Output{
+			Status:  "error",
+			Command: "plan",
+			Errors:  []string{fmt.Sprintf("write plan: %v", err)},
+		})
+	}
 
 	out := Output{
 		Status:  "ok",
@@ -439,7 +453,7 @@ func CmdApply(projectDir string, opts ApplyOptions) int {
 		})
 	}
 
-	adapters := map[string]target.Adapter{"chrome": target.NewChrome()}
+	adapters := target.DefaultRegistry().All()
 	matrix := resolveCapabilities(g, adapters)
 	manifestResult := manifest.Compile(manifest.CompileInput{
 		Graph: g, Matrix: matrix, Adapters: adapters,
@@ -514,7 +528,9 @@ func CmdDev(projectDir string, opts DevOptions) int {
 
 	// Write session metadata
 	sessDir := root.SessionDir(sess.SessionID)
-	_ = sess.WriteToDir(sessDir)
+	if err := sess.WriteToDir(sessDir); err != nil {
+		return Emit(Output{Status: "error", Command: "dev", Errors: []string{fmt.Sprintf("write session: %v", err)}})
+	}
 
 	out := Output{
 		Status:  "ok",
@@ -526,7 +542,14 @@ func CmdDev(projectDir string, opts DevOptions) int {
 
 	if !opts.NoLaunch {
 		if err := sess.Launch(context.Background()); err != nil {
-			_ = sess.WriteToDir(sessDir)
+			if writeErr := sess.WriteToDir(sessDir); writeErr != nil {
+				return Emit(Output{
+					Status:  "error",
+					Command: "dev",
+					Errors:  []string{fmt.Sprintf("launch failed: %v", err), fmt.Sprintf("write session: %v", writeErr)},
+					Next:    []string{"panex doctor"},
+				})
+			}
 			return Emit(Output{
 				Status:  "error",
 				Command: "dev",
@@ -537,7 +560,9 @@ func CmdDev(projectDir string, opts DevOptions) int {
 		}
 		out.Summary = fmt.Sprintf("session %s active for %s (pid %d)", sess.SessionID, targetName, sess.BrowserPID)
 		out.Data = sess.Info()
-		_ = sess.WriteToDir(sessDir)
+		if err := sess.WriteToDir(sessDir); err != nil {
+			out.Warnings = append(out.Warnings, fmt.Sprintf("write session: %v", err))
+		}
 	}
 
 	return Emit(out)
@@ -558,7 +583,7 @@ func CmdTest(projectDir string) int {
 		return exitCode
 	}
 
-	adapters := map[string]target.Adapter{"chrome": target.NewChrome()}
+	adapters := target.DefaultRegistry().All()
 	matrix := resolveCapabilities(g, adapters)
 
 	verifyResult := verify.Verify(verify.Input{
@@ -700,10 +725,13 @@ func EmitWithCode(out Output, code int) int {
 
 // --- helpers ---
 
-func loadProjectGraph(projectDir, command string) (*graph.Graph, int) {
+// LoadProjectGraph loads the project graph from disk, falling back to
+// inspector + configloader if the graph file is absent. This is the
+// shared graph loading logic used by both CLI commands and MCP tools.
+func LoadProjectGraph(projectDir string) (*graph.Graph, error) {
 	root, err := fsmodel.NewRoot(projectDir)
 	if err != nil {
-		return nil, Emit(Output{Status: "error", Command: command, Errors: []string{err.Error()}})
+		return nil, err
 	}
 
 	g, err := graph.ReadFromFile(root.ProjectGraphPath())
@@ -737,13 +765,21 @@ func loadProjectGraph(projectDir, command string) (*graph.Graph, int) {
 		}
 
 		if err != nil {
-			return nil, Emit(Output{
-				Status:  "error",
-				Command: command,
-				Errors:  []string{"cannot build project graph: " + err.Error()},
-				Next:    []string{"panex init"},
-			})
+			return nil, fmt.Errorf("cannot build project graph: %w", err)
 		}
+	}
+	return g, nil
+}
+
+func loadProjectGraph(projectDir, command string) (*graph.Graph, int) {
+	g, err := LoadProjectGraph(projectDir)
+	if err != nil {
+		return nil, Emit(Output{
+			Status:  "error",
+			Command: command,
+			Errors:  []string{err.Error()},
+			Next:    []string{"panex init"},
+		})
 	}
 	return g, 0
 }

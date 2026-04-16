@@ -15,7 +15,6 @@ import (
 
 	"github.com/panex-dev/panex/internal/capability"
 	"github.com/panex-dev/panex/internal/cli"
-	"github.com/panex-dev/panex/internal/configloader"
 	"github.com/panex-dev/panex/internal/doctor"
 	"github.com/panex-dev/panex/internal/fsmodel"
 	"github.com/panex-dev/panex/internal/graph"
@@ -74,6 +73,7 @@ type Server struct {
 	projectDir string
 	reader     io.Reader
 	writer     io.Writer
+	registry   *target.Registry
 }
 
 // NewServer creates a new MCP server.
@@ -82,6 +82,7 @@ func NewServer(projectDir string) *Server {
 		projectDir: projectDir,
 		reader:     os.Stdin,
 		writer:     os.Stdout,
+		registry:   target.DefaultRegistry(),
 	}
 }
 
@@ -91,6 +92,7 @@ func NewServerWithIO(projectDir string, reader io.Reader, writer io.Writer) *Ser
 		projectDir: projectDir,
 		reader:     reader,
 		writer:     writer,
+		registry:   target.DefaultRegistry(),
 	}
 }
 
@@ -413,7 +415,7 @@ func (s *Server) toolVerify(_ context.Context) (any, error) {
 		return nil, err
 	}
 
-	adapters := map[string]target.Adapter{"chrome": target.NewChrome()}
+	adapters := s.registry.All()
 	matrix := s.resolveCapabilities(g, adapters)
 
 	result := verify.Verify(verify.Input{
@@ -434,7 +436,7 @@ func (s *Server) toolPlan(_ context.Context) (any, error) {
 		return nil, err
 	}
 
-	adapters := map[string]target.Adapter{"chrome": target.NewChrome()}
+	adapters := s.registry.All()
 	matrix := s.resolveCapabilities(g, adapters)
 	manifestResult := manifest.Compile(manifest.CompileInput{
 		Graph: g, Matrix: matrix, Adapters: adapters,
@@ -467,7 +469,7 @@ func (s *Server) toolApply(_ context.Context, args map[string]any) (any, error) 
 		return nil, fmt.Errorf("no plan found: %w", err)
 	}
 
-	adapters := map[string]target.Adapter{"chrome": target.NewChrome()}
+	adapters := s.registry.All()
 	matrix := s.resolveCapabilities(g, adapters)
 	manifestResult := manifest.Compile(manifest.CompileInput{
 		Graph: g, Matrix: matrix, Adapters: adapters,
@@ -492,7 +494,7 @@ func (s *Server) toolPackage(_ context.Context) (any, error) {
 		return nil, err
 	}
 
-	adapters := map[string]target.Adapter{"chrome": target.NewChrome()}
+	adapters := s.registry.All()
 	var results []any
 
 	for _, tgt := range g.TargetsResolved {
@@ -522,7 +524,7 @@ func (s *Server) toolTest(_ context.Context) (any, error) {
 		return nil, err
 	}
 
-	adapters := map[string]target.Adapter{"chrome": target.NewChrome()}
+	adapters := s.registry.All()
 	matrix := s.resolveCapabilities(g, adapters)
 
 	verifyResult := verify.Verify(verify.Input{
@@ -691,38 +693,7 @@ func (s *Server) readResource(uri string) (string, error) {
 // --- helpers ---
 
 func (s *Server) loadGraph() (*graph.Graph, error) {
-	graphPath := filepath.Join(s.projectDir, ".panex", "project.graph.json")
-	g, err := graph.ReadFromFile(graphPath)
-	if err != nil {
-		// Try building from inspection
-		ins := inspector.New(s.projectDir)
-		report, _ := ins.Inspect()
-		builder := graph.NewBuilder(s.projectDir)
-		g, _ = builder.BuildFromInspection(report)
-
-		// Try merging config if available
-		if loaded, loadErr := configloader.Load(s.projectDir); loadErr == nil && loaded != nil {
-			cfg := &graph.ProjectConfig{
-				Project: graph.ProjectConfigBlock{
-					Name: loaded.Config.Project.Name,
-					ID:   loaded.Config.Project.ID,
-				},
-				Targets:      make([]string, 0),
-				Capabilities: loaded.Config.Capabilities,
-				Entries:      make(map[string]graph.EntryConfig),
-			}
-			for t, tc := range loaded.Config.Targets {
-				if tc.Enabled {
-					cfg.Targets = append(cfg.Targets, t)
-				}
-			}
-			for name, e := range loaded.Config.Entries {
-				cfg.Entries[name] = graph.EntryConfig{Path: e.Path, Type: e.ModuleType}
-			}
-			g, _ = builder.BuildFromConfig(cfg, report)
-		}
-	}
-	return g, nil
+	return cli.LoadProjectGraph(s.projectDir)
 }
 
 func (s *Server) resolveCapabilities(g *graph.Graph, adapters map[string]target.Adapter) *capability.TargetMatrix {

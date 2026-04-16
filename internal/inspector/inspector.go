@@ -120,7 +120,10 @@ func (ins *Inspector) detectLanguage(r *Report) {
 	srcDir := filepath.Join(ins.root, "src")
 	ts, js := 0, 0
 	_ = filepath.WalkDir(srcDir, func(path string, d os.DirEntry, err error) error {
-		if err != nil || d.IsDir() {
+		if err != nil {
+			return err
+		}
+		if d.IsDir() {
 			return nil
 		}
 		switch filepath.Ext(path) {
