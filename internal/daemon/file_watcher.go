@@ -150,11 +150,16 @@ func (w *FileWatcher) Run(ctx context.Context) error {
 			}
 
 			// New directories are not watched automatically by fsnotify.
+			// On Windows there is also a race where files created inside a
+			// new directory between MkdirAll and Add are missed entirely
+			// by the platform watcher, so we synthesize pending entries
+			// for any pre-existing children.
 			if event.Op&fsnotify.Create != 0 {
 				if info, statErr := os.Stat(event.Name); statErr == nil && info.IsDir() {
 					if err := w.addDirectoryTree(watcher, event.Name); err != nil {
 						return err
 					}
+					w.synthesizeExistingChildren(event.Name, pending)
 				}
 			}
 
@@ -164,6 +169,30 @@ func (w *FileWatcher) Run(ctx context.Context) error {
 			timerCh = nil
 		}
 	}
+}
+
+// synthesizeExistingChildren walks a freshly-watched directory and queues
+// pending entries for any files already present. fsnotify on Windows can
+// drop events for files created in a directory in the brief window between
+// the directory's creation and its watch being registered; this closes that
+// gap. Infrastructure dirs are skipped here just like in addDirectoryTree.
+func (w *FileWatcher) synthesizeExistingChildren(root string, pending map[string]struct{}) {
+	_ = filepath.WalkDir(root, func(path string, entry fs.DirEntry, err error) error {
+		if err != nil {
+			// Best-effort: a child may have disappeared mid-walk. Continue.
+			return nil //nolint:nilerr
+		}
+		if entry.IsDir() {
+			if path != root && isInfrastructureDir(entry.Name()) {
+				return filepath.SkipDir
+			}
+			return nil
+		}
+		if rel, normErr := w.normalizePath(path); normErr == nil {
+			pending[rel] = struct{}{}
+		}
+		return nil
+	})
 }
 
 func (w *FileWatcher) addDirectoryTree(watcher *fsnotify.Watcher, root string) error {

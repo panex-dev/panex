@@ -112,6 +112,7 @@ As of 2026-04-15.
 | — | Phase 1 lint cleanup: errcheck violations across new test files + chrome zip close errors | `docs/build-log/2026-04-18-phase1-lint-cleanup.md` |
 | — | Phase 1 CI green: Go 1.25.9 (vuln fix), macOS path symlinks, Windows separators, chrome --version timeout | `docs/build-log/2026-04-18-phase1-ci-green.md` |
 | — | Phase 1 Windows platform: lock liveness via OpenProcess, fsmodel path FromSlash, file_watcher infra filter, parity CRLF | `docs/build-log/2026-04-18-phase1-windows-platform.md` |
+| — | Phase 1 watcher new-dir race: synthesize pending children when attaching a new directory watch | `docs/build-log/2026-04-18-phase1-watcher-newdir-race.md` |
 
 ## In progress
 - Phase 1 audit — design issues and spec gap documentation remaining.
