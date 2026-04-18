@@ -77,8 +77,12 @@ func (c *Chrome) InspectEnvironment(ctx context.Context) (EnvironmentInfo, Resul
 	info.BinaryPath = binary
 	info.Launchable = true
 
-	// Try to get version
-	cmd := exec.CommandContext(ctx, binary, "--version")
+	// Try to get version. On Windows, `chrome.exe --version` does not print
+	// to stdout — it silently exits or, depending on the build, opens a new
+	// window. Bound the call so it cannot hang the caller's test or run.
+	versionCtx, cancel := context.WithTimeout(ctx, 3*time.Second)
+	defer cancel()
+	cmd := exec.CommandContext(versionCtx, binary, "--version")
 	out, err := cmd.Output()
 	if err == nil {
 		info.Version = strings.TrimSpace(string(out))

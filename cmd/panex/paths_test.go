@@ -9,7 +9,7 @@ import (
 )
 
 func TestPathsWithPanexToml(t *testing.T) {
-	tempDir := t.TempDir()
+	tempDir := resolveSymlinks(t, t.TempDir())
 	writePanexConfig(t, filepath.Join(tempDir, "panex.toml"), `
 [extension]
 source_dir = "./src"
@@ -64,9 +64,18 @@ func TestPathsWithManifestJSON(t *testing.T) {
 	if !strings.Contains(output, "out_dir=") {
 		t.Fatalf("missing out_dir: %q", output)
 	}
-	if !strings.Contains(output, ".panex/dist") {
+	if !strings.Contains(output, filepath.Join(".panex", "dist")) {
 		t.Fatalf("expected default .panex/dist out_dir: %q", output)
 	}
+}
+
+func resolveSymlinks(t *testing.T, path string) string {
+	t.Helper()
+	resolved, err := filepath.EvalSymlinks(path)
+	if err != nil {
+		t.Fatalf("EvalSymlinks(%s): %v", path, err)
+	}
+	return resolved
 }
 
 func TestPathsMultiExtension(t *testing.T) {
