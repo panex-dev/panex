@@ -128,7 +128,9 @@ allow_new_host_permissions = true
 auto_apply_safe_repairs = false
 max_attempts = 5
 `
-	os.WriteFile(path, []byte(content), 0o644)
+	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+		t.Fatal(err)
+	}
 
 	p, err := LoadFromFile(path)
 	if err != nil {

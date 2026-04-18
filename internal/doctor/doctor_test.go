@@ -40,7 +40,7 @@ func TestRun_HealthyProject(t *testing.T) {
 func TestRun_InvalidManifest(t *testing.T) {
 	dir := t.TempDir()
 	setupPanexDir(t, dir)
-	os.WriteFile(filepath.Join(dir, "manifest.json"), []byte("{not json}"), 0o644)
+	mustWriteFile(t, filepath.Join(dir, "manifest.json"), []byte("{not json}"))
 
 	r := Run(Options{ProjectDir: dir})
 
@@ -53,7 +53,7 @@ func TestRun_InvalidManifest(t *testing.T) {
 func TestRun_MissingDependencies(t *testing.T) {
 	dir := t.TempDir()
 	setupPanexDir(t, dir)
-	os.WriteFile(filepath.Join(dir, "package.json"), []byte(`{"name":"test"}`), 0o644)
+	mustWriteFile(t, filepath.Join(dir, "package.json"), []byte(`{"name":"test"}`))
 	// No node_modules/
 
 	r := Run(Options{ProjectDir: dir})
@@ -67,8 +67,8 @@ func TestRun_MissingDependencies(t *testing.T) {
 func TestRun_CorruptState(t *testing.T) {
 	dir := t.TempDir()
 	panexDir := filepath.Join(dir, ".panex")
-	os.MkdirAll(panexDir, 0o755)
-	os.WriteFile(filepath.Join(panexDir, "state.json"), []byte("not json"), 0o644)
+	mustMkdirAll(t, panexDir)
+	mustWriteFile(t, filepath.Join(panexDir, "state.json"), []byte("not json"))
 
 	r := Run(Options{ProjectDir: dir})
 
@@ -82,12 +82,12 @@ func TestRun_StaleLock(t *testing.T) {
 	dir := t.TempDir()
 	setupPanexDir(t, dir)
 	locksDir := filepath.Join(dir, ".panex", "locks")
-	os.MkdirAll(locksDir, 0o755)
+	mustMkdirAll(t, locksDir)
 	lockPath := filepath.Join(locksDir, "project.lock")
-	os.WriteFile(lockPath, []byte("pid:1234"), 0o644)
+	mustWriteFile(t, lockPath, []byte("pid:1234"))
 	// Backdate the lock file so it exceeds the stale threshold
 	staleTime := time.Now().Add(-2 * time.Hour)
-	os.Chtimes(lockPath, staleTime, staleTime)
+	mustChtimes(t, lockPath, staleTime)
 
 	r := Run(Options{ProjectDir: dir})
 
@@ -119,11 +119,11 @@ func TestRun_Fix_RemoveStaleLock(t *testing.T) {
 	dir := t.TempDir()
 	setupPanexDir(t, dir)
 	locksDir := filepath.Join(dir, ".panex", "locks")
-	os.MkdirAll(locksDir, 0o755)
+	mustMkdirAll(t, locksDir)
 	lockPath := filepath.Join(locksDir, "project.lock")
-	os.WriteFile(lockPath, []byte("pid:1234"), 0o644)
+	mustWriteFile(t, lockPath, []byte("pid:1234"))
 	staleTime := time.Now().Add(-2 * time.Hour)
-	os.Chtimes(lockPath, staleTime, staleTime)
+	mustChtimes(t, lockPath, staleTime)
 
 	r := Run(Options{ProjectDir: dir, Fix: true})
 
@@ -143,8 +143,8 @@ func TestRun_Fix_RemoveStaleLock(t *testing.T) {
 func TestRun_Fix_ResetState(t *testing.T) {
 	dir := t.TempDir()
 	panexDir := filepath.Join(dir, ".panex")
-	os.MkdirAll(panexDir, 0o755)
-	os.WriteFile(filepath.Join(panexDir, "state.json"), []byte("corrupt"), 0o644)
+	mustMkdirAll(t, panexDir)
+	mustWriteFile(t, filepath.Join(panexDir, "state.json"), []byte("corrupt"))
 
 	r := Run(Options{ProjectDir: dir, Fix: true})
 
@@ -170,11 +170,11 @@ func setupPanexDir(t *testing.T, dir string) {
 	t.Helper()
 	panexDir := filepath.Join(dir, ".panex")
 	for _, d := range []string{panexDir, filepath.Join(panexDir, "runs"), filepath.Join(panexDir, "sessions"), filepath.Join(panexDir, "reports"), filepath.Join(panexDir, "cache"), filepath.Join(panexDir, "artifacts"), filepath.Join(panexDir, "locks")} {
-		os.MkdirAll(d, 0o755)
+		mustMkdirAll(t, d)
 	}
 	state := map[string]any{"schema_version": 1}
 	data, _ := json.MarshalIndent(state, "", "  ")
-	os.WriteFile(filepath.Join(panexDir, "state.json"), data, 0o644)
+	mustWriteFile(t, filepath.Join(panexDir, "state.json"), data)
 }
 
 func setupHealthyProject(t *testing.T) string {
@@ -184,10 +184,10 @@ func setupHealthyProject(t *testing.T) string {
 
 	manifest := map[string]any{"manifest_version": 3, "name": "Test", "version": "1.0.0"}
 	data, _ := json.Marshal(manifest)
-	os.WriteFile(filepath.Join(dir, "manifest.json"), data, 0o644)
+	mustWriteFile(t, filepath.Join(dir, "manifest.json"), data)
 
-	os.WriteFile(filepath.Join(dir, "package.json"), []byte(`{"name":"test"}`), 0o644)
-	os.MkdirAll(filepath.Join(dir, "node_modules"), 0o755)
+	mustWriteFile(t, filepath.Join(dir, "package.json"), []byte(`{"name":"test"}`))
+	mustMkdirAll(t, filepath.Join(dir, "node_modules"))
 
 	return dir
 }
@@ -198,4 +198,25 @@ func diagnosisCodes(r *Report) map[string]bool {
 		codes[d.Code] = true
 	}
 	return codes
+}
+
+func mustMkdirAll(t *testing.T, path string) {
+	t.Helper()
+	if err := os.MkdirAll(path, 0o755); err != nil {
+		t.Fatalf("mkdir %s: %v", path, err)
+	}
+}
+
+func mustWriteFile(t *testing.T, path string, data []byte) {
+	t.Helper()
+	if err := os.WriteFile(path, data, 0o644); err != nil {
+		t.Fatalf("write %s: %v", path, err)
+	}
+}
+
+func mustChtimes(t *testing.T, path string, when time.Time) {
+	t.Helper()
+	if err := os.Chtimes(path, when, when); err != nil {
+		t.Fatalf("chtimes %s: %v", path, err)
+	}
 }

@@ -316,15 +316,23 @@ func findChromeBinary() string {
 	return ""
 }
 
-func createZip(sourceDir, zipPath string) error {
+func createZip(sourceDir, zipPath string) (err error) {
 	f, err := os.Create(zipPath)
 	if err != nil {
 		return err
 	}
-	defer f.Close()
+	defer func() {
+		if cerr := f.Close(); cerr != nil && err == nil {
+			err = cerr
+		}
+	}()
 
 	w := zip.NewWriter(f)
-	defer w.Close()
+	defer func() {
+		if cerr := w.Close(); cerr != nil && err == nil {
+			err = cerr
+		}
+	}()
 
 	return filepath.WalkDir(sourceDir, func(path string, d os.DirEntry, err error) error {
 		if err != nil {
@@ -350,7 +358,7 @@ func createZip(sourceDir, zipPath string) error {
 		if err != nil {
 			return err
 		}
-		defer src.Close()
+		defer func() { _ = src.Close() }()
 
 		_, err = io.Copy(entry, src)
 		return err
@@ -362,7 +370,7 @@ func fileDigest(path string) (string, int64, error) {
 	if err != nil {
 		return "", 0, err
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 
 	h := sha256.New()
 	size, err := io.Copy(h, f)

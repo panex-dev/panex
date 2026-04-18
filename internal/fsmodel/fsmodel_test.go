@@ -22,8 +22,10 @@ func TestNewRoot_NotADirectory(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	f.Close()
-	defer os.Remove(f.Name())
+	if err := f.Close(); err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = os.Remove(f.Name()) }()
 
 	_, err = NewRoot(f.Name())
 	if err == nil {

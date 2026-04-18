@@ -164,8 +164,8 @@ func TestInspect_DetectsBundler_PackageJSON(t *testing.T) {
 
 func TestInspect_DetectsEntrypoints_FromConvention(t *testing.T) {
 	dir := t.TempDir()
-	os.MkdirAll(filepath.Join(dir, "src", "background"), 0o755)
-	os.MkdirAll(filepath.Join(dir, "src", "popup"), 0o755)
+	mkdir(t, filepath.Join(dir, "src", "background"))
+	mkdir(t, filepath.Join(dir, "src", "popup"))
 	writeFile(t, filepath.Join(dir, "src", "background", "index.ts"), "// bg")
 	writeFile(t, filepath.Join(dir, "src", "popup", "main.tsx"), "// popup")
 
@@ -396,5 +396,12 @@ func writeFile(t *testing.T, path, content string) {
 	}
 	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
 		t.Fatal(err)
+	}
+}
+
+func mkdir(t *testing.T, path string) {
+	t.Helper()
+	if err := os.MkdirAll(path, 0o755); err != nil {
+		t.Fatalf("mkdir %s: %v", path, err)
 	}
 }
