@@ -111,6 +111,7 @@ As of 2026-04-15.
 | — | Phase 1 audit: critical correctness fixes (adapter registry, dedup, doctor, errors, lint) | `docs/build-log/2026-04-15-phase1-audit-critical.md` |
 | — | Phase 1 lint cleanup: errcheck violations across new test files + chrome zip close errors | `docs/build-log/2026-04-18-phase1-lint-cleanup.md` |
 | — | Phase 1 CI green: Go 1.25.9 (vuln fix), macOS path symlinks, Windows separators, chrome --version timeout | `docs/build-log/2026-04-18-phase1-ci-green.md` |
+| — | Phase 1 Windows platform: lock liveness via OpenProcess, fsmodel path FromSlash, file_watcher infra filter, parity CRLF | `docs/build-log/2026-04-18-phase1-windows-platform.md` |
 
 ## In progress
 - Phase 1 audit — design issues and spec gap documentation remaining.

@@ -151,19 +151,19 @@ func TestPathAccessors(t *testing.T) {
 		got      string
 		expected string
 	}{
-		{"StateRoot", root.StateRoot(), "/project/.panex"},
-		{"ConfigFilePath", root.ConfigFilePath(), "/project/panex.config.ts"},
-		{"PolicyFilePath", root.PolicyFilePath(), "/project/panex.policy.yaml"},
-		{"StatePath", root.StatePath(), "/project/.panex/state.json"},
-		{"ConfigLockPath", root.ConfigLockPath(), "/project/.panex/config.lock.json"},
-		{"ProjectGraphPath", root.ProjectGraphPath(), "/project/.panex/project.graph.json"},
-		{"EnvironmentPath", root.EnvironmentPath(), "/project/.panex/environment.json"},
-		{"RunDir", root.RunDir("run_001"), "/project/.panex/runs/run_001"},
-		{"SessionDir", root.SessionDir("ses_001"), "/project/.panex/sessions/ses_001"},
-		{"ArtifactDir", root.ArtifactDir("chrome"), "/project/.panex/artifacts/chrome"},
-		{"LockPath", root.LockPath("project.lock"), "/project/.panex/locks/project.lock"},
-		{"RunManifestDir", root.RunManifestDir("run_001", "chrome"), "/project/.panex/runs/run_001/generated/manifests/chrome"},
-		{"RunTracePath", root.RunTracePath("run_001"), "/project/.panex/runs/run_001/trace/events.jsonl"},
+		{"StateRoot", root.StateRoot(), filepath.FromSlash("/project/.panex")},
+		{"ConfigFilePath", root.ConfigFilePath(), filepath.FromSlash("/project/panex.config.ts")},
+		{"PolicyFilePath", root.PolicyFilePath(), filepath.FromSlash("/project/panex.policy.yaml")},
+		{"StatePath", root.StatePath(), filepath.FromSlash("/project/.panex/state.json")},
+		{"ConfigLockPath", root.ConfigLockPath(), filepath.FromSlash("/project/.panex/config.lock.json")},
+		{"ProjectGraphPath", root.ProjectGraphPath(), filepath.FromSlash("/project/.panex/project.graph.json")},
+		{"EnvironmentPath", root.EnvironmentPath(), filepath.FromSlash("/project/.panex/environment.json")},
+		{"RunDir", root.RunDir("run_001"), filepath.FromSlash("/project/.panex/runs/run_001")},
+		{"SessionDir", root.SessionDir("ses_001"), filepath.FromSlash("/project/.panex/sessions/ses_001")},
+		{"ArtifactDir", root.ArtifactDir("chrome"), filepath.FromSlash("/project/.panex/artifacts/chrome")},
+		{"LockPath", root.LockPath("project.lock"), filepath.FromSlash("/project/.panex/locks/project.lock")},
+		{"RunManifestDir", root.RunManifestDir("run_001", "chrome"), filepath.FromSlash("/project/.panex/runs/run_001/generated/manifests/chrome")},
+		{"RunTracePath", root.RunTracePath("run_001"), filepath.FromSlash("/project/.panex/runs/run_001/trace/events.jsonl")},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

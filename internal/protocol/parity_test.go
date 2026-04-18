@@ -86,7 +86,9 @@ func loadSharedProtocolSource(t *testing.T) string {
 		t.Fatalf("read shared protocol source %q: %v", tsPath, err)
 	}
 
-	return string(raw)
+	// Normalize CRLF → LF so multiline regex anchors (`$`) match on Windows
+	// checkouts where git may have rewritten line endings.
+	return strings.ReplaceAll(string(raw), "\r\n", "\n")
 }
 
 func parseTSProtocolVersion(t *testing.T, source string) int {
