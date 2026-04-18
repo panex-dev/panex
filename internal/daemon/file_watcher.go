@@ -76,8 +76,47 @@ func (w *FileWatcher) Run(ctx context.Context) error {
 	}
 
 	pending := make(map[string]struct{})
+	// recentlyAddedDirs tracks subdirectories attached to the watcher
+	// during the run, with a remaining re-walk budget. The rewalkTicker
+	// drains this map by re-walking each entry, picking up any files
+	// fsnotify on Windows dropped during the brief window after Add().
+	recentlyAddedDirs := make(map[string]int)
+	const recentDirRewalkBudget = 10
+	const rewalkInterval = 100 * time.Millisecond
 	var timer *time.Timer
 	var timerCh <-chan time.Time
+	var rewalkTicker *time.Ticker
+	var rewalkCh <-chan time.Time
+
+	startRewalkTicker := func() {
+		if rewalkTicker != nil {
+			return
+		}
+		rewalkTicker = time.NewTicker(rewalkInterval)
+		rewalkCh = rewalkTicker.C
+	}
+	stopRewalkTicker := func() {
+		if rewalkTicker == nil {
+			return
+		}
+		rewalkTicker.Stop()
+		rewalkTicker = nil
+		rewalkCh = nil
+	}
+
+	rewalkRecent := func() {
+		for dir, budget := range recentlyAddedDirs {
+			w.synthesizeExistingChildren(dir, pending)
+			if budget <= 1 {
+				delete(recentlyAddedDirs, dir)
+			} else {
+				recentlyAddedDirs[dir] = budget - 1
+			}
+		}
+		if len(recentlyAddedDirs) == 0 {
+			stopRewalkTicker()
+		}
+	}
 
 	flush := func() {
 		if len(pending) == 0 {
@@ -114,6 +153,8 @@ func (w *FileWatcher) Run(ctx context.Context) error {
 		timer.Reset(w.debounce)
 		timerCh = timer.C
 	}
+
+	defer stopRewalkTicker()
 
 	for {
 		select {
@@ -153,17 +194,27 @@ func (w *FileWatcher) Run(ctx context.Context) error {
 			// On Windows there is also a race where files created inside a
 			// new directory between MkdirAll and Add are missed entirely
 			// by the platform watcher, so we synthesize pending entries
-			// for any pre-existing children.
+			// for any pre-existing children. The dir is also enrolled in
+			// the rewalkTicker so subsequent ticks pick up files that arrive
+			// just after we registered the watch even if fsnotify itself
+			// never delivers their event.
 			if event.Op&fsnotify.Create != 0 {
 				if info, statErr := os.Stat(event.Name); statErr == nil && info.IsDir() {
 					if err := w.addDirectoryTree(watcher, event.Name); err != nil {
 						return err
 					}
 					w.synthesizeExistingChildren(event.Name, pending)
+					recentlyAddedDirs[event.Name] = recentDirRewalkBudget
+					startRewalkTicker()
 				}
 			}
 
 			resetTimer()
+		case <-rewalkCh:
+			rewalkRecent()
+			if len(pending) > 0 {
+				resetTimer()
+			}
 		case <-timerCh:
 			flush()
 			timerCh = nil

@@ -6,10 +6,21 @@
 ## What
 
 `internal/daemon/file_watcher.go`: when fsnotify reports the creation of a
-new subdirectory and we add it to the watcher mid-loop, we now also walk
-the new directory once and queue any files already present as pending
-change entries. Infrastructure directories (`.git`, `node_modules`, `.panex`,
-…) are skipped during this walk, matching the behaviour of `addDirectoryTree`.
+new subdirectory and we add it to the watcher mid-loop, we now (1) walk
+the new directory once to queue any files already present, and (2) enrol
+the directory in a 100 ms `rewalkTicker` budget that re-walks it for
+~1 s. Each successful re-walk decrements the budget; the ticker stops
+when the map drains. Infrastructure directories (`.git`, `node_modules`,
+`.panex`, …) are skipped by the walk and `normalizePath` filters any
+infra-prefixed path that slips through.
+
+The single-walk version of this fix (committed first as `f0666e8`)
+covered the case where the file was already on disk by the time the
+watcher's goroutine processed the directory's `Create` event, but it
+did not cover the case where (a) the file is written *after* our
+synthesize walk but (b) fsnotify on Windows then drops the modify
+events on the freshly-attached watch. The ticker-driven re-walk closes
+that second gap.
 
 ## Why
 
