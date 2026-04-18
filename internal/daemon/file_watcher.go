@@ -68,7 +68,13 @@ func (w *FileWatcher) Run(ctx context.Context) error {
 		_ = watcher.Close()
 	}()
 
-	if err := w.addDirectoryTree(watcher, w.root); err != nil {
+	// watchedDirs tracks every directory currently registered with fsnotify.
+	// The tree-sync ticker compares the on-disk tree against this set to
+	// discover subdirectories whose Create event fsnotify never delivered —
+	// a known Windows gap where ReadDirectoryChangesW races against
+	// rapidly-created children.
+	watchedDirs := make(map[string]struct{})
+	if err := w.addDirectoryTree(watcher, w.root, watchedDirs); err != nil {
 		return err
 	}
 	if w.ready != nil {
@@ -76,47 +82,22 @@ func (w *FileWatcher) Run(ctx context.Context) error {
 	}
 
 	pending := make(map[string]struct{})
-	// recentlyAddedDirs tracks subdirectories attached to the watcher
-	// during the run, with a remaining re-walk budget. The rewalkTicker
-	// drains this map by re-walking each entry, picking up any files
-	// fsnotify on Windows dropped during the brief window after Add().
+	// recentlyAddedDirs tracks subdirectories the watcher attached during
+	// the run, with a remaining re-walk budget. Each tree-sync tick
+	// re-walks these dirs and synthesizes pending entries for any files
+	// they contain, closing the Windows window where Write events on a
+	// freshly-attached watch are silently dropped.
 	recentlyAddedDirs := make(map[string]int)
-	const recentDirRewalkBudget = 10
-	const rewalkInterval = 100 * time.Millisecond
+	const recentDirRewalkBudget = 4 // 4 ticks * 500ms ≈ 2s coverage
+	const treeSyncInterval = 500 * time.Millisecond
 	var timer *time.Timer
 	var timerCh <-chan time.Time
-	var rewalkTicker *time.Ticker
-	var rewalkCh <-chan time.Time
 
-	startRewalkTicker := func() {
-		if rewalkTicker != nil {
-			return
-		}
-		rewalkTicker = time.NewTicker(rewalkInterval)
-		rewalkCh = rewalkTicker.C
-	}
-	stopRewalkTicker := func() {
-		if rewalkTicker == nil {
-			return
-		}
-		rewalkTicker.Stop()
-		rewalkTicker = nil
-		rewalkCh = nil
-	}
-
-	rewalkRecent := func() {
-		for dir, budget := range recentlyAddedDirs {
-			w.synthesizeExistingChildren(dir, pending)
-			if budget <= 1 {
-				delete(recentlyAddedDirs, dir)
-			} else {
-				recentlyAddedDirs[dir] = budget - 1
-			}
-		}
-		if len(recentlyAddedDirs) == 0 {
-			stopRewalkTicker()
-		}
-	}
+	// Always-on tree-sync ticker. It runs regardless of fsnotify event
+	// delivery so the "missed Create event" case on Windows still
+	// converges within one tick.
+	treeSyncTicker := time.NewTicker(treeSyncInterval)
+	defer treeSyncTicker.Stop()
 
 	flush := func() {
 		if len(pending) == 0 {
@@ -154,7 +135,36 @@ func (w *FileWatcher) Run(ctx context.Context) error {
 		timerCh = timer.C
 	}
 
-	defer stopRewalkTicker()
+	syncTree := func() {
+		_ = filepath.WalkDir(w.root, func(path string, entry fs.DirEntry, walkErr error) error {
+			if walkErr != nil {
+				return nil //nolint:nilerr // best-effort: directories can appear/disappear mid-walk
+			}
+			if !entry.IsDir() {
+				return nil
+			}
+			if path != w.root && isInfrastructureDir(entry.Name()) {
+				return filepath.SkipDir
+			}
+			if _, ok := watchedDirs[path]; ok {
+				return nil
+			}
+			if err := watcher.Add(path); err == nil {
+				watchedDirs[path] = struct{}{}
+				recentlyAddedDirs[path] = recentDirRewalkBudget
+			}
+			return nil
+		})
+
+		for dir, budget := range recentlyAddedDirs {
+			w.synthesizeExistingChildren(dir, pending)
+			if budget <= 1 {
+				delete(recentlyAddedDirs, dir)
+			} else {
+				recentlyAddedDirs[dir] = budget - 1
+			}
+		}
+	}
 
 	for {
 		select {
@@ -190,29 +200,26 @@ func (w *FileWatcher) Run(ctx context.Context) error {
 				pending[relPath] = struct{}{}
 			}
 
-			// New directories are not watched automatically by fsnotify.
-			// On Windows there is also a race where files created inside a
-			// new directory between MkdirAll and Add are missed entirely
-			// by the platform watcher, so we synthesize pending entries
-			// for any pre-existing children. The dir is also enrolled in
-			// the rewalkTicker so subsequent ticks pick up files that arrive
-			// just after we registered the watch even if fsnotify itself
-			// never delivers their event.
+			// Attach new directories eagerly on Create so we don't wait up to
+			// one tick for the tree-sync pass to find them. Skip infra dirs
+			// to avoid wasteful walks under .git / node_modules / .panex.
 			if event.Op&fsnotify.Create != 0 {
 				if info, statErr := os.Stat(event.Name); statErr == nil && info.IsDir() {
-					if err := w.addDirectoryTree(watcher, event.Name); err != nil {
-						return err
+					if !isInfrastructureDir(filepath.Base(event.Name)) {
+						if err := w.addDirectoryTree(watcher, event.Name, watchedDirs); err != nil {
+							return err
+						}
+						w.synthesizeExistingChildren(event.Name, pending)
+						recentlyAddedDirs[event.Name] = recentDirRewalkBudget
 					}
-					w.synthesizeExistingChildren(event.Name, pending)
-					recentlyAddedDirs[event.Name] = recentDirRewalkBudget
-					startRewalkTicker()
 				}
 			}
 
 			resetTimer()
-		case <-rewalkCh:
-			rewalkRecent()
-			if len(pending) > 0 {
+		case <-treeSyncTicker.C:
+			before := len(pending)
+			syncTree()
+			if len(pending) > before {
 				resetTimer()
 			}
 		case <-timerCh:
@@ -246,7 +253,7 @@ func (w *FileWatcher) synthesizeExistingChildren(root string, pending map[string
 	})
 }
 
-func (w *FileWatcher) addDirectoryTree(watcher *fsnotify.Watcher, root string) error {
+func (w *FileWatcher) addDirectoryTree(watcher *fsnotify.Watcher, root string, watchedDirs map[string]struct{}) error {
 	return filepath.WalkDir(root, func(path string, entry fs.DirEntry, err error) error {
 		if err != nil {
 			return err
@@ -257,10 +264,14 @@ func (w *FileWatcher) addDirectoryTree(watcher *fsnotify.Watcher, root string) e
 		if isInfrastructureDir(entry.Name()) {
 			return filepath.SkipDir
 		}
+		if _, ok := watchedDirs[path]; ok {
+			return nil
+		}
 
 		if err := watcher.Add(path); err != nil {
 			return fmt.Errorf("add directory watch %q: %w", path, err)
 		}
+		watchedDirs[path] = struct{}{}
 
 		return nil
 	})

@@ -5,22 +5,38 @@
 
 ## What
 
-`internal/daemon/file_watcher.go`: when fsnotify reports the creation of a
-new subdirectory and we add it to the watcher mid-loop, we now (1) walk
-the new directory once to queue any files already present, and (2) enrol
-the directory in a 100 ms `rewalkTicker` budget that re-walks it for
-~1 s. Each successful re-walk decrements the budget; the ticker stops
-when the map drains. Infrastructure directories (`.git`, `node_modules`,
-`.panex`, …) are skipped by the walk and `normalizePath` filters any
-infra-prefixed path that slips through.
+`internal/daemon/file_watcher.go`: the watcher now runs an always-on
+500 ms `treeSyncTicker` in its select loop. Each tick:
 
-The single-walk version of this fix (committed first as `f0666e8`)
-covered the case where the file was already on disk by the time the
-watcher's goroutine processed the directory's `Create` event, but it
-did not cover the case where (a) the file is written *after* our
-synthesize walk but (b) fsnotify on Windows then drops the modify
-events on the freshly-attached watch. The ticker-driven re-walk closes
-that second gap.
+1. Walks `w.root` (skipping infrastructure dirs) and compares against
+   a `watchedDirs` set. Any directory not yet registered with fsnotify
+   is `Add`-ed and enrolled into `recentlyAddedDirs` with a 4-tick
+   budget (~2 s of re-walk coverage).
+2. Re-walks every entry in `recentlyAddedDirs` via
+   `synthesizeExistingChildren`, queuing pending entries for any files
+   present. Budget decrements each tick; entries drain out of the map
+   when it reaches zero.
+
+On `Create` events we still attach the child watch and synthesize
+eagerly — that path stays for Linux/macOS where fsnotify reliably
+delivers the event, so we don't wait up to one tick to react. The
+always-on ticker is the safety net for Windows, where fsnotify can
+drop the `Create(subdir)` event entirely.
+
+Prior attempts in this branch:
+
+- `f0666e8` — single synthesize walk on the `Create` event. Closed the
+  "file already on disk when event arrives" gap but missed the case
+  where the file is written *after* our walk but the modify event on
+  the freshly-attached watch is dropped.
+- `7938e04` — 100 ms `rewalkTicker` triggered by the `Create` event.
+  Closed the "dropped modify" gap on platforms that deliver the Create
+  event, but on Windows the Create event itself can be missing, so the
+  ticker never started and nothing ever detected the new dir.
+
+This change replaces the event-triggered rewalk with an unconditional
+poll so detection no longer depends on fsnotify delivering the Create
+event at all.
 
 ## Why
 
