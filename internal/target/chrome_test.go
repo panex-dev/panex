@@ -162,10 +162,10 @@ func TestChrome_CompileManifest_SidePanel(t *testing.T) {
 func TestChrome_PackageArtifact(t *testing.T) {
 	// Create a fake extension directory
 	srcDir := t.TempDir()
-	os.WriteFile(filepath.Join(srcDir, "manifest.json"), []byte(`{"manifest_version":3}`), 0o644)
-	os.WriteFile(filepath.Join(srcDir, "background.js"), []byte("// bg"), 0o644)
-	os.MkdirAll(filepath.Join(srcDir, "popup"), 0o755)
-	os.WriteFile(filepath.Join(srcDir, "popup", "index.html"), []byte("<html></html>"), 0o644)
+	mustWrite(t, filepath.Join(srcDir, "manifest.json"), []byte(`{"manifest_version":3}`))
+	mustWrite(t, filepath.Join(srcDir, "background.js"), []byte("// bg"))
+	mustMkdir(t, filepath.Join(srcDir, "popup"))
+	mustWrite(t, filepath.Join(srcDir, "popup", "index.html"), []byte("<html></html>"))
 
 	outDir := t.TempDir()
 
@@ -230,5 +230,19 @@ func TestChrome_InspectEnvironment(t *testing.T) {
 		}
 	} else {
 		t.Errorf("unexpected outcome: %s", result.Outcome)
+	}
+}
+
+func mustWrite(t *testing.T, path string, data []byte) {
+	t.Helper()
+	if err := os.WriteFile(path, data, 0o644); err != nil {
+		t.Fatalf("write %s: %v", path, err)
+	}
+}
+
+func mustMkdir(t *testing.T, path string) {
+	t.Helper()
+	if err := os.MkdirAll(path, 0o755); err != nil {
+		t.Fatalf("mkdir %s: %v", path, err)
 	}
 }

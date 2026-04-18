@@ -209,7 +209,9 @@ func TestLoadProjectConfig(t *testing.T) {
   "targets": ["chrome", "firefox"],
   "capabilities": {"tabs": "read"}
 }`
-	os.WriteFile(path, []byte(content), 0o644)
+	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+		t.Fatal(err)
+	}
 
 	cfg, err := LoadProjectConfig(path)
 	if err != nil {

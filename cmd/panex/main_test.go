@@ -8,6 +8,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -469,7 +470,7 @@ func TestRunDevInfersConfigFromManifestJSON(t *testing.T) {
 	if captured.Extension.SourceDir != "." {
 		t.Fatalf("unexpected inferred source dir: got %q", captured.Extension.SourceDir)
 	}
-	if captured.Extension.OutDir != panexconfig.DefaultOutDir {
+	if captured.Extension.OutDir != filepath.FromSlash(panexconfig.DefaultOutDir) {
 		t.Fatalf("unexpected inferred out dir: got %q", captured.Extension.OutDir)
 	}
 	if captured.Server.Port != panexconfig.DefaultPort {
@@ -565,6 +566,9 @@ auth_token = "tok"
 }
 
 func TestRunDevNoWSLWarningWhenOutDirUnderMnt(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("WSL /mnt/ semantics are Linux-only; on Windows /mnt/c becomes a literal C:\\mnt\\c path")
+	}
 	tempDir := t.TempDir()
 	writePanexConfig(t, filepath.Join(tempDir, "panex.toml"), `
 [extension]

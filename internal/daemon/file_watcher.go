@@ -211,7 +211,18 @@ func (w *FileWatcher) normalizePath(path string) (string, error) {
 		return "", errors.New("event path is outside watch root")
 	}
 
-	return filepath.ToSlash(filepath.Clean(relPath)), nil
+	clean := filepath.ToSlash(filepath.Clean(relPath))
+
+	// Some platforms (notably Windows via ReadDirectoryChangesW) deliver an event
+	// on the parent infrastructure directory itself when one of its children
+	// changes, even though that directory was excluded from watching. Reject
+	// any event whose first path segment is an infrastructure dir so callers
+	// see consistent behavior across OSes.
+	if first, _, _ := strings.Cut(clean, "/"); isInfrastructureDir(first) {
+		return "", errors.New("event path is under an infrastructure directory")
+	}
+
+	return clean, nil
 }
 
 func isRelevantFileEvent(op fsnotify.Op) bool {

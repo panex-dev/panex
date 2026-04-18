@@ -9,7 +9,6 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
-	"syscall"
 	"time"
 )
 
@@ -190,14 +189,5 @@ func (m *Manager) readLock(path string) (Info, error) {
 }
 
 func (m *Manager) isAlive(pid int) bool {
-	if pid <= 0 {
-		return false
-	}
-	process, err := os.FindProcess(pid)
-	if err != nil {
-		return false
-	}
-	// On Unix, FindProcess always succeeds. Signal 0 checks liveness.
-	err = process.Signal(syscall.Signal(0))
-	return err == nil
+	return isProcessAlive(pid)
 }
