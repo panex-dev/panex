@@ -16,22 +16,13 @@ import (
 	"github.com/panex-dev/panex/internal/manifest"
 )
 
-// Action describes a single planned mutation.
-type Action struct {
-	Type        string `json:"type"`        // "create_file", "update_file", "delete_file", "generate_manifest", "install_dependency"
-	Path        string `json:"path"`        // target path
-	Description string `json:"description"` // human-readable
-	Reversible  bool   `json:"reversible"`
-	Risk        string `json:"risk"` // "safe", "low", "medium", "high"
-}
-
 // Plan is the result of computing proposed changes.
 type Plan struct {
 	PlanID         string                  `json:"plan_id"`
 	CreatedAt      string                  `json:"created_at"`
 	ProjectHash    string                  `json:"project_hash"` // snapshot at plan time
 	ConfigHash     string                  `json:"config_hash"`  // config at plan time
-	Actions        []Action                `json:"actions"`
+	Actions        ActionList              `json:"actions"`
 	ManifestDiffs  map[string]ManifestDiff `json:"manifest_diffs,omitempty"`
 	PermissionDiff *PermissionDiff         `json:"permission_diff,omitempty"`
 	Warnings       []string                `json:"warnings,omitempty"`
@@ -77,7 +68,8 @@ func ComputePlan(input PlanInput) (*Plan, error) {
 		ConfigHash:  input.Graph.ConfigHash,
 	}
 
-	// Plan manifest generation
+	// Plan manifest generation — one action per target, each carrying its
+	// own destination path and rendered manifest body.
 	if input.ManifestResult != nil {
 		plan.ManifestDiffs = make(map[string]ManifestDiff)
 		for _, out := range input.ManifestResult.Outputs {
@@ -90,12 +82,10 @@ func ComputePlan(input PlanInput) (*Plan, error) {
 				Target: out.Target,
 				IsNew:  isNew,
 			}
-			plan.Actions = append(plan.Actions, Action{
-				Type:        "generate_manifest",
-				Path:        manifestPath,
-				Description: fmt.Sprintf("generate manifest.json for %s", out.Target),
-				Reversible:  true,
-				Risk:        "safe",
+			plan.Actions = append(plan.Actions, &GenerateManifestAction{
+				Target:   out.Target,
+				Path:     manifestPath,
+				Manifest: out.Manifest,
 			})
 		}
 
@@ -129,14 +119,16 @@ type ApplyInput struct {
 
 // ApplyResult is the outcome of applying a plan.
 type ApplyResult struct {
-	RunID   string   `json:"run_id"`
-	Status  string   `json:"status"` // "succeeded", "failed", "drift_detected"
-	Applied []string `json:"applied,omitempty"`
-	Failed  []string `json:"failed,omitempty"`
-	Errors  []string `json:"errors,omitempty"`
+	RunID      string   `json:"run_id"`
+	Status     string   `json:"status"` // "succeeded", "failed", "drift_detected"
+	Applied    []string `json:"applied,omitempty"`
+	Failed     []string `json:"failed,omitempty"`
+	RolledBack []string `json:"rolled_back,omitempty"`
+	Errors     []string `json:"errors,omitempty"`
 }
 
-// Apply executes a plan with locking and drift detection.
+// Apply executes a plan with locking, drift detection, and reverse-order
+// rollback on failure.
 func Apply(input ApplyInput) *ApplyResult {
 	result := &ApplyResult{}
 
@@ -173,44 +165,38 @@ func Apply(input ApplyInput) *ApplyResult {
 	// Create run
 	run := ledger.NewRun("apply", ledger.Actor{Type: ledger.ActorAgent, Name: "panex-cli"})
 	run.ProjectHash = input.Plan.ProjectHash
-	_ = run.Transition(ledger.StatusRunning)
+	if err := run.Transition(ledger.StatusRunning); err != nil {
+		result.Status = "failed"
+		result.Errors = append(result.Errors, fmt.Sprintf("transition created→running: %v", err))
+		return result
+	}
 
 	result.RunID = run.RunID
 
-	// Execute actions
+	ctx := ExecContext{ProjectDir: input.ProjectDir}
+	executed := make([]Action, 0, len(input.Plan.Actions))
+
+	// Execute actions in order, tracking which succeeded for rollback.
 	for _, action := range input.Plan.Actions {
-		step := run.AddStep("apply", action.Type+"_"+action.Path)
+		step := run.AddStep("apply", action.Kind())
 
-		var err error
-		switch action.Type {
-		case "generate_manifest":
-			err = applyGenerateManifest(action, input)
-		default:
-			err = fmt.Errorf("unknown action type: %s", action.Type)
-		}
-
-		if err != nil {
+		if err := action.Execute(ctx); err != nil {
 			step.Fail(err.Error())
-			result.Failed = append(result.Failed, fmt.Sprintf("%s: %v", action.Description, err))
+			result.Failed = append(result.Failed, fmt.Sprintf("%s: %v", action.Describe(), err))
 			result.Errors = append(result.Errors, err.Error())
-		} else {
-			step.Complete(action)
-			result.Applied = append(result.Applied, action.Description)
+			rollbackExecuted(run, ctx, executed, result)
+			finalize(run, ledger.StatusFailed, result)
+			writeRun(input.ProjectDir, run)
+			return result
 		}
+
+		step.Complete(nil)
+		result.Applied = append(result.Applied, action.Describe())
+		executed = append(executed, action)
 	}
 
-	if len(result.Failed) > 0 {
-		_ = run.Transition(ledger.StatusFailed)
-		result.Status = "failed"
-	} else {
-		_ = run.Transition(ledger.StatusSucceeded)
-		result.Status = "succeeded"
-	}
-
-	// Write run to ledger
-	runDir := filepath.Join(input.ProjectDir, ".panex", "runs", run.RunID)
-	_ = run.WriteToDir(runDir)
-
+	finalize(run, ledger.StatusSucceeded, result)
+	writeRun(input.ProjectDir, run)
 	return result
 }
 
@@ -246,21 +232,54 @@ func ReadPlan(path string) (*Plan, error) {
 
 // --- helpers ---
 
-func applyGenerateManifest(action Action, input ApplyInput) error {
-	if input.ManifestResult == nil {
-		return fmt.Errorf("no manifest result")
+// rollbackExecuted reverses executed actions in reverse order. Errors are
+// recorded on the run + result but do not abort the rollback — best-effort
+// undo gives the operator a chance to recover even from partial failures.
+func rollbackExecuted(run *ledger.Run, ctx ExecContext, executed []Action, result *ApplyResult) {
+	if len(executed) == 0 {
+		return
 	}
+	if err := run.Transition(ledger.StatusRollingBack); err != nil {
+		// State machine should allow running→rolling-back; if not, surface
+		// the bug rather than continuing in the wrong state.
+		result.Errors = append(result.Errors, fmt.Sprintf("transition running→rolling-back: %v", err))
+	}
+	for i := len(executed) - 1; i >= 0; i-- {
+		action := executed[i]
+		if !action.Reversible() {
+			continue
+		}
+		step := run.AddStep("rollback", action.Kind())
+		if err := action.Rollback(ctx); err != nil {
+			step.Fail(err.Error())
+			result.Errors = append(result.Errors, fmt.Sprintf("rollback %s: %v", action.Describe(), err))
+			continue
+		}
+		step.Complete(nil)
+		result.RolledBack = append(result.RolledBack, action.Describe())
+	}
+}
 
-	for _, out := range input.ManifestResult.Outputs {
-		dir := filepath.Dir(action.Path)
-		if err := os.MkdirAll(dir, 0o755); err != nil {
-			return fmt.Errorf("create dir %s: %w", dir, err)
-		}
-		if err := manifest.WriteManifest(out.Manifest, action.Path); err != nil {
-			return err
-		}
+// finalize transitions the run to its terminal state and sets result.Status.
+// Transition errors are surfaced rather than swallowed — they indicate a
+// programmer bug in the state machine, not a runtime condition.
+func finalize(run *ledger.Run, terminal ledger.Status, result *ApplyResult) {
+	if err := run.Transition(terminal); err != nil {
+		result.Errors = append(result.Errors, fmt.Sprintf("transition →%s: %v", terminal, err))
 	}
-	return nil
+	switch terminal {
+	case ledger.StatusSucceeded:
+		result.Status = "succeeded"
+	case ledger.StatusFailed:
+		result.Status = "failed"
+	default:
+		result.Status = string(terminal)
+	}
+}
+
+func writeRun(projectDir string, run *ledger.Run) {
+	runDir := filepath.Join(projectDir, ".panex", "runs", run.RunID)
+	_ = run.WriteToDir(runDir)
 }
 
 func computePermissionDiff(previous, current []string) *PermissionDiff {
