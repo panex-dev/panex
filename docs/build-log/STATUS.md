@@ -114,6 +114,7 @@ As of 2026-04-15.
 | — | Phase 1 Windows platform: lock liveness via OpenProcess, fsmodel path FromSlash, file_watcher infra filter, parity CRLF | `docs/build-log/2026-04-18-phase1-windows-platform.md` |
 | — | Phase 1 watcher new-dir race: synthesize pending children when attaching a new directory watch | `docs/build-log/2026-04-18-phase1-watcher-newdir-race.md` |
 | — | Phase 1 L1: polymorphic Action — closes audit C1/H5/H6 | `docs/build-log/2026-04-20-phase1-l1-polymorphic-action.md` |
+| — | Phase 1 C5/H1: graph hash via view struct (concurrent-safe, SourceRoot-independent) | `docs/build-log/2026-04-20-phase1-c5-h1-graph-hash-view.md` |
 
 ## In progress
 - Phase 1 audit — design issues and spec gap documentation remaining.
