@@ -93,6 +93,7 @@ func (m *Manager) Release(l *Lock) error {
 	}
 	_ = osRelease(l.file)
 	err := l.file.Close()
+	l.file = nil // prevent double close
 	_ = os.Remove(l.Path)
 	return err
 }

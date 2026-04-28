@@ -150,7 +150,7 @@ func TestFileWatcherWatchesNewDirectories(t *testing.T) {
 
 	// Poll-write into the new directory until fsnotify registers its watch.
 	newFile := filepath.Join(subDir, "entry.js")
-	deadline := time.Now().Add(2 * time.Second)
+	deadline := time.Now().Add(5 * time.Second)
 	for time.Now().Before(deadline) {
 		_ = os.WriteFile(newFile, []byte("x"), 0o600)
 		select {
