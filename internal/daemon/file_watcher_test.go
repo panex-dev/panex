@@ -41,7 +41,7 @@ func TestFileWatcherBasic(t *testing.T) {
 		if !slices.Contains(event.Paths, "index.ts") {
 			t.Errorf("expected index.ts in event, got %v", event.Paths)
 		}
-	case <-time.After(2 * time.Second):
+	case <-time.After(5 * time.Second):
 		t.Fatal("timed out waiting for file event")
 	}
 }
@@ -73,7 +73,7 @@ func TestFileWatcherBatching(t *testing.T) {
 		if !slices.Equal(event.Paths, files) {
 			t.Errorf("expected %v, got %v", files, event.Paths)
 		}
-	case <-time.After(2 * time.Second):
+	case <-time.After(5 * time.Second):
 		t.Fatal("timed out waiting for batched event")
 	}
 }
@@ -108,7 +108,7 @@ func TestFileWatcherIgnoresInfrastructure(t *testing.T) {
 				t.Errorf("infrastructure file %s was not ignored", p)
 			}
 		}
-	case <-time.After(2 * time.Second):
+	case <-time.After(5 * time.Second):
 		t.Fatal("timed out")
 	}
 }
@@ -144,7 +144,8 @@ func TestFileWatcherWatchesNewDirectories(t *testing.T) {
 	}
 
 	// If we miss the event, we poll-write to eventually trigger it after syncTree catches up.
-	deadline := time.Now().Add(10 * time.Second)
+	// We use a long deadline for Windows CI (15s).
+	deadline := time.Now().Add(15 * time.Second)
 	for time.Now().Before(deadline) {
 		_ = os.WriteFile(newFile, []byte("y"), 0o600)
 		select {
@@ -189,7 +190,7 @@ func TestFileWatcherFlushesPendingChangesOnCancel(t *testing.T) {
 		if !slices.Contains(event.Paths, "index.ts") {
 			t.Errorf("expected index.ts in flush event, got %v", event.Paths)
 		}
-	case <-time.After(1 * time.Second):
+	case <-time.After(5 * time.Second):
 		t.Fatal("timed out waiting for cancel flush")
 	}
 }
@@ -209,8 +210,8 @@ func startWatcher(t *testing.T, w *FileWatcher, ctx context.Context) {
 	select {
 	case <-ready:
 		// Give it a tiny bit more time for the OS to actually register watches
-		time.Sleep(100 * time.Millisecond)
-	case <-time.After(5 * time.Second):
+		time.Sleep(200 * time.Millisecond)
+	case <-time.After(10 * time.Second):
 		t.Fatal("watcher never became ready")
 	}
 }

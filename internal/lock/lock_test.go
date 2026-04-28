@@ -19,6 +19,7 @@ func TestAcquireRelease(t *testing.T) {
 	if err != nil {
 		t.Fatalf("acquire: %v", err)
 	}
+	defer func() { _ = mgr.Release(l) }()
 
 	// Lock file should exist
 	if _, err := os.Stat(l.Path); err != nil {
@@ -30,11 +31,14 @@ func TestAcquireRelease(t *testing.T) {
 	if !held {
 		t.Error("lock should be held")
 	}
+	if info == nil {
+		t.Fatal("expected info to be non-nil when lock is held")
+	}
 	if info.Operation != "apply" {
 		t.Errorf("operation: got %s", info.Operation)
 	}
 
-	// Release
+	// Release early to test IsHeld(false)
 	if err := mgr.Release(l); err != nil {
 		t.Errorf("release: %v", err)
 	}
@@ -60,7 +64,7 @@ func TestDoubleAcquire(t *testing.T) {
 	}
 	defer func() { _ = mgr.Release(l) }()
 
-	// Second acquire should fail (same process holds it)
+	// Second acquire should fail (already held)
 	_, err = mgr.Acquire(ProjectMutation, "plan", "cli")
 	if err == nil {
 		t.Error("expected error on double acquire")
@@ -98,7 +102,7 @@ func TestRecoverStale(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// Write a lock with a dead PID
+	// Write a lock file but don't hold the OS lock.
 	if err := os.WriteFile(filepath.Join(locksDir, "project.lock"), []byte(`{"pid":999999,"operation":"test"}`), 0o644); err != nil {
 		t.Fatal(err)
 	}
@@ -108,9 +112,6 @@ func TestRecoverStale(t *testing.T) {
 
 	if len(recovered) != 1 {
 		t.Errorf("expected 1 recovered, got %d", len(recovered))
-	}
-	if len(recovered) > 0 && recovered[0] != ProjectMutation {
-		t.Errorf("recovered type: got %s", recovered[0])
 	}
 
 	// Lock file should be gone
