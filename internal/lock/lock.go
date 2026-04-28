@@ -62,7 +62,7 @@ func (m *Manager) Acquire(lt Type, operation, holder string) (*Lock, error) {
 	if err := osAcquire(f); err != nil {
 		// Lock is held by another process. Read the file to see who it is.
 		info, readErr := m.readLock(path)
-		f.Close()
+		_ = f.Close()
 		if readErr == nil {
 			return nil, fmt.Errorf("lock %s held by pid %d (%s) since %s",
 				lt, info.PID, info.Operation, info.AcquiredAt.Format(time.RFC3339Nano))
@@ -102,7 +102,7 @@ func (m *Manager) IsHeld(lt Type) (bool, *Info) {
 	if err != nil {
 		return false, nil
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 
 	if err := osAcquire(f); err == nil {
 		// We could acquire it, so it's not held
@@ -139,12 +139,12 @@ func (m *Manager) RecoverStale() []Type {
 		if err := osAcquire(f); err == nil {
 			// Not held — safe to delete orphan file
 			_ = osRelease(f)
-			f.Close()
+			_ = f.Close()
 			_ = os.Remove(path)
 			lt := Type(strings.TrimSuffix(e.Name(), ".lock"))
 			recovered = append(recovered, lt)
 		} else {
-			f.Close()
+			_ = f.Close()
 		}
 	}
 
@@ -172,12 +172,12 @@ func (m *Manager) StaleInfo() []Info {
 		if err := osAcquire(f); err == nil {
 			_ = osRelease(f)
 			info, err := m.readLock(path)
-			f.Close()
+			_ = f.Close()
 			if err == nil {
 				stale = append(stale, info)
 			}
 		} else {
-			f.Close()
+			_ = f.Close()
 		}
 	}
 

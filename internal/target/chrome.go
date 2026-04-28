@@ -358,7 +358,7 @@ func createZip(sourceDir, zipPath string) (err error) {
 			Method: zip.Deflate,
 		}
 		// Use fixed timestamp for reproducibility (H7)
-		header.SetModTime(time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC))
+		header.Modified = time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
 
 		entry, err := w.CreateHeader(header)
 		if err != nil {

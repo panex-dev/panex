@@ -64,8 +64,8 @@ type Options struct {
 	Target              string
 	ExtensionDir        string // built extension directory
 	DaemonPort          int
-	ChromeBinary        string         // path to Chrome binary (auto-detect if empty)
-	AllowedCapabilities []string       // capabilities granted to this session (C3)
+	ChromeBinary        string   // path to Chrome binary (auto-detect if empty)
+	AllowedCapabilities []string // capabilities granted to this session (C3)
 	LockManager         *lock.Manager
 	Adapter             target.Adapter // target adapter for environment inspection (H3)
 }
