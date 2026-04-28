@@ -88,7 +88,7 @@ func (r *Root) Init() error {
 	if _, err := os.Stat(statePath); os.IsNotExist(err) {
 		initial := State{
 			SchemaVersion:  1,
-			InitializedAt:  time.Now().UTC().Format(time.RFC3339),
+			InitializedAt:  time.Now().UTC().Format(time.RFC3339Nano),
 			LatestRunID:    "",
 			LatestReportAt: "",
 			ActiveSession:  "",

@@ -22,24 +22,24 @@
 
 | ID | Severity | Status | Title | Primary location |
 |----|----------|--------|-------|------------------|
-| [C1](#c1) | Critical | wip | `applyGenerateManifest` overwrites for multi-target | `internal/plan/plan.go:249` |
-| [C2](#c2) | Critical | open | MCP's apply bypasses the project lock | `internal/mcp/mcp.go:480` |
-| [C3](#c3) | Critical | open | `ValidateHandshake` has no capability enforcement | `internal/session/session.go:275` |
-| [C4](#c4) | Critical | open | `lock.Acquire` has a TOCTOU race | `internal/lock/lock.go:50` |
-| [C5](#c5) | Critical | open | `Graph.ComputeHash` mutates the receiver non-atomically | `internal/graph/types.go:53` |
-| [H1](#h1) | High | open | Graph hash includes absolute `SourceRoot` | `internal/graph/types.go:16` |
-| [H2](#h2) | High | open | Project version is not plumbed | `internal/graph/types.go:32` |
-| [H3](#h3) | High | open | `session.findBrowser()` is Linux-only | `internal/session/session.go:288` |
-| [H4](#h4) | High | open | `TargetsResolved` is a verbatim copy of `TargetsRequested` | `internal/graph/builder.go:71` |
-| [H5](#h5) | High | wip | `Transition` errors silently ignored in apply | `internal/plan/plan.go:176` |
-| [H6](#h6) | High | wip | Apply has no rollback | `internal/plan/plan.go:181` |
-| [H7](#h7) | High | open | Zip artifacts are non-reproducible | `internal/target/chrome.go:323` |
-| [M1](#m1) | Medium | open | `readLock` accepts legacy `pid:1234` plaintext | `internal/lock/lock.go:180` |
-| [M2](#m2) | Medium | open | `rand.Read` errors ignored in ID generators | `session.go:319,325`, `ledger.go:88` |
-| [M3](#m3) | Medium | open | RunIDs not time-sortable; reader assumes they are | `ledger.go:86`, `mcp.go:564` |
+| [C1](#c1) | Critical | fixed | `applyGenerateManifest` overwrites for multi-target | `internal/plan/plan.go:249` |
+| [C2](#c2) | Critical | fixed | MCP's apply bypasses the project lock | `internal/mcp/mcp.go:480` |
+| [C3](#c3) | Critical | fixed | `ValidateHandshake` has no capability enforcement | `internal/session/session.go:275` |
+| [C4](#c4) | Critical | fixed | `lock.Acquire` has a TOCTOU race | `internal/lock/lock.go:50` |
+| [C5](#c5) | Critical | fixed | `Graph.ComputeHash` mutates the receiver non-atomically | `internal/graph/types.go:53` |
+| [H1](#h1) | High | fixed | Graph hash includes absolute `SourceRoot` | `internal/graph/types.go:16` |
+| [H2](#h2) | High | fixed | Project version is not plumbed | `internal/graph/types.go:32` |
+| [H3](#h3) | High | fixed | `session.findBrowser()` is Linux-only | `internal/session/session.go:288` |
+| [H4](#h4) | High | fixed | `TargetsResolved` is a verbatim copy of `TargetsRequested` | `internal/graph/builder.go:71` |
+| [H5](#h5) | High | fixed | `Transition` errors silently ignored in apply | `internal/plan/plan.go:176` |
+| [H6](#h6) | High | fixed | Apply has no rollback | `internal/plan/plan.go:181` |
+| [H7](#h7) | High | fixed | Zip artifacts are non-reproducible | `internal/target/chrome.go:323` |
+| [M1](#m1) | Medium | fixed | `readLock` accepts legacy `pid:1234` plaintext | `internal/lock/lock.go:180` |
+| [M2](#m2) | Medium | fixed | `rand.Read` errors ignored in ID generators | `session.go:319,325`, `ledger.go:88` |
+| [M3](#m3) | Medium | fixed | RunIDs not time-sortable; reader assumes they are | `ledger.go:86`, `mcp.go:564` |
 | [M4](#m4) | Medium | open | Chrome adapter supports only one `content_script` | `internal/target/chrome.go:179` |
-| [M5](#m5) | Medium | open | RFC3339 (second resolution) everywhere | repo-wide |
-| [M6](#m6) | Medium | open | MCP silently ignores `json.Unmarshal` errors on params | `internal/mcp/mcp.go:192,236` |
+| [M5](#m5) | Medium | fixed | RFC3339 (second resolution) everywhere | repo-wide |
+| [M6](#m6) | Medium | fixed | MCP silently ignores `json.Unmarshal` errors on params | `internal/mcp/mcp.go:192,236` |
 | [M7](#m7) | Medium | open | `HostPermissions` is matrix-level, not per-target | `internal/manifest/manifest.go:154` |
 | [M8](#m8) | Medium | open | `Capabilities map[string]any` is untyped at every boundary | `graph/types.go:25`, `capability/capability.go:30` |
 
@@ -60,7 +60,7 @@ Phase 2 leverage points are tracked separately as [L1–L7](#leverage).
 <a id="c1"></a>
 ### C1 — `applyGenerateManifest` overwrites for multi-target projects
 
-- **Status:** wip — `fix/phase1-l1-polymorphic-action`
+- **Status:** fixed (L1)
 - **Location:** `internal/plan/plan.go:249-264`
 - **Symptom:** A two-target project ends with the last target's manifest at every target's path.
 - **Evidence:** Loop iterates every entry in `input.ManifestResult.Outputs` and writes each to the single `action.Path`. `Action` has no `Target` field; apply cannot disambiguate which output belongs at this path.
@@ -70,7 +70,7 @@ Phase 2 leverage points are tracked separately as [L1–L7](#leverage).
 <a id="c2"></a>
 ### C2 — MCP's apply bypasses the project lock
 
-- **Status:** open
+- **Status:** fixed (L6)
 - **Location:** `internal/mcp/mcp.go:480` (vs `internal/cli/cli.go:470`)
 - **Symptom:** CLI and MCP `apply` can run concurrently and corrupt state.
 - **Evidence:** CLI passes `LockManager: mgr`; MCP omits the field. `plan.Apply` treats nil-manager as "no locking".
@@ -80,7 +80,7 @@ Phase 2 leverage points are tracked separately as [L1–L7](#leverage).
 <a id="c3"></a>
 ### C3 — `Session.ValidateHandshake` has no capability enforcement
 
-- **Status:** open
+- **Status:** fixed
 - **Location:** `internal/session/session.go:275-283`
 - **Symptom:** Whatever the bridge declares is granted.
 - **Evidence:**
@@ -98,7 +98,7 @@ Phase 2 leverage points are tracked separately as [L1–L7](#leverage).
 <a id="c4"></a>
 ### C4 — `lock.Acquire` has a TOCTOU race
 
-- **Status:** open
+- **Status:** fixed (L5)
 - **Location:** `internal/lock/lock.go:50-87`
 - **Symptom:** Two concurrent `Acquire` calls can both believe they hold the lock.
 - **Evidence:** Read existing lock → if stale, `os.Remove` → write new. Between remove and write, another `Acquire` can race.
@@ -110,7 +110,7 @@ Phase 2 leverage points are tracked separately as [L1–L7](#leverage).
 <a id="c5"></a>
 ### C5 — `Graph.ComputeHash` mutates the receiver non-atomically
 
-- **Status:** open
+- **Status:** fixed
 - **Location:** `internal/graph/types.go:53-65`
 - **Symptom:** Concurrent `ComputeHash` calls can return wrong hashes.
 - **Evidence:** Zeroes `g.GraphHash`, marshals, restores via defer. No mutex.
@@ -123,7 +123,7 @@ Phase 2 leverage points are tracked separately as [L1–L7](#leverage).
 <a id="h1"></a>
 ### H1 — Graph hash includes absolute `SourceRoot`
 
-- **Status:** open
+- **Status:** fixed (L4)
 - **Location:** `internal/graph/types.go:16` flows into `ComputeHash` at line 53
 - **Symptom:** Two devs on the same commit get different `ProjectHash`. Cross-machine `plan`→`apply` always reports drift.
 - **Fix:** Either omit `SourceRoot` from hash input, or expose two hashes — `ContentHash` (cross-machine) and `LocalHash` (with sourceRoot, for local drift). See [L4](#l4).
@@ -131,7 +131,7 @@ Phase 2 leverage points are tracked separately as [L1–L7](#leverage).
 <a id="h2"></a>
 ### H2 — Project version is not plumbed
 
-- **Status:** open
+- **Status:** fixed
 - **Location:** `internal/graph/types.go:32` (`ProjectIdentity` has no `Version`) → `internal/manifest/manifest.go:127` (falls back to `"0.0.1"`) → `internal/mcp/mcp.go:509` (hardcodes `"0.1.0"`)
 - **Symptom:** Every built extension ships as 0.0.1 or 0.1.0.
 - **Fix:** Add `Version` to `ProjectIdentity`; populate from `configloader`; remove the literal fallbacks.
@@ -139,7 +139,7 @@ Phase 2 leverage points are tracked separately as [L1–L7](#leverage).
 <a id="h3"></a>
 ### H3 — `session.findBrowser()` is Linux-only
 
-- **Status:** open
+- **Status:** fixed
 - **Location:** `internal/session/session.go:288-303`
 - **Symptom:** `panex dev` cannot launch Chrome on Windows or macOS.
 - **Evidence:** `findBrowser()` only checks `google-chrome`, `google-chrome-stable`, `chromium`, `chromium-browser` on PATH.
@@ -149,7 +149,7 @@ Phase 2 leverage points are tracked separately as [L1–L7](#leverage).
 <a id="h4"></a>
 ### H4 — `TargetsResolved` is a verbatim copy of `TargetsRequested`
 
-- **Status:** open
+- **Status:** fixed
 - **Location:** `internal/graph/builder.go:71-74` and `:99-102`
 - **Symptom:** Targets with no adapter still flow downstream and fail late at manifest compile time.
 - **Fix:** Filter `TargetsResolved` against `target.DefaultRegistry().All()` at graph-build time; record dropped targets as warnings.
@@ -157,7 +157,7 @@ Phase 2 leverage points are tracked separately as [L1–L7](#leverage).
 <a id="h5"></a>
 ### H5 — `Transition` errors silently ignored in apply
 
-- **Status:** wip — `fix/phase1-l1-polymorphic-action`
+- **Status:** fixed (L1)
 - **Location:** `internal/plan/plan.go:176, 203, 206`
 - **Symptom:** State machine transitions silently fail; run reports success while staying in a stale state.
 - **Evidence:** `_ = run.Transition(...)`. The state machine validates transitions and returns errors that are dropped.
@@ -166,7 +166,7 @@ Phase 2 leverage points are tracked separately as [L1–L7](#leverage).
 <a id="h6"></a>
 ### H6 — Apply has no rollback
 
-- **Status:** wip — `fix/phase1-l1-polymorphic-action`
+- **Status:** fixed (L1)
 - **Location:** `internal/plan/plan.go:181-214`
 - **Symptom:** Step 3/5 fails → steps 1-2 stay on disk, 4-5 still run. No transactional semantics.
 - **Evidence:** Actions declare `Reversible: true` with no rollback implementation anywhere.
@@ -175,7 +175,7 @@ Phase 2 leverage points are tracked separately as [L1–L7](#leverage).
 <a id="h7"></a>
 ### H7 — Zip artifacts are non-reproducible
 
-- **Status:** open
+- **Status:** fixed
 - **Location:** `internal/target/chrome.go:323-370`
 - **Symptom:** Two builds of the same source at different times produce different SHA-256.
 - **Evidence:** File mtimes go into zip headers; DEFLATE output varies with zlib version/level.
@@ -186,22 +186,22 @@ Phase 2 leverage points are tracked separately as [L1–L7](#leverage).
 ## Medium
 
 <a id="m1"></a>
-**M1 — Lock legacy plaintext format.** `internal/lock/lock.go:180-185`. Accepts `pid:1234`. No reason in a new package. Delete the branch.
+**M1 — Lock legacy plaintext format.** `internal/lock/lock.go:180-185`. fixed.
 
 <a id="m2"></a>
-**M2 — `rand.Read` errors ignored.** `internal/session/session.go:319,325`, `internal/ledger/ledger.go:88`. Token/run-id collision risk if `crypto/rand` returns zero buffer. Check the error.
+**M2 — `rand.Read` errors ignored.** `internal/session/session.go:319,325`, `internal/ledger/ledger.go:88`. fixed.
 
 <a id="m3"></a>
-**M3 — RunIDs not time-sortable.** `internal/ledger/ledger.go:86-90`. Random hex. `internal/mcp/mcp.go:564` does `entries[len(entries)-1]` assuming chronological order. Use ULID or `<rfc3339nano>-<random>`.
+**M3 — RunIDs not time-sortable.** `internal/ledger/ledger.go:86-90`. fixed.
 
 <a id="m4"></a>
 **M4 — One `content_script` only.** `internal/target/chrome.go:179-186`. Real extensions have many with different match patterns. Data model `Entries map[string]Entry` can't express it.
 
 <a id="m5"></a>
-**M5 — RFC3339 second resolution everywhere.** Steps within a run can collide on `StartedAt`. Use `time.RFC3339Nano`.
+**M5 — RFC3339 second resolution everywhere.** fixed.
 
 <a id="m6"></a>
-**M6 — MCP silently ignores `json.Unmarshal` of params.** `internal/mcp/mcp.go:192,236`. Should return JSON-RPC `invalid_params` (-32602).
+**M6 — MCP silently ignores `json.Unmarshal` of params.** `internal/mcp/mcp.go:192,236`. fixed.
 
 <a id="m7"></a>
 **M7 — `HostPermissions` matrix-level not per-target.** `internal/manifest/manifest.go:154-162`. Cannot express different host perms per target.
@@ -219,49 +219,49 @@ These are the structural wins. Each eliminates a class of bugs rather than one b
 <a id="l1"></a>
 ### L1 — `Action` as a typed sum, not a record
 
-```go
-type Action interface {
-    Kind() string
-    Execute(ctx context.Context, env ApplyEnv) error
-    Rollback(ctx context.Context, env ApplyEnv) error
-}
-
-type GenerateManifestAction struct {
-    Target   string
-    Path     string
-    Manifest map[string]any
-}
-```
+- **Status:** fixed
 
 Collapses [C1](#c1), [H5](#h5), [H6](#h6). New action types become new types instead of new switch arms in a central file.
 
 <a id="l2"></a>
 ### L2 — Apply as a streaming pipeline
 
+- **Status:** open
+
 Channel-based progress lets inspector/agent render live state. Dependency-aware ordering lets Phase 2 insert build-before-package without caller-side gymnastics.
 
 <a id="l3"></a>
 ### L3 — Typed capability registry with schemas
+
+- **Status:** open
 
 `map[string]any` flows from config to adapter untouched. Adapter decodes, guesses, errors at apply time. A typed `Capability[T]` registry with schema validation moves errors to config-load time. Resolves [M8](#m8) and reduces [C3](#c3) blast radius.
 
 <a id="l4"></a>
 ### L4 — Two hashes, not one
 
+- **Status:** fixed
+
 `ContentHash` (cross-machine replay) + `LocalHash` (with sourceRoot, for local drift). Resolves [H1](#h1).
 
 <a id="l5"></a>
 ### L5 — OS-advisory locks
+
+- **Status:** fixed
 
 Removes ~60 lines of `lock.go`: stale-lock handling, `isProcessAlive`, PID recycling. Kernel is source of truth. Resolves [C4](#c4).
 
 <a id="l6"></a>
 ### L6 — Surface-agnostic core API
 
+- **Status:** fixed
+
 Extract `core.Apply(input)`, `core.Plan(input)`, etc. CLI and MCP both delegate. Resolves [C2](#c2) and prevents the same drift on every future internal call.
 
 <a id="l7"></a>
 ### L7 — Required dependencies positional, not in options struct
+
+- **Status:** fixed
 
 `plan.Apply(ApplyInput)` with nil-ok `LockManager` is exactly how [C2](#c2) happened. Move required dependencies to positional args so nil becomes a compile error.
 

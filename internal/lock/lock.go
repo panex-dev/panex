@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strconv"
 	"strings"
 	"time"
 )
@@ -34,6 +33,7 @@ type Lock struct {
 	Type Type
 	Path string
 	Info Info
+	file *os.File
 }
 
 // Manager manages lock files under .panex/locks/.
@@ -53,15 +53,21 @@ func (m *Manager) Acquire(lt Type, operation, holder string) (*Lock, error) {
 	}
 
 	path := m.lockPath(lt)
+	f, err := os.OpenFile(path, os.O_RDWR|os.O_CREATE, 0o644)
+	if err != nil {
+		return nil, fmt.Errorf("open lock file: %w", err)
+	}
 
-	// Check for existing lock
-	if existing, err := m.readLock(path); err == nil {
-		if m.isAlive(existing.PID) {
+	// Try to acquire OS advisory lock (C4, L5)
+	if err := osAcquire(f); err != nil {
+		// Lock is held by another process. Read the file to see who it is.
+		info, readErr := m.readLock(path)
+		f.Close()
+		if readErr == nil {
 			return nil, fmt.Errorf("lock %s held by pid %d (%s) since %s",
-				lt, existing.PID, existing.Operation, existing.AcquiredAt.Format(time.RFC3339))
+				lt, info.PID, info.Operation, info.AcquiredAt.Format(time.RFC3339Nano))
 		}
-		// Stale lock — remove it
-		_ = os.Remove(path)
+		return nil, fmt.Errorf("lock %s is held", lt)
 	}
 
 	info := Info{
@@ -71,43 +77,48 @@ func (m *Manager) Acquire(lt Type, operation, holder string) (*Lock, error) {
 		Holder:     holder,
 	}
 
+	// Write info to the file for diagnostics.
 	data, _ := json.MarshalIndent(info, "", "  ")
+	_ = f.Truncate(0)
+	_, _ = f.Seek(0, 0)
+	_, _ = f.Write(data)
 
-	// Atomic write: tmp + rename
-	tmp := path + ".tmp"
-	if err := os.WriteFile(tmp, data, 0o644); err != nil {
-		return nil, fmt.Errorf("write lock: %w", err)
-	}
-	if err := os.Rename(tmp, path); err != nil {
-		_ = os.Remove(tmp)
-		return nil, fmt.Errorf("rename lock: %w", err)
-	}
-
-	return &Lock{Type: lt, Path: path, Info: info}, nil
+	return &Lock{Type: lt, Path: path, Info: info, file: f}, nil
 }
 
-// Release removes the lock file.
+// Release removes the lock file hold and closes the handle.
 func (m *Manager) Release(l *Lock) error {
-	if l == nil {
+	if l == nil || l.file == nil {
 		return nil
 	}
-	return os.Remove(l.Path)
+	_ = osRelease(l.file)
+	return l.file.Close()
 }
 
 // IsHeld checks if a lock type is currently held by a live process.
 func (m *Manager) IsHeld(lt Type) (bool, *Info) {
-	info, err := m.readLock(m.lockPath(lt))
+	path := m.lockPath(lt)
+	f, err := os.OpenFile(path, os.O_RDWR, 0o644)
 	if err != nil {
 		return false, nil
 	}
-	if !m.isAlive(info.PID) {
-		return false, &info // stale
+	defer f.Close()
+
+	if err := osAcquire(f); err == nil {
+		// We could acquire it, so it's not held
+		_ = osRelease(f)
+		return false, nil
+	}
+
+	info, err := m.readLock(path)
+	if err != nil {
+		return true, nil // Held but cannot read info
 	}
 	return true, &info
 }
 
-// RecoverStale removes locks whose holder PIDs are no longer running.
-// Returns the list of recovered lock types.
+// RecoverStale is now largely a no-op as the OS handles staleness (L5).
+// We can still clean up orphan files that are NOT held.
 func (m *Manager) RecoverStale() []Type {
 	var recovered []Type
 
@@ -121,25 +132,26 @@ func (m *Manager) RecoverStale() []Type {
 			continue
 		}
 		path := filepath.Join(m.locksDir, e.Name())
-		info, err := m.readLock(path)
+		f, err := os.OpenFile(path, os.O_RDWR, 0o644)
 		if err != nil {
-			// Corrupt lock file — remove it
-			_ = os.Remove(path)
-			lt := Type(strings.TrimSuffix(e.Name(), ".lock"))
-			recovered = append(recovered, lt)
 			continue
 		}
-		if !m.isAlive(info.PID) {
+		if err := osAcquire(f); err == nil {
+			// Not held — safe to delete orphan file
+			_ = osRelease(f)
+			f.Close()
 			_ = os.Remove(path)
 			lt := Type(strings.TrimSuffix(e.Name(), ".lock"))
 			recovered = append(recovered, lt)
+		} else {
+			f.Close()
 		}
 	}
 
 	return recovered
 }
 
-// StaleInfo returns info about stale locks (for doctor diagnostics).
+// StaleInfo returns info about orphans (diagnostics).
 func (m *Manager) StaleInfo() []Info {
 	var stale []Info
 
@@ -153,12 +165,19 @@ func (m *Manager) StaleInfo() []Info {
 			continue
 		}
 		path := filepath.Join(m.locksDir, e.Name())
-		info, err := m.readLock(path)
+		f, err := os.OpenFile(path, os.O_RDWR, 0o644)
 		if err != nil {
 			continue
 		}
-		if !m.isAlive(info.PID) {
-			stale = append(stale, info)
+		if err := osAcquire(f); err == nil {
+			_ = osRelease(f)
+			info, err := m.readLock(path)
+			f.Close()
+			if err == nil {
+				stale = append(stale, info)
+			}
+		} else {
+			f.Close()
 		}
 	}
 
@@ -177,17 +196,7 @@ func (m *Manager) readLock(path string) (Info, error) {
 
 	var info Info
 	if err := json.Unmarshal(data, &info); err != nil {
-		// Try legacy format: "pid:1234"
-		if strings.HasPrefix(string(data), "pid:") {
-			pidStr := strings.TrimPrefix(strings.TrimSpace(string(data)), "pid:")
-			pid, _ := strconv.Atoi(pidStr)
-			return Info{PID: pid}, nil
-		}
 		return Info{}, err
 	}
 	return info, nil
-}
-
-func (m *Manager) isAlive(pid int) bool {
-	return isProcessAlive(pid)
 }

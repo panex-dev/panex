@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/panex-dev/panex/internal/lock"
+	"github.com/panex-dev/panex/internal/target"
 )
 
 // State represents the session lifecycle state.
@@ -35,34 +36,38 @@ const (
 type Session struct {
 	mu sync.Mutex
 
-	SessionID    string `json:"session_id"`
-	ProjectDir   string `json:"project_dir"`
-	Target       string `json:"target"`
-	State        State  `json:"state"`
-	BrowserPID   int    `json:"browser_pid,omitempty"`
-	ProfileDir   string `json:"profile_dir"`
-	ExtensionDir string `json:"extension_dir"`
-	DaemonPort   int    `json:"daemon_port"`
-	Token        string `json:"ephemeral_token"`
-	CreatedAt    string `json:"created_at"`
-	AttachedAt   string `json:"attached_at,omitempty"`
-	TerminatedAt string `json:"terminated_at,omitempty"`
-	Error        string `json:"error,omitempty"`
+	SessionID           string   `json:"session_id"`
+	ProjectDir          string   `json:"project_dir"`
+	Target              string   `json:"target"`
+	State               State    `json:"state"`
+	BrowserPID          int      `json:"browser_pid,omitempty"`
+	ProfileDir          string   `json:"profile_dir"`
+	ExtensionDir        string   `json:"extension_dir"`
+	DaemonPort          int      `json:"daemon_port"`
+	Token               string   `json:"ephemeral_token"`
+	AllowedCapabilities []string `json:"allowed_capabilities"`
+	CreatedAt           string   `json:"created_at"`
+	AttachedAt          string   `json:"attached_at,omitempty"`
+	TerminatedAt        string   `json:"terminated_at,omitempty"`
+	Error               string   `json:"error,omitempty"`
 
 	browserCmd  *exec.Cmd
 	cancelFunc  context.CancelFunc
 	lockManager *lock.Manager
 	sessionLock *lock.Lock
+	adapter     target.Adapter
 }
 
 // Options configures a new session.
 type Options struct {
-	ProjectDir   string
-	Target       string
-	ExtensionDir string // built extension directory
-	DaemonPort   int
-	ChromeBinary string // path to Chrome binary (auto-detect if empty)
-	LockManager  *lock.Manager
+	ProjectDir          string
+	Target              string
+	ExtensionDir        string // built extension directory
+	DaemonPort          int
+	ChromeBinary        string         // path to Chrome binary (auto-detect if empty)
+	AllowedCapabilities []string       // capabilities granted to this session (C3)
+	LockManager         *lock.Manager
+	Adapter             target.Adapter // target adapter for environment inspection (H3)
 }
 
 // New creates a new session in provisioned state.
@@ -74,8 +79,14 @@ func New(opts Options) (*Session, error) {
 		opts.Target = "chrome"
 	}
 
-	sid := newSessionID()
-	token := newToken()
+	sid, err := newSessionID()
+	if err != nil {
+		return nil, err
+	}
+	token, err := newToken()
+	if err != nil {
+		return nil, err
+	}
 
 	profileDir := filepath.Join(opts.ProjectDir, ".panex", "cache", "browser-profiles", sid)
 	if err := os.MkdirAll(profileDir, 0o755); err != nil {
@@ -83,16 +94,18 @@ func New(opts Options) (*Session, error) {
 	}
 
 	s := &Session{
-		SessionID:    sid,
-		ProjectDir:   opts.ProjectDir,
-		Target:       opts.Target,
-		State:        Provisioned,
-		ProfileDir:   profileDir,
-		ExtensionDir: opts.ExtensionDir,
-		DaemonPort:   opts.DaemonPort,
-		Token:        token,
-		CreatedAt:    time.Now().UTC().Format(time.RFC3339),
-		lockManager:  opts.LockManager,
+		SessionID:           sid,
+		ProjectDir:          opts.ProjectDir,
+		Target:              opts.Target,
+		State:               Provisioned,
+		ProfileDir:          profileDir,
+		ExtensionDir:        opts.ExtensionDir,
+		DaemonPort:          opts.DaemonPort,
+		Token:               token,
+		AllowedCapabilities: opts.AllowedCapabilities,
+		CreatedAt:           time.Now().UTC().Format(time.RFC3339Nano),
+		lockManager:         opts.LockManager,
+		adapter:             opts.Adapter,
 	}
 
 	return s, nil
@@ -120,12 +133,19 @@ func (s *Session) Launch(ctx context.Context) error {
 
 	s.State = Launching
 
-	binary := s.findBrowser()
-	if binary == "" {
+	if s.adapter == nil {
 		s.State = Failed
-		s.Error = "no Chrome binary found"
-		return fmt.Errorf("no Chrome binary found")
+		s.Error = "no target adapter provided"
+		return fmt.Errorf("no target adapter")
 	}
+
+	info, res := s.adapter.InspectEnvironment(ctx)
+	if res.Outcome != target.Success || !info.Launchable {
+		s.State = Failed
+		s.Error = res.Reason
+		return fmt.Errorf("target environment: %s", res.Reason)
+	}
+	binary := info.BinaryPath
 
 	args := s.buildArgs()
 
@@ -146,7 +166,7 @@ func (s *Session) Launch(ctx context.Context) error {
 	s.browserCmd = cmd
 	s.BrowserPID = cmd.Process.Pid
 	s.State = Active
-	s.AttachedAt = time.Now().UTC().Format(time.RFC3339)
+	s.AttachedAt = time.Now().UTC().Format(time.RFC3339Nano)
 
 	return nil
 }
@@ -175,7 +195,7 @@ func (s *Session) Terminate() error {
 	}
 
 	s.State = Terminated
-	s.TerminatedAt = time.Now().UTC().Format(time.RFC3339)
+	s.TerminatedAt = time.Now().UTC().Format(time.RFC3339Nano)
 
 	return nil
 }
@@ -272,11 +292,28 @@ func (s *Session) ValidateHandshake(payload HandshakePayload) HandshakeReply {
 		}
 	}
 
+	// Filter capabilities (C3)
+	granted := []string{}
+	denied := []string{}
+	allowlist := make(map[string]bool)
+	for _, c := range s.AllowedCapabilities {
+		allowlist[c] = true
+	}
+
+	for _, req := range payload.DeclaredCapabilities {
+		if allowlist[req] {
+			granted = append(granted, req)
+		} else {
+			denied = append(denied, req)
+		}
+	}
+
 	return HandshakeReply{
 		Status:                  "accepted",
 		SessionStatus:           string(s.State),
 		AcceptedProtocolVersion: 1,
-		AllowedCapabilities:     payload.DeclaredCapabilities,
+		AllowedCapabilities:     granted,
+		DeniedCapabilities:      denied,
 		TraceSettings:           map[string]any{"enabled": false, "level": "standard"},
 		LogSettings:             map[string]any{"level": "info", "forward_console": true},
 		FingerprintMatch:        true,
@@ -284,23 +321,6 @@ func (s *Session) ValidateHandshake(payload HandshakePayload) HandshakeReply {
 }
 
 // --- helpers ---
-
-func (s *Session) findBrowser() string {
-	if p := os.Getenv("CHROME_PATH"); p != "" {
-		if _, err := os.Stat(p); err == nil {
-			return p
-		}
-	}
-	candidates := []string{
-		"google-chrome", "google-chrome-stable", "chromium", "chromium-browser",
-	}
-	for _, c := range candidates {
-		if p, err := exec.LookPath(c); err == nil {
-			return p
-		}
-	}
-	return ""
-}
 
 func (s *Session) buildArgs() []string {
 	args := []string{
@@ -314,14 +334,18 @@ func (s *Session) buildArgs() []string {
 	return args
 }
 
-func newSessionID() string {
+func newSessionID() (string, error) {
 	b := make([]byte, 8)
-	_, _ = rand.Read(b)
-	return "ses_" + hex.EncodeToString(b)
+	if _, err := rand.Read(b); err != nil {
+		return "", fmt.Errorf("generate session id: %w", err)
+	}
+	return "ses_" + hex.EncodeToString(b), nil
 }
 
-func newToken() string {
+func newToken() (string, error) {
 	b := make([]byte, 16)
-	_, _ = rand.Read(b)
-	return "tok_" + hex.EncodeToString(b)
+	if _, err := rand.Read(b); err != nil {
+		return "", fmt.Errorf("generate token: %w", err)
+	}
+	return "tok_" + hex.EncodeToString(b), nil
 }

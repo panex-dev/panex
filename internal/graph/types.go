@@ -31,8 +31,9 @@ type Graph struct {
 
 // ProjectIdentity is the stable project identity.
 type ProjectIdentity struct {
-	ID   string `json:"id"`
-	Name string `json:"name"`
+	ID      string `json:"id"`
+	Name    string `json:"name"`
+	Version string `json:"version"`
 }
 
 // DetectedFact is a value with detection provenance.

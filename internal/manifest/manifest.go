@@ -123,7 +123,9 @@ func resolveVersion(input CompileInput) string {
 	if input.Version != "" {
 		return input.Version
 	}
-	// Graph ProjectIdentity doesn't have Version; fall through to default
+	if input.Graph != nil && input.Graph.Project.Version != "" {
+		return input.Graph.Project.Version
+	}
 	return "0.0.1"
 }
 

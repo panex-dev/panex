@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/panex-dev/panex/internal/lock"
+	"github.com/panex-dev/panex/internal/target"
 )
 
 func TestNew(t *testing.T) {
@@ -19,6 +20,7 @@ func TestNew(t *testing.T) {
 		Target:       "chrome",
 		ExtensionDir: filepath.Join(dir, "dist"),
 		DaemonPort:   9222,
+		Adapter:      target.NewChrome(),
 	})
 	if err != nil {
 		t.Fatalf("new: %v", err)
@@ -83,14 +85,18 @@ func TestValidateHandshake_Accepted(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	s, _ := New(Options{ProjectDir: dir})
+	s, _ := New(Options{
+		ProjectDir:          dir,
+		AllowedCapabilities: []string{"runtime_logs", "hot_reload_ack"},
+		Adapter:             target.NewChrome(),
+	})
 
 	reply := s.ValidateHandshake(HandshakePayload{
 		ProtocolVersion:      1,
 		SessionID:            s.SessionID,
 		EphemeralToken:       s.Token,
 		Surface:              "background",
-		DeclaredCapabilities: []string{"runtime_logs", "hot_reload_ack"},
+		DeclaredCapabilities: []string{"runtime_logs", "hot_reload_ack", "evil_hack"},
 	})
 
 	if reply.Status != "accepted" {
@@ -101,6 +107,9 @@ func TestValidateHandshake_Accepted(t *testing.T) {
 	}
 	if len(reply.AllowedCapabilities) != 2 {
 		t.Errorf("allowed capabilities: got %v", reply.AllowedCapabilities)
+	}
+	if len(reply.DeniedCapabilities) != 1 || reply.DeniedCapabilities[0] != "evil_hack" {
+		t.Errorf("denied capabilities: got %v", reply.DeniedCapabilities)
 	}
 }
 
@@ -222,6 +231,7 @@ func TestSessionWithLock(t *testing.T) {
 	s, _ := New(Options{
 		ProjectDir:  dir,
 		LockManager: mgr,
+		Adapter:     target.NewChrome(),
 	})
 
 	// Session is provisioned, not launched — no lock acquired yet

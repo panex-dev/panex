@@ -212,7 +212,7 @@ func (c *Chrome) PackageArtifact(ctx context.Context, opts PackageOptions) (Arti
 	record := ArtifactRecord{
 		Target:       "chrome",
 		ArtifactType: "chrome_zip",
-		ProducedAt:   time.Now().UTC().Format(time.RFC3339),
+		ProducedAt:   time.Now().UTC().Format(time.RFC3339Nano),
 	}
 
 	// Verify source directory exists
@@ -353,7 +353,14 @@ func createZip(sourceDir, zipPath string) (err error) {
 		// Normalize to forward slashes for zip
 		rel = filepath.ToSlash(rel)
 
-		entry, err := w.Create(rel)
+		header := &zip.FileHeader{
+			Name:   rel,
+			Method: zip.Deflate,
+		}
+		// Use fixed timestamp for reproducibility (H7)
+		header.SetModTime(time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC))
+
+		entry, err := w.CreateHeader(header)
 		if err != nil {
 			return err
 		}

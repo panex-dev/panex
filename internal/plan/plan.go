@@ -63,7 +63,7 @@ func ComputePlan(input PlanInput) (*Plan, error) {
 
 	plan := &Plan{
 		PlanID:      ledger.NewRunID(), // reuse ID generator
-		CreatedAt:   time.Now().UTC().Format(time.RFC3339),
+		CreatedAt:   time.Now().UTC().Format(time.RFC3339Nano),
 		ProjectHash: graphHash,
 		ConfigHash:  input.Graph.ConfigHash,
 	}
