@@ -112,7 +112,7 @@ func (m *Manager) IsHeld(lt Type) (bool, *Info) {
 		}
 		return true, nil // Cannot even open for reading -> definitely held
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 
 	// Try to acquire a shared lock. If it fails, someone has an exclusive lock.
 	if err := osAcquireShared(f); err == nil {

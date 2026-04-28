@@ -202,9 +202,8 @@ func startWatcher(t *testing.T, w *FileWatcher, ctx context.Context) {
 	ready := make(chan struct{})
 	w.ready = ready
 	go func() {
-		if err := w.Run(ctx); err != nil {
-			// May fail if ctx is cancelled during startup
-		}
+		// May fail if ctx is canceled during startup.
+		_ = w.Run(ctx)
 	}()
 
 	select {
