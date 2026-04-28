@@ -72,14 +72,11 @@ func (o *Orchestrator) Apply(ctx context.Context, input ApplyInput) (*plan.Apply
 	mgr := lock.NewManager(root.StateRoot())
 
 	// 4. Execute plan
-	// Note: plan.Apply handles its own locking internally if LockManager is provided.
-	// We pass the manager here to satisfy L7 (required dependency).
-	result := plan.Apply(plan.ApplyInput{
+	result := plan.Apply(ctx, mgr, plan.ApplyInput{
 		ProjectDir:     o.ProjectDir,
 		Plan:           input.Plan,
 		Graph:          input.Graph,
 		ManifestResult: manifestResult,
-		LockManager:    mgr,
 		Force:          input.Force,
 	})
 

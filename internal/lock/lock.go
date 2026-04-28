@@ -92,7 +92,9 @@ func (m *Manager) Release(l *Lock) error {
 		return nil
 	}
 	_ = osRelease(l.file)
-	return l.file.Close()
+	err := l.file.Close()
+	_ = os.Remove(l.Path)
+	return err
 }
 
 // IsHeld checks if a lock type is currently held by a live process.
@@ -100,7 +102,16 @@ func (m *Manager) IsHeld(lt Type) (bool, *Info) {
 	path := m.lockPath(lt)
 	f, err := os.OpenFile(path, os.O_RDWR, 0o644)
 	if err != nil {
-		return false, nil
+		if os.IsNotExist(err) {
+			return false, nil
+		}
+		// If we can't open for RDWR, it might be locked by another process on Windows.
+		// Try to read it just to be sure if possible.
+		info, readErr := m.readLock(path)
+		if readErr == nil {
+			return true, &info
+		}
+		return true, nil
 	}
 	defer func() { _ = f.Close() }()
 

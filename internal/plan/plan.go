@@ -4,6 +4,7 @@
 package plan
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -113,7 +114,6 @@ type ApplyInput struct {
 	Plan           *Plan
 	Graph          *graph.Graph
 	ManifestResult *manifest.CompileResult
-	LockManager    *lock.Manager
 	Force          bool // skip drift check
 }
 
@@ -129,7 +129,7 @@ type ApplyResult struct {
 
 // Apply executes a plan with locking, drift detection, and reverse-order
 // rollback on failure.
-func Apply(input ApplyInput) *ApplyResult {
+func Apply(ctx context.Context, mgr *lock.Manager, input ApplyInput) *ApplyResult {
 	result := &ApplyResult{}
 
 	if input.Plan == nil {
@@ -150,16 +150,14 @@ func Apply(input ApplyInput) *ApplyResult {
 	}
 
 	// Acquire project lock
-	var projectLock *lock.Lock
-	if input.LockManager != nil {
-		var err error
-		projectLock, err = input.LockManager.Acquire(lock.ProjectMutation, "apply", "cli")
+	if mgr != nil {
+		projectLock, err := mgr.Acquire(lock.ProjectMutation, "apply", "cli")
 		if err != nil {
 			result.Status = "failed"
 			result.Errors = append(result.Errors, fmt.Sprintf("lock: %v", err))
 			return result
 		}
-		defer func() { _ = input.LockManager.Release(projectLock) }()
+		defer func() { _ = mgr.Release(projectLock) }()
 	}
 
 	// Create run
@@ -173,18 +171,18 @@ func Apply(input ApplyInput) *ApplyResult {
 
 	result.RunID = run.RunID
 
-	ctx := ExecContext{ProjectDir: input.ProjectDir}
+	ctxExec := ExecContext{ProjectDir: input.ProjectDir}
 	executed := make([]Action, 0, len(input.Plan.Actions))
 
 	// Execute actions in order, tracking which succeeded for rollback.
 	for _, action := range input.Plan.Actions {
 		step := run.AddStep("apply", action.Kind())
 
-		if err := action.Execute(ctx); err != nil {
+		if err := action.Execute(ctxExec); err != nil {
 			step.Fail(err.Error())
 			result.Failed = append(result.Failed, fmt.Sprintf("%s: %v", action.Describe(), err))
 			result.Errors = append(result.Errors, err.Error())
-			rollbackExecuted(run, ctx, executed, result)
+			rollbackExecuted(run, ctxExec, executed, result)
 			finalize(run, ledger.StatusFailed, result)
 			writeRun(input.ProjectDir, run)
 			return result
@@ -235,7 +233,7 @@ func ReadPlan(path string) (*Plan, error) {
 // rollbackExecuted reverses executed actions in reverse order. Errors are
 // recorded on the run + result but do not abort the rollback — best-effort
 // undo gives the operator a chance to recover even from partial failures.
-func rollbackExecuted(run *ledger.Run, ctx ExecContext, executed []Action, result *ApplyResult) {
+func rollbackExecuted(run *ledger.Run, ctxExec ExecContext, executed []Action, result *ApplyResult) {
 	if len(executed) == 0 {
 		return
 	}
@@ -250,7 +248,7 @@ func rollbackExecuted(run *ledger.Run, ctx ExecContext, executed []Action, resul
 			continue
 		}
 		step := run.AddStep("rollback", action.Kind())
-		if err := action.Rollback(ctx); err != nil {
+		if err := action.Rollback(ctxExec); err != nil {
 			step.Fail(err.Error())
 			result.Errors = append(result.Errors, fmt.Sprintf("rollback %s: %v", action.Describe(), err))
 			continue

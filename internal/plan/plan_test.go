@@ -1,6 +1,7 @@
 package plan
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"testing"
@@ -107,7 +108,9 @@ func TestApply_Basic(t *testing.T) {
 		ManifestResult: makeManifestResult(),
 	})
 
-	result := Apply(ApplyInput{
+	ctx := context.Background()
+	mgr := lock.NewManager(dir)
+	result := Apply(ctx, mgr, ApplyInput{
 		ProjectDir:     dir,
 		Plan:           p,
 		Graph:          g,
@@ -139,7 +142,9 @@ func TestApply_DriftDetection(t *testing.T) {
 	// Mutate the graph after planning
 	g.Entries["popup"] = graph.Entry{Path: "popup.html"}
 
-	result := Apply(ApplyInput{
+	ctx := context.Background()
+	mgr := lock.NewManager(dir)
+	result := Apply(ctx, mgr, ApplyInput{
 		ProjectDir: dir,
 		Plan:       p,
 		Graph:      g,
@@ -164,7 +169,9 @@ func TestApply_DriftForceSkip(t *testing.T) {
 	// Mutate graph
 	g.Entries["popup"] = graph.Entry{Path: "popup.html"}
 
-	result := Apply(ApplyInput{
+	ctx := context.Background()
+	mgr := lock.NewManager(dir)
+	result := Apply(ctx, mgr, ApplyInput{
 		ProjectDir: dir,
 		Plan:       p,
 		Graph:      g,
@@ -182,18 +189,18 @@ func TestApply_WithLock(t *testing.T) {
 	setupPanexDir(t, dir)
 
 	g := makeTestGraph()
-	mgr := lock.NewManager(filepath.Join(dir, ".panex"))
+	mgr := lock.NewManager(dir)
 
 	p, _ := ComputePlan(PlanInput{
 		ProjectDir: dir,
 		Graph:      g,
 	})
 
-	result := Apply(ApplyInput{
-		ProjectDir:  dir,
-		Plan:        p,
-		Graph:       g,
-		LockManager: mgr,
+	ctx := context.Background()
+	result := Apply(ctx, mgr, ApplyInput{
+		ProjectDir: dir,
+		Plan:       p,
+		Graph:      g,
 	})
 
 	if result.Status != "succeeded" {
@@ -208,7 +215,8 @@ func TestApply_WithLock(t *testing.T) {
 }
 
 func TestApply_NilPlan(t *testing.T) {
-	result := Apply(ApplyInput{})
+	ctx := context.Background()
+	result := Apply(ctx, nil, ApplyInput{})
 	if result.Status != "failed" {
 		t.Error("expected failed for nil plan")
 	}
@@ -253,7 +261,9 @@ func TestApply_RunRecorded(t *testing.T) {
 		ManifestResult: makeManifestResult(),
 	})
 
-	result := Apply(ApplyInput{
+	ctx := context.Background()
+	mgr := lock.NewManager(dir)
+	result := Apply(ctx, mgr, ApplyInput{
 		ProjectDir:     dir,
 		Plan:           p,
 		Graph:          g,

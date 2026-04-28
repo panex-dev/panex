@@ -1,6 +1,7 @@
 package plan
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"os"
@@ -9,6 +10,7 @@ import (
 
 	"github.com/panex-dev/panex/internal/capability"
 	"github.com/panex-dev/panex/internal/graph"
+	"github.com/panex-dev/panex/internal/lock"
 	"github.com/panex-dev/panex/internal/manifest"
 	"github.com/panex-dev/panex/internal/target"
 )
@@ -69,7 +71,9 @@ func TestApply_MultiTarget_WritesDistinctManifests(t *testing.T) {
 		t.Fatalf("expected 2 actions (one per target), got %d", len(p.Actions))
 	}
 
-	result := Apply(ApplyInput{ProjectDir: dir, Plan: p, Graph: g, ManifestResult: manifestResult})
+	ctx := context.Background()
+	mgr := lock.NewManager(dir)
+	result := Apply(ctx, mgr, ApplyInput{ProjectDir: dir, Plan: p, Graph: g, ManifestResult: manifestResult})
 	if result.Status != "succeeded" {
 		t.Fatalf("apply: status=%s errors=%v", result.Status, result.Errors)
 	}
@@ -113,7 +117,9 @@ func TestApply_RollbackOnFailure(t *testing.T) {
 		},
 	}
 
-	result := Apply(ApplyInput{ProjectDir: dir, Plan: p, Graph: g, Force: true})
+	ctx := context.Background()
+	mgr := lock.NewManager(dir)
+	result := Apply(ctx, mgr, ApplyInput{ProjectDir: dir, Plan: p, Graph: g, Force: true})
 
 	if result.Status != "failed" {
 		t.Fatalf("expected failed, got %s (errors=%v)", result.Status, result.Errors)
