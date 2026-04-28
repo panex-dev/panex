@@ -5,6 +5,7 @@ package lock
 import (
 	"encoding/json"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -53,6 +54,7 @@ func (m *Manager) Acquire(lt Type, operation, holder string) (*Lock, error) {
 	}
 
 	path := m.lockPath(lt)
+	// Open with RDWR so we can write info after acquiring the lock.
 	f, err := os.OpenFile(path, os.O_RDWR|os.O_CREATE, 0o644)
 	if err != nil {
 		return nil, fmt.Errorf("open lock file: %w", err)
@@ -60,8 +62,8 @@ func (m *Manager) Acquire(lt Type, operation, holder string) (*Lock, error) {
 
 	// Try to acquire OS advisory lock (C4, L5)
 	if err := osAcquire(f); err != nil {
-		// Lock is held by another process. Read the file to see who it is.
-		info, readErr := m.readLock(path)
+		// Lock is held by another process.
+		info, readErr := m.readLock(f)
 		_ = f.Close()
 		if readErr == nil {
 			return nil, fmt.Errorf("lock %s held by pid %d (%s) since %s",
@@ -93,7 +95,7 @@ func (m *Manager) Release(l *Lock) error {
 	}
 	_ = osRelease(l.file)
 	err := l.file.Close()
-	l.file = nil // prevent double close
+	l.file = nil // prevent double close/use after free
 	_ = os.Remove(l.Path)
 	return err
 }
@@ -101,36 +103,32 @@ func (m *Manager) Release(l *Lock) error {
 // IsHeld checks if a lock type is currently held by a live process.
 func (m *Manager) IsHeld(lt Type) (bool, *Info) {
 	path := m.lockPath(lt)
-	f, err := os.OpenFile(path, os.O_RDWR, 0o644)
+	// On Windows, if one process has an exclusive lock, another process
+	// can often still open the file for reading if it's already created.
+	f, err := os.Open(path)
 	if err != nil {
 		if os.IsNotExist(err) {
 			return false, nil
 		}
-		// If we can't open for RDWR, it might be locked by another process on Windows.
-		// Try to read it just to be sure if possible.
-		info, readErr := m.readLock(path)
-		if readErr == nil {
-			return true, &info
-		}
-		return true, nil
+		return true, nil // Cannot even open for reading -> definitely held
 	}
-	defer func() { _ = f.Close() }()
+	defer f.Close()
 
-	if err := osAcquire(f); err == nil {
-		// We could acquire it, so it's not held
+	// Try to acquire a shared lock. If it fails, someone has an exclusive lock.
+	if err := osAcquireShared(f); err == nil {
 		_ = osRelease(f)
 		return false, nil
 	}
 
-	info, err := m.readLock(path)
+	// Held. Try to read info.
+	info, err := m.readLock(f)
 	if err != nil {
-		return true, nil // Held but cannot read info
+		return true, nil
 	}
 	return true, &info
 }
 
-// RecoverStale is now largely a no-op as the OS handles staleness (L5).
-// We can still clean up orphan files that are NOT held.
+// RecoverStale cleans up orphan files that are NOT held by any process.
 func (m *Manager) RecoverStale() []Type {
 	var recovered []Type
 
@@ -177,13 +175,13 @@ func (m *Manager) StaleInfo() []Info {
 			continue
 		}
 		path := filepath.Join(m.locksDir, e.Name())
-		f, err := os.OpenFile(path, os.O_RDWR, 0o644)
+		f, err := os.Open(path)
 		if err != nil {
 			continue
 		}
-		if err := osAcquire(f); err == nil {
+		if err := osAcquireShared(f); err == nil {
 			_ = osRelease(f)
-			info, err := m.readLock(path)
+			info, err := m.readLock(f)
 			_ = f.Close()
 			if err == nil {
 				stale = append(stale, info)
@@ -200,8 +198,9 @@ func (m *Manager) lockPath(lt Type) string {
 	return filepath.Join(m.locksDir, string(lt)+".lock")
 }
 
-func (m *Manager) readLock(path string) (Info, error) {
-	data, err := os.ReadFile(path)
+func (m *Manager) readLock(f *os.File) (Info, error) {
+	_, _ = f.Seek(0, 0)
+	data, err := io.ReadAll(f)
 	if err != nil {
 		return Info{}, err
 	}
