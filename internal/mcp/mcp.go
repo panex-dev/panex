@@ -15,6 +15,7 @@ import (
 
 	"github.com/panex-dev/panex/internal/capability"
 	"github.com/panex-dev/panex/internal/cli"
+	"github.com/panex-dev/panex/internal/core"
 	"github.com/panex-dev/panex/internal/doctor"
 	"github.com/panex-dev/panex/internal/fsmodel"
 	"github.com/panex-dev/panex/internal/graph"
@@ -189,7 +190,13 @@ func (s *Server) handleToolsCall(ctx context.Context, req Request) Response {
 		Arguments map[string]any `json:"arguments"`
 	}
 	if req.Params != nil {
-		_ = json.Unmarshal(req.Params, &params)
+		if err := json.Unmarshal(req.Params, &params); err != nil {
+			return Response{
+				JSONRPC: "2.0",
+				ID:      req.ID,
+				Error:   &Error{Code: -32602, Message: "invalid_params: " + err.Error()},
+			}
+		}
 	}
 
 	result, err := s.executeTool(ctx, params.Name, params.Arguments)
@@ -233,7 +240,13 @@ func (s *Server) handleResourcesRead(req Request) Response {
 		URI string `json:"uri"`
 	}
 	if req.Params != nil {
-		_ = json.Unmarshal(req.Params, &params)
+		if err := json.Unmarshal(req.Params, &params); err != nil {
+			return Response{
+				JSONRPC: "2.0",
+				ID:      req.ID,
+				Error:   &Error{Code: -32602, Message: "invalid_params: " + err.Error()},
+			}
+		}
 	}
 
 	content, err := s.readResource(params.URI)
@@ -457,7 +470,7 @@ func (s *Server) toolPlan(_ context.Context) (any, error) {
 	return p, nil
 }
 
-func (s *Server) toolApply(_ context.Context, args map[string]any) (any, error) {
+func (s *Server) toolApply(ctx context.Context, args map[string]any) (any, error) {
 	g, err := s.loadGraph()
 	if err != nil {
 		return nil, err
@@ -469,21 +482,17 @@ func (s *Server) toolApply(_ context.Context, args map[string]any) (any, error) 
 		return nil, fmt.Errorf("no plan found: %w", err)
 	}
 
-	adapters := s.registry.All()
-	matrix := s.resolveCapabilities(g, adapters)
-	manifestResult := manifest.Compile(manifest.CompileInput{
-		Graph: g, Matrix: matrix, Adapters: adapters,
-	})
-
 	force, _ := args["force"].(bool)
 
-	result := plan.Apply(plan.ApplyInput{
-		ProjectDir:     s.projectDir,
-		Plan:           p,
-		Graph:          g,
-		ManifestResult: manifestResult,
-		Force:          force,
+	orc := core.NewOrchestrator(s.projectDir, s.registry)
+	result, err := orc.Apply(ctx, core.ApplyInput{
+		Graph: g,
+		Plan:  p,
+		Force: force,
 	})
+	if err != nil {
+		return nil, err
+	}
 
 	return result, nil
 }
@@ -506,7 +515,7 @@ func (s *Server) toolPackage(_ context.Context) (any, error) {
 			SourceDir:    s.projectDir,
 			OutputDir:    filepath.Join(s.projectDir, ".panex", "artifacts", tgt),
 			ArtifactName: g.Project.Name,
-			Version:      "0.1.0",
+			Version:      g.Project.Version,
 		})
 		if adapterResult.Outcome == target.Success {
 			results = append(results, record)
@@ -619,6 +628,11 @@ func (s *Server) toolResume(args map[string]any) (any, error) {
 }
 
 func (s *Server) toolStartDevSession(_ context.Context, args map[string]any) (any, error) {
+	g, err := s.loadGraph()
+	if err != nil {
+		return nil, err
+	}
+
 	root, err := fsmodel.NewRoot(s.projectDir)
 	if err != nil {
 		return nil, err
@@ -626,15 +640,27 @@ func (s *Server) toolStartDevSession(_ context.Context, args map[string]any) (an
 
 	targetName, _ := args["target"].(string)
 	if targetName == "" {
-		targetName = "chrome"
+		if len(g.TargetsResolved) > 0 {
+			targetName = g.TargetsResolved[0]
+		} else {
+			targetName = "chrome"
+		}
 	}
 
 	mgr := lock.NewManager(root.StateRoot())
+	adapter, _ := s.registry.Get(targetName)
+
+	var allowed []string
+	for k := range g.Capabilities {
+		allowed = append(allowed, k)
+	}
 
 	sess, err := session.New(session.Options{
-		ProjectDir:  s.projectDir,
-		Target:      targetName,
-		LockManager: mgr,
+		ProjectDir:          s.projectDir,
+		Target:              targetName,
+		AllowedCapabilities: allowed,
+		LockManager:         mgr,
+		Adapter:             adapter,
 	})
 	if err != nil {
 		return nil, err

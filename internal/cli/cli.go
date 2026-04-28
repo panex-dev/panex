@@ -11,6 +11,7 @@ import (
 
 	"github.com/panex-dev/panex/internal/capability"
 	"github.com/panex-dev/panex/internal/configloader"
+	"github.com/panex-dev/panex/internal/core"
 	"github.com/panex-dev/panex/internal/doctor"
 	"github.com/panex-dev/panex/internal/fsmodel"
 	"github.com/panex-dev/panex/internal/graph"
@@ -313,11 +314,16 @@ func CmdPackage(projectDir string, opts PackageOptions) int {
 			sourceDir = projectDir
 		}
 
+		version := opts.Version
+		if version == "" {
+			version = g.Project.Version
+		}
+
 		record, result := adapter.PackageArtifact(context.Background(), target.PackageOptions{
 			SourceDir:    sourceDir,
 			OutputDir:    root.ArtifactDir(tgt),
 			ArtifactName: g.Project.Name,
-			Version:      opts.Version,
+			Version:      version,
 		})
 
 		if result.Outcome != target.Success {
@@ -453,23 +459,20 @@ func CmdApply(projectDir string, opts ApplyOptions) int {
 		})
 	}
 
-	adapters := target.DefaultRegistry().All()
-	matrix := resolveCapabilities(g, adapters)
-	manifestResult := manifest.Compile(manifest.CompileInput{
-		Graph: g, Matrix: matrix, Adapters: adapters,
+	ctx := context.Background()
+	orc := core.NewOrchestrator(projectDir, target.DefaultRegistry())
+	result, err := orc.Apply(ctx, core.ApplyInput{
+		Graph: g,
+		Plan:  p,
+		Force: opts.Force,
 	})
-
-	root, _ := fsmodel.NewRoot(projectDir)
-	mgr := lock.NewManager(root.StateRoot())
-
-	result := plan.Apply(plan.ApplyInput{
-		ProjectDir:     projectDir,
-		Plan:           p,
-		Graph:          g,
-		ManifestResult: manifestResult,
-		LockManager:    mgr,
-		Force:          opts.Force,
-	})
+	if err != nil {
+		return Emit(Output{
+			Status:  "failed",
+			Command: "apply",
+			Errors:  []string{err.Error()},
+		})
+	}
 
 	out := Output{
 		Status:  result.Status,
@@ -503,6 +506,11 @@ type ApplyOptions struct {
 
 // CmdDev starts a dev session.
 func CmdDev(projectDir string, opts DevOptions) int {
+	g, exitCode := loadProjectGraph(projectDir, "dev")
+	if g == nil {
+		return exitCode
+	}
+
 	root, err := fsmodel.NewRoot(projectDir)
 	if err != nil {
 		return Emit(Output{Status: "error", Command: "dev", Errors: []string{err.Error()}})
@@ -510,17 +518,35 @@ func CmdDev(projectDir string, opts DevOptions) int {
 
 	targetName := opts.Target
 	if targetName == "" {
-		targetName = "chrome"
+		if len(g.TargetsResolved) > 0 {
+			targetName = g.TargetsResolved[0]
+		} else {
+			targetName = "chrome"
+		}
 	}
 
 	mgr := lock.NewManager(root.StateRoot())
+	registry := target.DefaultRegistry()
+	adapter, _ := registry.Get(targetName)
+
+	var allowed []string
+	for k := range g.Capabilities {
+		allowed = append(allowed, k)
+	}
+
+	extDir := opts.ExtensionDir
+	if extDir == "" {
+		extDir = filepath.Join(projectDir, ".panex", "runs", "generated", "manifests", targetName)
+	}
 
 	sess, err := session.New(session.Options{
-		ProjectDir:   projectDir,
-		Target:       targetName,
-		ExtensionDir: opts.ExtensionDir,
-		DaemonPort:   opts.Port,
-		LockManager:  mgr,
+		ProjectDir:          projectDir,
+		Target:              targetName,
+		ExtensionDir:        extDir,
+		DaemonPort:          opts.Port,
+		AllowedCapabilities: allowed,
+		LockManager:         mgr,
+		Adapter:             adapter,
 	})
 	if err != nil {
 		return Emit(Output{Status: "error", Command: "dev", Errors: []string{err.Error()}})

@@ -69,7 +69,7 @@ func runCoreVerify() error {
 func runCorePackage(args []string) error {
 	fs := flag.NewFlagSet("package", flag.ContinueOnError)
 	fs.SetOutput(io.Discard)
-	ver := fs.String("version", "0.1.0", "Package version")
+	ver := fs.String("version", "", "Package version (defaults to project version)")
 	sourceDir := fs.String("source-dir", "", "Extension source directory")
 	if err := fs.Parse(args); err != nil {
 		return &cliError{code: 2, msg: fmt.Sprintf("invalid package flags: %v", err)}

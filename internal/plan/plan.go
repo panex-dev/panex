@@ -4,6 +4,7 @@
 package plan
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -17,12 +18,46 @@ import (
 )
 
 // Action describes a single planned mutation.
-type Action struct {
-	Type        string `json:"type"`        // "create_file", "update_file", "delete_file", "generate_manifest", "install_dependency"
-	Path        string `json:"path"`        // target path
-	Description string `json:"description"` // human-readable
-	Reversible  bool   `json:"reversible"`
-	Risk        string `json:"risk"` // "safe", "low", "medium", "high"
+type Action interface {
+	Kind() string
+	Desc() string
+	Execute(ctx context.Context, input ApplyInput) error
+	Rollback(ctx context.Context, input ApplyInput) error
+}
+
+// GenerateManifestAction writes a target manifest to disk.
+type GenerateManifestAction struct {
+	Target   string         `json:"target"`
+	Path     string         `json:"path"`
+	Manifest map[string]any `json:"manifest"`
+}
+
+func (a *GenerateManifestAction) Kind() string { return "generate_manifest" }
+func (a *GenerateManifestAction) Desc() string {
+	return fmt.Sprintf("generate manifest.json for %s", a.Target)
+}
+
+func (a *GenerateManifestAction) MarshalJSON() ([]byte, error) {
+	type Alias GenerateManifestAction
+	return json.Marshal(&struct {
+		Kind string `json:"kind"`
+		*Alias
+	}{
+		Kind:  a.Kind(),
+		Alias: (*Alias)(a),
+	})
+}
+
+func (a *GenerateManifestAction) Execute(ctx context.Context, input ApplyInput) error {
+	dir := filepath.Dir(a.Path)
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return fmt.Errorf("create dir %s: %w", dir, err)
+	}
+	return manifest.WriteManifest(a.Manifest, a.Path)
+}
+
+func (a *GenerateManifestAction) Rollback(ctx context.Context, input ApplyInput) error {
+	return os.Remove(a.Path)
 }
 
 // Plan is the result of computing proposed changes.
@@ -36,6 +71,52 @@ type Plan struct {
 	PermissionDiff *PermissionDiff         `json:"permission_diff,omitempty"`
 	Warnings       []string                `json:"warnings,omitempty"`
 	EstimatedSteps int                     `json:"estimated_steps"`
+}
+
+// UnmarshalJSON implements custom decoding for polymorphic actions.
+func (p *Plan) UnmarshalJSON(data []byte) error {
+	type Alias Plan
+	aux := &struct {
+		Actions []json.RawMessage `json:"actions"`
+		*Alias
+	}{
+		Alias: (*Alias)(p),
+	}
+	if err := json.Unmarshal(data, &aux); err != nil {
+		return err
+	}
+
+	for _, raw := range aux.Actions {
+		var typeHeader struct {
+			Kind string `json:"kind"`
+			Type string `json:"type"` // fallback for old plans
+		}
+		if err := json.Unmarshal(raw, &typeHeader); err != nil {
+			return err
+		}
+
+		kind := typeHeader.Kind
+		if kind == "" {
+			kind = typeHeader.Type
+		}
+
+		var action Action
+		switch kind {
+		case "generate_manifest":
+			var a GenerateManifestAction
+			if err := json.Unmarshal(raw, &a); err != nil {
+				return err
+			}
+			action = &a
+		default:
+			// For unknown actions or to maintain some compatibility with old plans
+			// we could have a GenericAction, but here we'll just error or skip.
+			return fmt.Errorf("unknown action kind: %s", kind)
+		}
+		p.Actions = append(p.Actions, action)
+	}
+
+	return nil
 }
 
 // ManifestDiff describes changes to a target's manifest.
@@ -72,7 +153,7 @@ func ComputePlan(input PlanInput) (*Plan, error) {
 
 	plan := &Plan{
 		PlanID:      ledger.NewRunID(), // reuse ID generator
-		CreatedAt:   time.Now().UTC().Format(time.RFC3339),
+		CreatedAt:   time.Now().UTC().Format(time.RFC3339Nano),
 		ProjectHash: graphHash,
 		ConfigHash:  input.Graph.ConfigHash,
 	}
@@ -90,12 +171,10 @@ func ComputePlan(input PlanInput) (*Plan, error) {
 				Target: out.Target,
 				IsNew:  isNew,
 			}
-			plan.Actions = append(plan.Actions, Action{
-				Type:        "generate_manifest",
-				Path:        manifestPath,
-				Description: fmt.Sprintf("generate manifest.json for %s", out.Target),
-				Reversible:  true,
-				Risk:        "safe",
+			plan.Actions = append(plan.Actions, &GenerateManifestAction{
+				Target:   out.Target,
+				Path:     manifestPath,
+				Manifest: out.Manifest,
 			})
 		}
 
@@ -123,7 +202,6 @@ type ApplyInput struct {
 	Plan           *Plan
 	Graph          *graph.Graph
 	ManifestResult *manifest.CompileResult
-	LockManager    *lock.Manager
 	Force          bool // skip drift check
 }
 
@@ -137,7 +215,7 @@ type ApplyResult struct {
 }
 
 // Apply executes a plan with locking and drift detection.
-func Apply(input ApplyInput) *ApplyResult {
+func Apply(ctx context.Context, mgr *lock.Manager, input ApplyInput) *ApplyResult {
 	result := &ApplyResult{}
 
 	if input.Plan == nil {
@@ -158,44 +236,58 @@ func Apply(input ApplyInput) *ApplyResult {
 	}
 
 	// Acquire project lock
-	var projectLock *lock.Lock
-	if input.LockManager != nil {
-		var err error
-		projectLock, err = input.LockManager.Acquire(lock.ProjectMutation, "apply", "cli")
-		if err != nil {
-			result.Status = "failed"
-			result.Errors = append(result.Errors, fmt.Sprintf("lock: %v", err))
-			return result
-		}
-		defer func() { _ = input.LockManager.Release(projectLock) }()
+	if mgr == nil {
+		result.Status = "failed"
+		result.Errors = append(result.Errors, "nil lock manager")
+		return result
 	}
+	projectLock, err := mgr.Acquire(lock.ProjectMutation, "apply", "cli")
+	if err != nil {
+		result.Status = "failed"
+		result.Errors = append(result.Errors, fmt.Sprintf("lock: %v", err))
+		return result
+	}
+	defer func() { _ = mgr.Release(projectLock) }()
 
 	// Create run
 	run := ledger.NewRun("apply", ledger.Actor{Type: ledger.ActorAgent, Name: "panex-cli"})
 	run.ProjectHash = input.Plan.ProjectHash
-	_ = run.Transition(ledger.StatusRunning)
+	if err := run.Transition(ledger.StatusRunning); err != nil {
+		result.Status = "failed"
+		result.Errors = append(result.Errors, fmt.Sprintf("transition to running: %v", err))
+		return result
+	}
 
 	result.RunID = run.RunID
 
+	var completed []Action
+
 	// Execute actions
 	for _, action := range input.Plan.Actions {
-		step := run.AddStep("apply", action.Type+"_"+action.Path)
+		step := run.AddStep("apply", action.Kind())
 
-		var err error
-		switch action.Type {
-		case "generate_manifest":
-			err = applyGenerateManifest(action, input)
-		default:
-			err = fmt.Errorf("unknown action type: %s", action.Type)
-		}
-
+		err := action.Execute(ctx, input)
 		if err != nil {
 			step.Fail(err.Error())
-			result.Failed = append(result.Failed, fmt.Sprintf("%s: %v", action.Description, err))
+			result.Failed = append(result.Failed, fmt.Sprintf("%s: %v", action.Desc(), err))
 			result.Errors = append(result.Errors, err.Error())
+
+			// Rollback
+			_ = run.Transition(ledger.StatusRollingBack)
+			for i := len(completed) - 1; i >= 0; i-- {
+				rbAction := completed[i]
+				rbStep := run.AddStep("rollback", rbAction.Kind())
+				if rbErr := rbAction.Rollback(ctx, input); rbErr != nil {
+					rbStep.Fail(rbErr.Error())
+				} else {
+					rbStep.Complete(nil)
+				}
+			}
+			break
 		} else {
 			step.Complete(action)
-			result.Applied = append(result.Applied, action.Description)
+			result.Applied = append(result.Applied, action.Desc())
+			completed = append(completed, action)
 		}
 	}
 
@@ -203,8 +295,12 @@ func Apply(input ApplyInput) *ApplyResult {
 		_ = run.Transition(ledger.StatusFailed)
 		result.Status = "failed"
 	} else {
-		_ = run.Transition(ledger.StatusSucceeded)
-		result.Status = "succeeded"
+		if err := run.Transition(ledger.StatusSucceeded); err != nil {
+			result.Status = "failed"
+			result.Errors = append(result.Errors, fmt.Sprintf("transition to succeeded: %v", err))
+		} else {
+			result.Status = "succeeded"
+		}
 	}
 
 	// Write run to ledger
@@ -216,7 +312,7 @@ func Apply(input ApplyInput) *ApplyResult {
 
 // WritePlan persists a plan to disk.
 func WritePlan(p *Plan, path string) error {
-	data, err := json.MarshalIndent(p, "", "  ")
+	data, err := json.Marshal(p)
 	if err != nil {
 		return fmt.Errorf("marshal plan: %w", err)
 	}
@@ -245,23 +341,6 @@ func ReadPlan(path string) (*Plan, error) {
 }
 
 // --- helpers ---
-
-func applyGenerateManifest(action Action, input ApplyInput) error {
-	if input.ManifestResult == nil {
-		return fmt.Errorf("no manifest result")
-	}
-
-	for _, out := range input.ManifestResult.Outputs {
-		dir := filepath.Dir(action.Path)
-		if err := os.MkdirAll(dir, 0o755); err != nil {
-			return fmt.Errorf("create dir %s: %w", dir, err)
-		}
-		if err := manifest.WriteManifest(out.Manifest, action.Path); err != nil {
-			return err
-		}
-	}
-	return nil
-}
 
 func computePermissionDiff(previous, current []string) *PermissionDiff {
 	prev := toSet(previous)

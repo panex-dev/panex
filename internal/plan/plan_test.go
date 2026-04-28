@@ -1,6 +1,9 @@
 package plan
 
 import (
+	"context"
+	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
@@ -107,7 +110,9 @@ func TestApply_Basic(t *testing.T) {
 		ManifestResult: makeManifestResult(),
 	})
 
-	result := Apply(ApplyInput{
+	ctx := context.Background()
+	mgr := lock.NewManager(filepath.Join(dir, ".panex"))
+	result := Apply(ctx, mgr, ApplyInput{
 		ProjectDir:     dir,
 		Plan:           p,
 		Graph:          g,
@@ -139,7 +144,9 @@ func TestApply_DriftDetection(t *testing.T) {
 	// Mutate the graph after planning
 	g.Entries["popup"] = graph.Entry{Path: "popup.html"}
 
-	result := Apply(ApplyInput{
+	ctx := context.Background()
+	mgr := lock.NewManager(filepath.Join(dir, ".panex"))
+	result := Apply(ctx, mgr, ApplyInput{
 		ProjectDir: dir,
 		Plan:       p,
 		Graph:      g,
@@ -164,7 +171,9 @@ func TestApply_DriftForceSkip(t *testing.T) {
 	// Mutate graph
 	g.Entries["popup"] = graph.Entry{Path: "popup.html"}
 
-	result := Apply(ApplyInput{
+	ctx := context.Background()
+	mgr := lock.NewManager(filepath.Join(dir, ".panex"))
+	result := Apply(ctx, mgr, ApplyInput{
 		ProjectDir: dir,
 		Plan:       p,
 		Graph:      g,
@@ -189,11 +198,11 @@ func TestApply_WithLock(t *testing.T) {
 		Graph:      g,
 	})
 
-	result := Apply(ApplyInput{
-		ProjectDir:  dir,
-		Plan:        p,
-		Graph:       g,
-		LockManager: mgr,
+	ctx := context.Background()
+	result := Apply(ctx, mgr, ApplyInput{
+		ProjectDir: dir,
+		Plan:       p,
+		Graph:      g,
 	})
 
 	if result.Status != "succeeded" {
@@ -208,7 +217,8 @@ func TestApply_WithLock(t *testing.T) {
 }
 
 func TestApply_NilPlan(t *testing.T) {
-	result := Apply(ApplyInput{})
+	ctx := context.Background()
+	result := Apply(ctx, nil, ApplyInput{})
 	if result.Status != "failed" {
 		t.Error("expected failed for nil plan")
 	}
@@ -253,7 +263,9 @@ func TestApply_RunRecorded(t *testing.T) {
 		ManifestResult: makeManifestResult(),
 	})
 
-	result := Apply(ApplyInput{
+	ctx := context.Background()
+	mgr := lock.NewManager(filepath.Join(dir, ".panex"))
+	result := Apply(ctx, mgr, ApplyInput{
 		ProjectDir:     dir,
 		Plan:           p,
 		Graph:          g,
@@ -265,6 +277,120 @@ func TestApply_RunRecorded(t *testing.T) {
 	runDir := filepath.Join(runsDir, result.RunID)
 	if _, err := os.Stat(filepath.Join(runDir, "run.json")); err != nil {
 		t.Error("expected run.json in run dir")
+	}
+}
+
+func TestApply_MultiTarget(t *testing.T) {
+	dir := t.TempDir()
+	setupPanexDir(t, dir)
+
+	g := makeTestGraph()
+	g.TargetsResolved = []string{"chrome", "firefox"}
+
+	// Mock manifest result with two targets
+	mres := &manifest.CompileResult{
+		Outputs: []manifest.CompileOutput{
+			{Target: "chrome", Manifest: map[string]any{"name": "chrome-ext"}},
+			{Target: "firefox", Manifest: map[string]any{"name": "firefox-ext"}},
+		},
+	}
+
+	p, _ := ComputePlan(PlanInput{
+		ProjectDir:     dir,
+		Graph:          g,
+		ManifestResult: mres,
+	})
+
+	if len(p.Actions) != 2 {
+		t.Fatalf("expected 2 actions, got %d", len(p.Actions))
+	}
+
+	ctx := context.Background()
+	mgr := lock.NewManager(filepath.Join(dir, ".panex"))
+	result := Apply(ctx, mgr, ApplyInput{
+		ProjectDir:     dir,
+		Plan:           p,
+		Graph:          g,
+		ManifestResult: mres,
+	})
+
+	if result.Status != "succeeded" {
+		t.Fatalf("apply failed: %v", result.Errors)
+	}
+
+	// Verify both manifests exist and are correct
+	chromePath := filepath.Join(dir, ".panex", "runs", "generated", "manifests", "chrome", "manifest.json")
+	firefoxPath := filepath.Join(dir, ".panex", "runs", "generated", "manifests", "firefox", "manifest.json")
+
+	if _, err := os.Stat(chromePath); err != nil {
+		t.Error("chrome manifest missing")
+	}
+	if _, err := os.Stat(firefoxPath); err != nil {
+		t.Error("firefox manifest missing")
+	}
+}
+
+type FailAction struct {
+	Target string `json:"target"`
+}
+
+func (a *FailAction) Kind() string { return "fail_action" }
+func (a *FailAction) Desc() string { return "failing action" }
+
+func (a *FailAction) MarshalJSON() ([]byte, error) {
+	type Alias FailAction
+	return json.Marshal(&struct {
+		Kind string `json:"kind"`
+		*Alias
+	}{
+		Kind:  a.Kind(),
+		Alias: (*Alias)(a),
+	})
+}
+
+func (a *FailAction) Execute(ctx context.Context, input ApplyInput) error {
+	return fmt.Errorf("planned failure")
+}
+func (a *FailAction) Rollback(ctx context.Context, input ApplyInput) error { return nil }
+
+func TestApply_Rollback(t *testing.T) {
+	dir := t.TempDir()
+	setupPanexDir(t, dir)
+
+	g := makeTestGraph()
+	mres := &manifest.CompileResult{
+		Outputs: []manifest.CompileOutput{
+			{Target: "chrome", Manifest: map[string]any{"name": "chrome-ext"}},
+		},
+	}
+
+	p, _ := ComputePlan(PlanInput{
+		ProjectDir:     dir,
+		Graph:          g,
+		ManifestResult: mres,
+	})
+
+	// Add a failing action after the manifest generation
+	p.Actions = append(p.Actions, &FailAction{Target: "test"})
+
+	chromePath := filepath.Join(dir, ".panex", "runs", "generated", "manifests", "chrome", "manifest.json")
+
+	ctx := context.Background()
+	mgr := lock.NewManager(filepath.Join(dir, ".panex"))
+	result := Apply(ctx, mgr, ApplyInput{
+		ProjectDir:     dir,
+		Plan:           p,
+		Graph:          g,
+		ManifestResult: mres,
+	})
+
+	if result.Status != "failed" {
+		t.Errorf("expected failed status, got %s", result.Status)
+	}
+
+	// Verify manifest was rolled back (deleted)
+	if _, err := os.Stat(chromePath); err == nil {
+		t.Error("manifest should have been deleted by rollback")
 	}
 }
 

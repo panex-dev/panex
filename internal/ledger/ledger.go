@@ -4,7 +4,6 @@ package ledger
 
 import (
 	"crypto/rand"
-	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -82,11 +81,15 @@ type RunError struct {
 	Message  string `json:"message"`
 }
 
-// NewRunID generates a unique run ID.
+// NewRunID generates a unique, time-sortable run ID (M3).
 func NewRunID() string {
-	b := make([]byte, 8)
-	_, _ = rand.Read(b)
-	return "run_" + hex.EncodeToString(b)
+	now := time.Now().UTC().Format("20060102T150405Z")
+	b := make([]byte, 4)
+	if _, err := rand.Read(b); err != nil {
+		// Fallback if rand fails (M2)
+		return fmt.Sprintf("run_%s_%x", now, time.Now().UnixNano())
+	}
+	return fmt.Sprintf("run_%s_%x", now, b)
 }
 
 // NewRun creates a new run record in the created state.
@@ -95,7 +98,7 @@ func NewRun(operation string, actor Actor) *Run {
 		RunID:     NewRunID(),
 		Operation: operation,
 		Status:    StatusCreated,
-		StartedAt: time.Now().UTC().Format(time.RFC3339),
+		StartedAt: time.Now().UTC().Format(time.RFC3339Nano),
 		Actor:     actor,
 		Steps:     []Step{},
 		Artifacts: []string{},
@@ -112,7 +115,7 @@ func (r *Run) Transition(to Status) error {
 	}
 	r.Status = to
 	if isTerminal(to) {
-		r.CompletedAt = time.Now().UTC().Format(time.RFC3339)
+		r.CompletedAt = time.Now().UTC().Format(time.RFC3339Nano)
 	}
 	return nil
 }
@@ -123,7 +126,7 @@ func (r *Run) AddStep(component, action string) *Step {
 		Seq:       len(r.Steps) + 1,
 		Component: component,
 		Action:    action,
-		StartedAt: time.Now().UTC().Format(time.RFC3339),
+		StartedAt: time.Now().UTC().Format(time.RFC3339Nano),
 		Status:    StatusRunning,
 	}
 	r.Steps = append(r.Steps, s)
@@ -133,14 +136,14 @@ func (r *Run) AddStep(component, action string) *Step {
 // CompleteStep marks the latest matching step as succeeded.
 func (s *Step) Complete(outputs any) {
 	s.Status = StatusSucceeded
-	s.CompletedAt = time.Now().UTC().Format(time.RFC3339)
+	s.CompletedAt = time.Now().UTC().Format(time.RFC3339Nano)
 	s.Outputs = outputs
 }
 
 // FailStep marks a step as failed.
 func (s *Step) Fail(errMsg string) {
 	s.Status = StatusFailed
-	s.CompletedAt = time.Now().UTC().Format(time.RFC3339)
+	s.CompletedAt = time.Now().UTC().Format(time.RFC3339Nano)
 	s.Error = errMsg
 }
 

@@ -7,16 +7,21 @@ import (
 	"os"
 
 	"github.com/panex-dev/panex/internal/inspector"
+	"github.com/panex-dev/panex/internal/target"
 )
 
 // Builder constructs a project graph from inspector findings and config.
 type Builder struct {
 	sourceRoot string
+	registry   *target.Registry
 }
 
 // NewBuilder creates a graph builder for the given project root.
 func NewBuilder(sourceRoot string) *Builder {
-	return &Builder{sourceRoot: sourceRoot}
+	return &Builder{
+		sourceRoot: sourceRoot,
+		registry:   target.DefaultRegistry(),
+	}
 }
 
 // BuildFromInspection creates a graph solely from inspector findings.
@@ -25,8 +30,9 @@ func (b *Builder) BuildFromInspection(report *inspector.Report) (*Graph, error) 
 	g := &Graph{
 		SchemaVersion: 1,
 		Project: ProjectIdentity{
-			ID:   "",
-			Name: "",
+			ID:      "",
+			Name:    "",
+			Version: "0.0.1",
 		},
 		SourceRoot:   b.sourceRoot,
 		Entries:      make(map[string]Entry),
@@ -70,7 +76,9 @@ func (b *Builder) BuildFromInspection(report *inspector.Report) (*Graph, error) 
 
 	for _, t := range report.Targets {
 		g.TargetsRequested = append(g.TargetsRequested, t.Value)
-		g.TargetsResolved = append(g.TargetsResolved, t.Value)
+		if _, ok := b.registry.Get(t.Value); ok {
+			g.TargetsResolved = append(g.TargetsResolved, t.Value)
+		}
 	}
 
 	hash, err := g.ComputeHash()
@@ -92,13 +100,23 @@ func (b *Builder) BuildFromConfig(config *ProjectConfig, report *inspector.Repor
 
 	// Config overrides inspector findings (source-of-truth hierarchy)
 	g.Project = ProjectIdentity{
-		ID:   config.Project.ID,
-		Name: config.Project.Name,
+		ID:      config.Project.ID,
+		Name:    config.Project.Name,
+		Version: config.Project.Version,
+	}
+
+	if g.Project.Version == "" {
+		g.Project.Version = "0.0.1"
 	}
 
 	if len(config.Targets) > 0 {
 		g.TargetsRequested = config.Targets
-		g.TargetsResolved = config.Targets
+		g.TargetsResolved = []string{}
+		for _, t := range config.Targets {
+			if _, ok := b.registry.Get(t); ok {
+				g.TargetsResolved = append(g.TargetsResolved, t)
+			}
+		}
 	}
 
 	// Config entries override detected entries
@@ -166,8 +184,9 @@ type ProjectConfig struct {
 }
 
 type ProjectConfigBlock struct {
-	Name string `json:"name"`
-	ID   string `json:"id"`
+	Name    string `json:"name"`
+	ID      string `json:"id"`
+	Version string `json:"version"`
 }
 
 type EntryConfig struct {

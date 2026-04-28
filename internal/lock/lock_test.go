@@ -140,28 +140,6 @@ func TestRecoverCorruptLock(t *testing.T) {
 	}
 }
 
-func TestLegacyPidFormat(t *testing.T) {
-	dir := t.TempDir()
-	panexDir := filepath.Join(dir, ".panex")
-	locksDir := filepath.Join(panexDir, "locks")
-	if err := os.MkdirAll(locksDir, 0o755); err != nil {
-		t.Fatal(err)
-	}
-
-	// Legacy format from old doctor tests
-	if err := os.WriteFile(filepath.Join(locksDir, "project.lock"), []byte("pid:999999"), 0o644); err != nil {
-		t.Fatal(err)
-	}
-
-	mgr := NewManager(panexDir)
-
-	// Should detect as stale (pid 999999 is almost certainly dead)
-	held, _ := mgr.IsHeld(ProjectMutation)
-	if held {
-		t.Error("legacy lock with dead pid should not be held")
-	}
-}
-
 func TestReleaseNil(t *testing.T) {
 	dir := t.TempDir()
 	panexDir := filepath.Join(dir, ".panex")

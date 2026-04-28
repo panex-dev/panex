@@ -5,7 +5,17 @@ package lock
 import (
 	"os"
 	"syscall"
+
+	"golang.org/x/sys/unix"
 )
+
+func osAcquire(f *os.File) error {
+	return unix.Flock(int(f.Fd()), unix.LOCK_EX|unix.LOCK_NB)
+}
+
+func osRelease(f *os.File) error {
+	return unix.Flock(int(f.Fd()), unix.LOCK_UN)
+}
 
 func isProcessAlive(pid int) bool {
 	if pid <= 0 {
@@ -15,7 +25,5 @@ func isProcessAlive(pid int) bool {
 	if err != nil {
 		return false
 	}
-	// On Unix, FindProcess always succeeds. Signal 0 probes liveness without
-	// actually delivering a signal.
 	return process.Signal(syscall.Signal(0)) == nil
 }
