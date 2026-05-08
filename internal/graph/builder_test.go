@@ -188,6 +188,7 @@ func TestProjectConfigFromLoaded(t *testing.T) {
 	cfg := ProjectConfigFromLoaded(loaded)
 	if cfg == nil {
 		t.Fatal("expected non-nil config")
+		return
 	}
 	if cfg.Project.Name != "test-ext" {
 		t.Errorf("name: got %s", cfg.Project.Name)

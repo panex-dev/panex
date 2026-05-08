@@ -3,7 +3,9 @@ package main
 import (
 	"bufio"
 	"bytes"
+	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"runtime"
 	"strings"
@@ -25,6 +27,11 @@ func TestRunRejectsMissingVersion(t *testing.T) {
 
 func TestRunPackagesDeterministicArchiveForCurrentTarget(t *testing.T) {
 	target := runtime.GOOS + "/" + runtime.GOARCH
+	originalExecCommand := execCommand
+	execCommand = fakeBuildExecCommand
+	t.Cleanup(func() {
+		execCommand = originalExecCommand
+	})
 
 	firstDir := t.TempDir()
 	var firstOut bytes.Buffer
@@ -104,6 +111,48 @@ func TestRunPackagesDeterministicArchiveForCurrentTarget(t *testing.T) {
 			t.Fatalf("checksum manifest missing .deb digest line %q:\n%s", debLine, string(firstChecksumBytes))
 		}
 	}
+}
+
+func fakeBuildExecCommand(command string, args ...string) *exec.Cmd {
+	helperArgs := []string{"-test.run=TestHelperBuildBinary", "--", command}
+	helperArgs = append(helperArgs, args...)
+	return exec.Command(os.Args[0], helperArgs...)
+}
+
+func TestHelperBuildBinary(t *testing.T) {
+	t.Helper()
+
+	args := os.Args
+	sep := -1
+	for i, arg := range args {
+		if arg == "--" {
+			sep = i
+			break
+		}
+	}
+	if sep == -1 || sep+1 >= len(args) {
+		return
+	}
+
+	buildArgs := args[sep+2:]
+	outputPath := ""
+	for i := 0; i < len(buildArgs)-1; i++ {
+		if buildArgs[i] == "-o" {
+			outputPath = buildArgs[i+1]
+			break
+		}
+	}
+	if outputPath == "" {
+		fmt.Fprintln(os.Stderr, "missing -o output path")
+		os.Exit(2)
+	}
+
+	binaryData := []byte("panex-test-binary:" + os.Getenv("GOOS") + "/" + os.Getenv("GOARCH"))
+	if err := os.WriteFile(outputPath, binaryData, 0o755); err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
+	os.Exit(0)
 }
 
 func writtenPaths(t *testing.T, output string) []string {
