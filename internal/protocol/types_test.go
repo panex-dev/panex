@@ -7,6 +7,12 @@ import (
 	"testing"
 )
 
+func TestMaxWebSocketMessageBytes(t *testing.T) {
+	if MaxWebSocketMessageBytes != 1<<20 {
+		t.Fatalf("unexpected max websocket message bytes: got %d, want %d", MaxWebSocketMessageBytes, 1<<20)
+	}
+}
+
 func TestNegotiableCapabilityNames(t *testing.T) {
 	want := []MessageName{
 		MessageBuildComplete,

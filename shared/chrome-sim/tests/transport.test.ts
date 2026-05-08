@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { decode, encode } from "@msgpack/msgpack";
 
-import { PROTOCOL_VERSION, type Envelope } from "@panex/protocol";
+import { MAX_WEBSOCKET_MESSAGE_BYTES, PROTOCOL_VERSION, type Envelope } from "@panex/protocol";
 import { createChromeSimTransport, type TransportSocket } from "../src/transport";
 
 describe("chrome-sim transport", () => {
@@ -264,7 +264,7 @@ describe("chrome-sim transport", () => {
     const pending = transport.call("storage.local", "get");
     const socket = sockets[0];
     socket.open();
-    socket.messageRaw(new Uint8Array((1 << 20) + 1));
+    socket.messageRaw(new Uint8Array(MAX_WEBSOCKET_MESSAGE_BYTES + 1));
 
     await assert.rejects(async () => pending, /closed before hello\.ack/);
     assert.deepEqual(socket.closeCalls, [{ code: 1009, reason: "message exceeds limit" }]);

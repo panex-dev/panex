@@ -23,7 +23,6 @@ import (
 )
 
 const (
-	maxMessageBytes     = 1 << 20 // 1 MiB keeps accidental payload explosions bounded.
 	handshakeTimeout    = 5 * time.Second
 	defaultReadTimeout  = 30 * time.Second
 	defaultWriteTimeout = 5 * time.Second
@@ -294,7 +293,7 @@ func (s *WebSocketServer) handleWebSocket(w http.ResponseWriter, r *http.Request
 	if err != nil {
 		return
 	}
-	conn.SetReadLimit(maxMessageBytes)
+	conn.SetReadLimit(protocol.MaxWebSocketMessageBytes)
 
 	ctx := r.Context()
 	sessionID, metadata, err := s.handshake(ctx, conn)

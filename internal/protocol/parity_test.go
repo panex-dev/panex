@@ -15,12 +15,17 @@ import (
 )
 
 var tsProtocolVersionRE = regexp.MustCompile(`(?m)^export const PROTOCOL_VERSION = (\d+);$`)
+var tsMaxWebSocketMessageBytesRE = regexp.MustCompile(`(?m)^export const MAX_WEBSOCKET_MESSAGE_BYTES = (\d+)\s*<<\s*(\d+);$`)
 
 func TestTypeScriptProtocolParity(t *testing.T) {
 	source := loadSharedProtocolSource(t)
 
 	if got, want := parseTSProtocolVersion(t, source), int(CurrentVersion); got != want {
 		t.Fatalf("protocol version drift: ts=%d go=%d", got, want)
+	}
+
+	if got, want := parseTSMaxWebSocketMessageBytes(t, source), MaxWebSocketMessageBytes; got != want {
+		t.Fatalf("max websocket message bytes drift: ts=%d go=%d", got, want)
 	}
 
 	if got, want := parseTSStringArray(t, source, "envelopeTypes"), []string{
@@ -120,6 +125,26 @@ func parseTSProtocolVersion(t *testing.T, source string) int {
 	}
 
 	return version
+}
+
+func parseTSMaxWebSocketMessageBytes(t *testing.T, source string) int {
+	t.Helper()
+
+	match := tsMaxWebSocketMessageBytesRE.FindStringSubmatch(source)
+	if len(match) != 3 {
+		t.Fatal("parse ts max websocket message bytes: MAX_WEBSOCKET_MESSAGE_BYTES constant not found")
+	}
+
+	base, err := strconv.Atoi(match[1])
+	if err != nil {
+		t.Fatalf("parse ts max websocket message bytes base %q: %v", match[1], err)
+	}
+	shift, err := strconv.Atoi(match[2])
+	if err != nil {
+		t.Fatalf("parse ts max websocket message bytes shift %q: %v", match[2], err)
+	}
+
+	return base << shift
 }
 
 func parseTSStringArray(t *testing.T, source, constName string) []string {
