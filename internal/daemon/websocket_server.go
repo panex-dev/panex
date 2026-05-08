@@ -373,6 +373,7 @@ func (s *WebSocketServer) handshake(ctx context.Context, conn *websocket.Conn) (
 		DaemonVersion:         s.cfg.ServerVersion,
 		SessionID:             sessionID,
 		AuthOK:                true,
+		ExtensionID:           helloExtID,
 		CapabilitiesSupported: supportedCapabilities,
 	})
 	if err != nil {

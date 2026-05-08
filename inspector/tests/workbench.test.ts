@@ -62,6 +62,12 @@ describe("buildWorkbenchModel", () => {
   it("combines connection, storage, and timeline state into a stable view model", () => {
     const model = buildWorkbenchModel({
       status: "open",
+      bridgeSession: {
+        daemonVersion: "dev",
+        sessionID: "session-1",
+        extensionID: "popup",
+        capabilitiesSupported: ["query.events", "storage.diff"]
+      },
       socketURL: "ws://127.0.0.1:4317/ws",
       lastError: null,
       storage: [
@@ -81,6 +87,8 @@ describe("buildWorkbenchModel", () => {
     });
 
     assert.equal(model.status, "open");
+    assert.equal(model.bridgeSession?.daemonVersion, "dev");
+    assert.equal(model.bridgeSession?.extensionID, "popup");
     assert.equal(model.socketURL, "ws://127.0.0.1:4317/ws");
     assert.equal(model.totalStorageKeys, 1);
     assert.deepEqual(model.storageAreas, [

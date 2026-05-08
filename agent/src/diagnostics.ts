@@ -38,11 +38,15 @@ export function summarizeEnvelope(envelope: Envelope): Record<string, unknown> {
 }
 
 export function summarizeHelloAck(data: HelloAck): Record<string, unknown> {
-  return {
+  const summary: Record<string, unknown> = {
     authOK: data.auth_ok,
     sessionID: data.session_id,
     capabilitiesSupported: [...data.capabilities_supported]
   };
+  if (typeof data.extension_id === "string" && data.extension_id.trim().length > 0) {
+    summary.extensionID = data.extension_id;
+  }
+  return summary;
 }
 
 function defaultAgentDiagnosticSink(entry: AgentDiagnosticEntry): void {

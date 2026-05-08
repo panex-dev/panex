@@ -4,13 +4,14 @@ import { createMemo, createSignal, type Accessor, type JSX } from "solid-js";
 import type { StorageSnapshot } from "@panex/protocol";
 
 import { summarizeChromeAPIActivity } from "../activity-log";
-import type { ConnectionStatus } from "../connection";
+import type { BridgeSession, ConnectionStatus } from "../connection";
 import type { TimelineEntry } from "../timeline";
 import { formatTime } from "../timeline";
 import { buildWorkbenchModel } from "../workbench";
 
 interface WorkbenchTabProps {
   status: Accessor<ConnectionStatus>;
+  bridgeSession: Accessor<BridgeSession | null>;
   socketURL: Accessor<string>;
   lastError: Accessor<string | null>;
   storage: Accessor<StorageSnapshot[]>;
@@ -29,6 +30,7 @@ export function WorkbenchTab(props: WorkbenchTabProps): JSX.Element {
   const model = createMemo(() =>
     buildWorkbenchModel({
       status: props.status(),
+      bridgeSession: props.bridgeSession(),
       socketURL: props.socketURL(),
       lastError: props.lastError(),
       storage: props.storage(),
@@ -60,6 +62,30 @@ export function WorkbenchTab(props: WorkbenchTabProps): JSX.Element {
           <p class="workbench-eyebrow">Connection</p>
           <strong class="workbench-metric">{model().status}</strong>
           <p class="subtle">{model().socketURL}</p>
+          {(() => {
+            const bridgeSession = model().bridgeSession;
+            if (!bridgeSession) {
+              return <p class="subtle">Handshake metadata will appear after hello.ack completes.</p>;
+            }
+
+            return (
+              <>
+                <p class="subtle">
+                  {`daemon ${bridgeSession.daemonVersion} · session ${bridgeSession.sessionID}`}
+                </p>
+                <p class="subtle">
+                  {bridgeSession.extensionID
+                    ? `extension ${bridgeSession.extensionID}`
+                    : "extension not negotiated for this client"}
+                </p>
+                <p class="subtle">
+                  {bridgeSession.capabilitiesSupported.length
+                    ? `capabilities: ${bridgeSession.capabilitiesSupported.join(", ")}`
+                    : "capabilities: none negotiated"}
+                </p>
+              </>
+            );
+          })()}
           {model().lastError ? <p class="error">{model().lastError}</p> : null}
         </article>
 

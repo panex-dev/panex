@@ -1,7 +1,11 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
-import { buildTimelineQuery, resolveConnectionParamsFromSearch } from "../src/connection";
+import {
+  bridgeSessionFromHelloAck,
+  buildTimelineQuery,
+  resolveConnectionParamsFromSearch
+} from "../src/connection";
 
 describe("resolveConnectionParamsFromSearch", () => {
   it("uses loopback defaults when no overrides are present", () => {
@@ -68,5 +72,40 @@ describe("buildTimelineQuery", () => {
     const query = buildTimelineQuery(250, 42);
     assert.equal(query.data.limit, 250);
     assert.equal(query.data.before_id, 42);
+  });
+});
+
+describe("bridgeSessionFromHelloAck", () => {
+  it("normalizes runtime metadata from hello.ack", () => {
+    assert.deepEqual(
+      bridgeSessionFromHelloAck({
+        protocol_version: 1,
+        daemon_version: "dev",
+        session_id: "session-1",
+        auth_ok: true,
+        extension_id: "popup",
+        capabilities_supported: ["query.events", "storage.diff"]
+      }),
+      {
+        daemonVersion: "dev",
+        sessionID: "session-1",
+        extensionID: "popup",
+        capabilitiesSupported: ["query.events", "storage.diff"]
+      }
+    );
+  });
+
+  it("drops blank extension ids", () => {
+    assert.equal(
+      bridgeSessionFromHelloAck({
+        protocol_version: 1,
+        daemon_version: "dev",
+        session_id: "session-1",
+        auth_ok: true,
+        extension_id: " ",
+        capabilities_supported: []
+      }).extensionID,
+      null
+    );
   });
 });

@@ -104,6 +104,7 @@ type HelloAck struct {
 	DaemonVersion         string   `msgpack:"daemon_version"`
 	SessionID             string   `msgpack:"session_id"`
 	AuthOK                bool     `msgpack:"auth_ok"`
+	ExtensionID           string   `msgpack:"extension_id,omitempty"`
 	CapabilitiesSupported []string `msgpack:"capabilities_supported"`
 }
 

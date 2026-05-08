@@ -65,12 +65,14 @@ describe("diagnostic summaries", () => {
       daemon_version: "dev",
       session_id: "session-1",
       auth_ok: true,
+      extension_id: "popup",
       capabilities_supported: ["command.reload"]
     };
 
     assert.deepEqual(summarizeHelloAck(ack), {
       authOK: true,
       sessionID: "session-1",
+      extensionID: "popup",
       capabilitiesSupported: ["command.reload"]
     });
   });

@@ -56,6 +56,7 @@ function InspectorApp(): JSX.Element {
       case "workbench":
         return WorkbenchTab({
           status: connection.status,
+          bridgeSession: connection.bridgeSession,
           socketURL: connection.socketURL,
           lastError: connection.lastError,
           storage: connection.storage,

@@ -12,6 +12,7 @@ import {
   type ChromeAPICall,
   type Envelope,
   type Hello,
+  type HelloAck,
   type QueryEvents,
   type QueryEventsResult,
   type QueryStorage,
@@ -49,12 +50,20 @@ import {
 
 export type ConnectionStatus = "connecting" | "open" | "reconnecting" | "closed";
 
+export interface BridgeSession {
+  daemonVersion: string;
+  sessionID: string;
+  extensionID: string | null;
+  capabilitiesSupported: string[];
+}
+
 const defaultDaemonWSURL = "ws://127.0.0.1:4317/ws";
 const defaultDaemonToken = "";
 const closeMessageTooBig = 1009;
 
 interface ConnectionContextValue {
   status: Accessor<ConnectionStatus>;
+  bridgeSession: Accessor<BridgeSession | null>;
   timeline: Accessor<TimelineEntry[]>;
   canLoadOlderTimeline: Accessor<boolean>;
   loadingOlderTimeline: Accessor<boolean>;
@@ -80,6 +89,7 @@ const inspectorID = `inspector-${safeClientID()}`;
 
 export function ConnectionProvider(props: ParentProps) {
   const [status, setStatus] = createSignal<ConnectionStatus>("connecting");
+  const [bridgeSession, setBridgeSession] = createSignal<BridgeSession | null>(null);
   const [timeline, setTimeline] = createSignal<TimelineEntry[]>([]);
   const [canLoadOlderTimeline, setCanLoadOlderTimeline] = createSignal(false);
   const [loadingOlderTimeline, setLoadingOlderTimeline] = createSignal(false);
@@ -234,6 +244,7 @@ export function ConnectionProvider(props: ParentProps) {
       setCanLoadOlderTimeline(false);
       setTrimmedOlderTimelineCount(0);
       setTrimmedNewerTimelineCount(0);
+      setBridgeSession(null);
       setTimeline([]);
       setStorage([]);
       setStorageHighlights(new Set<string>());
@@ -299,6 +310,7 @@ export function ConnectionProvider(props: ParentProps) {
           return;
         }
 
+        setBridgeSession(bridgeSessionFromHelloAck(decoded.data));
         setStatus("open");
         setLastError(null);
         next.send(encode(buildTimelineQuery(defaultTimelineLimit)));
@@ -390,6 +402,7 @@ export function ConnectionProvider(props: ParentProps) {
       setLoadingOlderTimeline(false);
       setLoadingLatestTimeline(false);
       setCanLoadOlderTimeline(false);
+      setBridgeSession(null);
       const delay = reconnectDelay(reconnectAttempt);
       reconnectAttempt += 1;
 
@@ -423,6 +436,7 @@ export function ConnectionProvider(props: ParentProps) {
   return ConnectionContext.Provider({
     value: {
       status,
+      bridgeSession,
       timeline,
       canLoadOlderTimeline,
       loadingOlderTimeline,
@@ -454,6 +468,20 @@ export function useConnection(): ConnectionContextValue {
     throw new Error("useConnection must be used within ConnectionProvider");
   }
   return context;
+}
+
+export function bridgeSessionFromHelloAck(data: HelloAck): BridgeSession {
+  return {
+    daemonVersion: data.daemon_version,
+    sessionID: data.session_id,
+    extensionID:
+      typeof data.extension_id === "string" && data.extension_id.trim().length > 0
+        ? data.extension_id
+        : null,
+    capabilitiesSupported: Array.isArray(data.capabilities_supported)
+      ? data.capabilities_supported.filter((value): value is string => typeof value === "string")
+      : []
+  };
 }
 
 function applyQueryResult(

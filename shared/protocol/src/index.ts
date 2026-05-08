@@ -73,6 +73,7 @@ export interface HelloAck {
   daemon_version: string;
   session_id: string;
   auth_ok: boolean;
+  extension_id?: string;
   capabilities_supported: string[];
 }
 

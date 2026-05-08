@@ -111,6 +111,9 @@ func TestWebSocketHandshakeSendsHelloAckAndTracksConnection(t *testing.T) {
 	if !helloAck.AuthOK {
 		t.Fatal("expected auth_ok=true")
 	}
+	if helloAck.ExtensionID != "default" {
+		t.Fatalf("unexpected extension id: got %q, want %q", helloAck.ExtensionID, "default")
+	}
 	if helloAck.DaemonVersion != "test-version" {
 		t.Fatalf("unexpected daemon version: got %q, want %q", helloAck.DaemonVersion, "test-version")
 	}
@@ -167,6 +170,9 @@ func TestWebSocketHandshakeNegotiatesCapabilities(t *testing.T) {
 	}
 	if len(payload.CapabilitiesSupported) != 1 || payload.CapabilitiesSupported[0] != "query.events" {
 		t.Fatalf("unexpected supported capabilities: %v", payload.CapabilitiesSupported)
+	}
+	if payload.ExtensionID != "" {
+		t.Fatalf("unexpected extension id for inspector handshake: got %q, want empty", payload.ExtensionID)
 	}
 }
 
