@@ -186,13 +186,14 @@ export function TimelineTab(props: TimelineTabProps): JSX.Element {
             value={sourceRole()}
             onChange={(event) => {
               setSourceRole(
-                event.currentTarget.value as "all" | "daemon" | "dev-agent" | "inspector"
+                event.currentTarget.value as "all" | "daemon" | "dev-agent" | "chrome-sim" | "inspector"
               );
             }}
           >
             <option value="all">all</option>
             <option value="daemon">daemon</option>
             <option value="dev-agent">dev-agent</option>
+            <option value="chrome-sim">chrome-sim</option>
             <option value="inspector">inspector</option>
           </select>
         </label>
@@ -279,5 +280,11 @@ function isMessageType(value: unknown): value is typeof defaultTimelineFilter.me
 }
 
 function isSourceRole(value: unknown): value is typeof defaultTimelineFilter.sourceRole {
-  return value === "all" || value === "daemon" || value === "dev-agent" || value === "inspector";
+  return (
+    value === "all" ||
+    value === "daemon" ||
+    value === "dev-agent" ||
+    value === "chrome-sim" ||
+    value === "inspector"
+  );
 }

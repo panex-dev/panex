@@ -4,7 +4,7 @@ export const MAX_WEBSOCKET_MESSAGE_BYTES = 1 << 20;
 export const envelopeTypes = ["lifecycle", "event", "command"] as const;
 export type EnvelopeType = (typeof envelopeTypes)[number];
 
-export const sourceRoles = ["daemon", "dev-agent", "inspector"] as const;
+export const sourceRoles = ["daemon", "dev-agent", "chrome-sim", "inspector"] as const;
 export type SourceRole = (typeof sourceRoles)[number];
 
 export const envelopeNames = [
