@@ -110,6 +110,7 @@ As of 2026-04-15.
 | — | Phase 1 CLI + MCP wiring: all commands routable, all MCP handlers complete | `docs/build-log/2026-04-15-phase1-cli-mcp-wiring.md` |
 | — | Phase 1 audit: critical correctness fixes (adapter registry, dedup, doctor, errors, lint) | `docs/build-log/2026-04-15-phase1-audit-critical.md` |
 | — | Phase 1 audit: important design issues (config dedup, run dirs, policy tags, integration test) | `docs/build-log/2026-04-16-phase1-audit-important.md` |
+| — | Phase 1 audit: spec gap inventory with target phases | `docs/build-log/2026-04-16-phase1-spec-gaps.md` |
 | — | Phase 1 lint cleanup: errcheck violations across new test files + chrome zip close errors | `docs/build-log/2026-04-18-phase1-lint-cleanup.md` |
 | — | Phase 1 CI green: Go 1.25.9 (vuln fix), macOS path symlinks, Windows separators, chrome --version timeout | `docs/build-log/2026-04-18-phase1-ci-green.md` |
 | — | Go 1.25.10 toolchain bump for `GO-2026-4971` in `net` | `docs/build-log/2026-05-08-go-1.25.10-govulncheck.md` |
@@ -119,10 +120,11 @@ As of 2026-04-15.
 | — | Phase 1 C5/H1: graph hash via view struct (concurrent-safe, SourceRoot-independent) | `docs/build-log/2026-04-20-phase1-c5-h1-graph-hash-view.md` |
 
 ## In progress
-- Phase 1 audit — spec gap documentation remaining.
+- None.
 
 ## Next
 - Phase 2 planning and implementation.
+- See `docs/build-log/2026-04-16-phase1-spec-gaps.md` for the full deferred-feature inventory.
 
 ## Queued Follow-Ons
 - None.
