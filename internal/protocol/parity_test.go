@@ -40,6 +40,14 @@ func TestTypeScriptProtocolParity(t *testing.T) {
 		t.Fatalf("source role drift:\n  ts=%v\n  go=%v", got, want)
 	}
 
+	if got, want := parseTSStringArray(t, source, "negotiableCapabilityNames"), messageNamesToStrings(NegotiableCapabilityNames); !slices.Equal(got, want) {
+		t.Fatalf("negotiable capability drift:\n  ts=%v\n  go=%v", got, want)
+	}
+
+	if got, want := parseTSStringArray(t, source, "firstPartyClientKinds"), clientKindsToStrings(FirstPartyClientKinds); !slices.Equal(got, want) {
+		t.Fatalf("first-party client kind drift:\n  ts=%v\n  go=%v", got, want)
+	}
+
 	if got, want := parseTSStringArray(t, source, "envelopeNames"), []string{
 		string(MessageHello),
 		string(MessageHelloAck),
@@ -126,6 +134,24 @@ func parseTSStringArray(t *testing.T, source, constName string) []string {
 	values := make([]string, 0, len(itemMatches))
 	for _, item := range itemMatches {
 		values = append(values, item[1])
+	}
+
+	return values
+}
+
+func messageNamesToStrings(names []MessageName) []string {
+	values := make([]string, 0, len(names))
+	for _, name := range names {
+		values = append(values, string(name))
+	}
+
+	return values
+}
+
+func clientKindsToStrings(kinds []ClientKind) []string {
+	values := make([]string, 0, len(kinds))
+	for _, kind := range kinds {
+		values = append(values, string(kind))
 	}
 
 	return values

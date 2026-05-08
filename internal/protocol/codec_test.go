@@ -14,10 +14,10 @@ func TestEncodeDecodeRoundTrip(t *testing.T) {
 		},
 		Hello{
 			ProtocolVersion:       CurrentVersion,
-			ClientKind:            "dev-agent",
+			ClientKind:            string(ClientKindDevAgent),
 			ClientVersion:         "dev",
 			ExtensionID:           "default",
-			CapabilitiesRequested: []string{"command.reload"},
+			CapabilitiesRequested: []string{string(MessageCommandReload)},
 		},
 	)
 
@@ -54,8 +54,8 @@ func TestEncodeDecodeRoundTrip(t *testing.T) {
 	if hello.ProtocolVersion != CurrentVersion {
 		t.Fatalf("unexpected protocol version: got %d, want %d", hello.ProtocolVersion, CurrentVersion)
 	}
-	if hello.ClientKind != "dev-agent" {
-		t.Fatalf("unexpected client kind: got %q, want %q", hello.ClientKind, "dev-agent")
+	if hello.ClientKind != string(ClientKindDevAgent) {
+		t.Fatalf("unexpected client kind: got %q, want %q", hello.ClientKind, ClientKindDevAgent)
 	}
 	if hello.ClientVersion != "dev" {
 		t.Fatalf("unexpected client version: got %q, want %q", hello.ClientVersion, "dev")
@@ -63,7 +63,7 @@ func TestEncodeDecodeRoundTrip(t *testing.T) {
 	if hello.ExtensionID != "default" {
 		t.Fatalf("unexpected extension id: got %q, want %q", hello.ExtensionID, "default")
 	}
-	if len(hello.CapabilitiesRequested) != 1 || hello.CapabilitiesRequested[0] != "command.reload" {
+	if len(hello.CapabilitiesRequested) != 1 || hello.CapabilitiesRequested[0] != string(MessageCommandReload) {
 		t.Fatalf("unexpected capabilities requested: %+v", hello.CapabilitiesRequested)
 	}
 }
@@ -71,10 +71,10 @@ func TestEncodeDecodeRoundTrip(t *testing.T) {
 func TestDecodePayloadTypedCompatibility(t *testing.T) {
 	raw := Hello{
 		ProtocolVersion:       CurrentVersion,
-		ClientKind:            "dev-agent",
+		ClientKind:            string(ClientKindDevAgent),
 		ClientVersion:         "dev",
 		ExtensionID:           "default",
-		CapabilitiesRequested: []string{"command.reload"},
+		CapabilitiesRequested: []string{string(MessageCommandReload)},
 	}
 
 	var hello Hello

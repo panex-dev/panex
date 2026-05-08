@@ -1,6 +1,6 @@
 # Build Status Tracker
 
-As of 2026-05-08.
+As of 2026-05-09.
 
 ## Completed
 | PR | Scope | Evidence |
@@ -130,6 +130,7 @@ As of 2026-05-08.
 | — | Phase 2 Dev Bridge daemon: request only negotiable capabilities from first-party bridge clients | `docs/build-log/2026-05-08-phase2-dev-bridge-negotiable-capability-requests.md` |
 | — | Phase 2 Dev Bridge daemon: centralize first-party requested capabilities in the shared protocol contract | `docs/build-log/2026-05-08-phase2-dev-bridge-client-capability-constants.md` |
 | — | Phase 2 Dev Bridge daemon: add Go↔TypeScript parity coverage for first-party capability scopes | `docs/build-log/2026-05-09-phase2-dev-bridge-client-capability-parity.md` |
+| — | Phase 2 Dev Bridge daemon: centralize Go protocol client kinds and negotiable capability names | `docs/build-log/2026-05-09-phase2-dev-bridge-go-protocol-client-kind-constants.md` |
 
 ## In progress
 - None.

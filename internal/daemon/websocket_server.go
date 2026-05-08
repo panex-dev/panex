@@ -31,19 +31,29 @@ const (
 )
 
 var daemonHandlerCapabilities = []string{
-	"query.events", "query.storage", "storage.set", "storage.remove", "storage.clear", "chrome.api.call",
+	string(protocol.MessageQueryEvents),
+	string(protocol.MessageQueryStorage),
+	string(protocol.MessageStorageSet),
+	string(protocol.MessageStorageRemove),
+	string(protocol.MessageStorageClear),
+	string(protocol.MessageChromeAPICall),
 }
 
 var daemonBroadcastCapabilities = []string{
-	"command.reload", "build.complete", "storage.diff", "chrome.api.event",
+	string(protocol.MessageCommandReload),
+	string(protocol.MessageBuildComplete),
+	string(protocol.MessageStorageDiff),
+	string(protocol.MessageChromeAPIEvent),
 }
 
 var daemonCapabilities = append(append([]string(nil), daemonHandlerCapabilities...), daemonBroadcastCapabilities...)
 var devAgentCapabilities = []string{
-	"command.reload",
+	string(protocol.MessageCommandReload),
 }
 var chromeSimCapabilities = []string{
-	"chrome.api.call", "storage.diff", "chrome.api.event",
+	string(protocol.MessageChromeAPICall),
+	string(protocol.MessageStorageDiff),
+	string(protocol.MessageChromeAPIEvent),
 }
 
 var handlerCapabilitySet = func() map[string]struct{} {
@@ -1503,7 +1513,7 @@ func shouldDeliverLiveMessage(session *sessionConn, message protocol.Envelope, t
 	if strings.TrimSpace(targetExtensionID) == "" {
 		return true
 	}
-	if session.clientKind == "inspector" {
+	if session.clientKind == string(protocol.ClientKindInspector) {
 		return true
 	}
 
@@ -1519,7 +1529,8 @@ func normalizeExtensionID(clientKind string, extensionID string) string {
 	if trimmed != "" {
 		return trimmed
 	}
-	if strings.TrimSpace(clientKind) == "dev-agent" || strings.TrimSpace(clientKind) == "chrome-sim" {
+	switch normalizeClientKind(clientKind) {
+	case string(protocol.ClientKindDevAgent), string(protocol.ClientKindChromeSim):
 		return defaultExtensionID
 	}
 
@@ -1633,11 +1644,11 @@ func negotiateCapabilities(requested, supported []string) []string {
 
 func supportedCapabilitiesForClientKind(clientKind string) []string {
 	switch normalizeClientKind(clientKind) {
-	case "dev-agent":
+	case string(protocol.ClientKindDevAgent):
 		return devAgentCapabilities
-	case "chrome-sim":
+	case string(protocol.ClientKindChromeSim):
 		return chromeSimCapabilities
-	case "inspector":
+	case string(protocol.ClientKindInspector):
 		return daemonCapabilities
 	default:
 		// Preserve older clients that predated explicit role scoping.
@@ -1647,11 +1658,11 @@ func supportedCapabilitiesForClientKind(clientKind string) []string {
 
 func expectedSourceRoleForClientKind(clientKind string) (protocol.SourceRole, bool) {
 	switch normalizeClientKind(clientKind) {
-	case "dev-agent":
+	case string(protocol.ClientKindDevAgent):
 		return protocol.SourceDevAgent, true
-	case "chrome-sim":
+	case string(protocol.ClientKindChromeSim):
 		return protocol.SourceChromeSim, true
-	case "inspector":
+	case string(protocol.ClientKindInspector):
 		return protocol.SourceInspector, true
 	default:
 		return "", false
