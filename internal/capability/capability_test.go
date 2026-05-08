@@ -131,6 +131,41 @@ func TestCompile_HostPermissions(t *testing.T) {
 	if len(matrix.HostPerms) != 1 || matrix.HostPerms[0] != "https://*.example.com/*" {
 		t.Errorf("host_permissions: got %v", matrix.HostPerms)
 	}
+	if perms := matrix.HostPermissionsForTarget("chrome"); len(perms) != 1 || perms[0] != "https://*.example.com/*" {
+		t.Errorf("host permissions for target: got %v", perms)
+	}
+}
+
+func TestCompile_HostPermissionsByTarget(t *testing.T) {
+	chrome := target.NewChrome()
+	input := CompilerInput{
+		Capabilities:    map[string]any{"tabs": "read"},
+		Targets:         []string{"chrome", "firefox"},
+		Adapters:        map[string]target.Adapter{"chrome": chrome, "firefox": chrome},
+		HostPermissions: []string{"https://shared.example/*"},
+		HostPermissionsByTarget: map[string][]string{
+			"firefox": {"https://addons.mozilla.org/*"},
+		},
+	}
+
+	matrix, err := Compile(input)
+	if err != nil {
+		t.Fatalf("Compile: %v", err)
+	}
+
+	chromePerms := matrix.HostPermissionsForTarget("chrome")
+	if len(chromePerms) != 1 || chromePerms[0] != "https://shared.example/*" {
+		t.Fatalf("chrome host perms: got %v", chromePerms)
+	}
+
+	firefoxPerms := matrix.HostPermissionsForTarget("firefox")
+	if len(firefoxPerms) != 1 || firefoxPerms[0] != "https://addons.mozilla.org/*" {
+		t.Fatalf("firefox host perms: got %v", firefoxPerms)
+	}
+
+	if len(matrix.HostPerms) != 2 {
+		t.Fatalf("aggregated host perms: got %v", matrix.HostPerms)
+	}
 }
 
 func TestCompile_MissingAdapter(t *testing.T) {

@@ -119,13 +119,14 @@ As of 2026-05-08.
 | — | Phase 1 watcher new-dir race: synthesize pending children when attaching a new directory watch | `docs/build-log/2026-04-18-phase1-watcher-newdir-race.md` |
 | — | Phase 1 L1: polymorphic Action — closes audit C1/H5/H6 | `docs/build-log/2026-04-20-phase1-l1-polymorphic-action.md` |
 | — | Phase 1 C5/H1: graph hash via view struct (concurrent-safe, SourceRoot-independent) | `docs/build-log/2026-04-20-phase1-c5-h1-graph-hash-view.md` |
+| — | Phase 2 manifest compiler: target-scoped host permissions | `docs/build-log/2026-05-08-phase2-target-scoped-host-permissions.md` |
 
 ## In progress
 - None.
 
 ## Next
-- Phase 2 planning and implementation.
-- See `docs/build-log/2026-04-16-phase1-spec-gaps.md` for the full deferred-feature inventory.
+- Phase 2: Runtime identity collection.
+- See `docs/build-log/2026-04-16-phase1-spec-gaps.md` for the remaining deferred-feature inventory.
 
 ## Queued Follow-Ons
 - None.
