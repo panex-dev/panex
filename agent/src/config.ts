@@ -1,4 +1,9 @@
-import { buildDaemonURL, nonEmpty, normalizeDaemonWebSocketURL } from "@panex/protocol";
+import {
+  DEFAULT_DAEMON_WEBSOCKET_URL,
+  buildDaemonURL,
+  nonEmpty,
+  normalizeDaemonWebSocketURL
+} from "@panex/protocol";
 
 export { buildDaemonURL };
 
@@ -11,7 +16,7 @@ export interface AgentConfig {
 }
 
 export const defaultConfig: AgentConfig = {
-  wsUrl: "ws://127.0.0.1:4317/ws",
+  wsUrl: DEFAULT_DAEMON_WEBSOCKET_URL,
   token: "",
   agentId: "dev-agent-1",
   extensionId: "default",

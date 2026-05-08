@@ -8,6 +8,7 @@ import (
 
 const CurrentVersion uint8 = 1
 const MaxWebSocketMessageBytes = 1 << 20
+const DefaultDaemonWebSocketPath = "/ws"
 
 type MessageType string
 

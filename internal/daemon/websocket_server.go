@@ -222,7 +222,7 @@ func NewWebSocketServer(cfg WebSocketConfig) (*WebSocketServer, error) {
 
 func (s *WebSocketServer) Handler() http.Handler {
 	mux := http.NewServeMux()
-	mux.HandleFunc("/ws", s.handleWebSocket)
+	mux.HandleFunc(protocol.DefaultDaemonWebSocketPath, s.handleWebSocket)
 
 	return mux
 }

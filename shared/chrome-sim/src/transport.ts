@@ -1,5 +1,6 @@
 import { decode, encode } from "@msgpack/msgpack";
 import {
+  DEFAULT_DAEMON_WEBSOCKET_URL,
   firstPartyRequestedCapabilities,
   firstPartySourceRolesByClientKind,
   PROTOCOL_VERSION,
@@ -474,7 +475,7 @@ function resolveDefaultDaemonURL(): string {
       return candidate;
     }
   }
-  return "ws://127.0.0.1:4317/ws";
+  return DEFAULT_DAEMON_WEBSOCKET_URL;
 }
 
 function resolveDefaultAuthToken(): string | undefined {

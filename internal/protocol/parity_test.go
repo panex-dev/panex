@@ -12,10 +12,14 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+
+	"github.com/panex-dev/panex/internal/config"
 )
 
 var tsProtocolVersionRE = regexp.MustCompile(`(?m)^export const PROTOCOL_VERSION = (\d+);$`)
 var tsMaxWebSocketMessageBytesRE = regexp.MustCompile(`(?m)^export const MAX_WEBSOCKET_MESSAGE_BYTES = (\d+)\s*<<\s*(\d+);$`)
+var tsDefaultDaemonWebSocketPathRE = regexp.MustCompile(`(?m)^export const DEFAULT_DAEMON_WEBSOCKET_PATH = "([^"]+)";$`)
+var tsDefaultDaemonWebSocketURLRE = regexp.MustCompile(`(?m)^export const DEFAULT_DAEMON_WEBSOCKET_URL = "([^"]+)";$`)
 
 func TestTypeScriptProtocolParity(t *testing.T) {
 	source := loadSharedProtocolSource(t)
@@ -26,6 +30,14 @@ func TestTypeScriptProtocolParity(t *testing.T) {
 
 	if got, want := parseTSMaxWebSocketMessageBytes(t, source), MaxWebSocketMessageBytes; got != want {
 		t.Fatalf("max websocket message bytes drift: ts=%d go=%d", got, want)
+	}
+
+	if got, want := parseTSStringConst(t, source, tsDefaultDaemonWebSocketPathRE, "DEFAULT_DAEMON_WEBSOCKET_PATH"), DefaultDaemonWebSocketPath; got != want {
+		t.Fatalf("default daemon websocket path drift: ts=%q go=%q", got, want)
+	}
+
+	if got, want := parseTSStringConst(t, source, tsDefaultDaemonWebSocketURLRE, "DEFAULT_DAEMON_WEBSOCKET_URL"), fmt.Sprintf("ws://%s:%d%s", config.DefaultBindAddress, config.DefaultPort, DefaultDaemonWebSocketPath); got != want {
+		t.Fatalf("default daemon websocket url drift: ts=%q go=%q", got, want)
 	}
 
 	if got, want := parseTSStringArray(t, source, "envelopeTypes"), []string{
@@ -145,6 +157,17 @@ func parseTSMaxWebSocketMessageBytes(t *testing.T, source string) int {
 	}
 
 	return base << shift
+}
+
+func parseTSStringConst(t *testing.T, source string, re *regexp.Regexp, constName string) string {
+	t.Helper()
+
+	match := re.FindStringSubmatch(source)
+	if len(match) != 2 {
+		t.Fatalf("parse ts string const %q: declaration not found", constName)
+	}
+
+	return match[1]
 }
 
 func parseTSStringArray(t *testing.T, source, constName string) []string {

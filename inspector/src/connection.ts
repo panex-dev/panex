@@ -1,5 +1,6 @@
 import { decode, encode } from "@msgpack/msgpack";
 import {
+  DEFAULT_DAEMON_WEBSOCKET_URL,
   PROTOCOL_VERSION,
   buildDaemonURL,
   firstPartyRequestedCapabilities,
@@ -66,7 +67,7 @@ export function bridgeSessionSupportsCapability(
   return !!session?.capabilitiesSupported.includes(capability);
 }
 
-const defaultDaemonWSURL = "ws://127.0.0.1:4317/ws";
+const defaultDaemonWSURL = DEFAULT_DAEMON_WEBSOCKET_URL;
 const defaultDaemonToken = "";
 const closeMessageTooBig = 1009;
 const inspectorClientKind = "inspector";
