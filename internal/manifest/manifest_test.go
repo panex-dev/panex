@@ -177,6 +177,49 @@ func TestCompile_PermissionsFromCapabilities(t *testing.T) {
 	}
 }
 
+func TestCompile_HostPermissionsPerTarget(t *testing.T) {
+	g := &graph.Graph{
+		Project:         graph.ProjectIdentity{Name: "test"},
+		TargetsResolved: []string{"chrome", "firefox"},
+		Entries:         map[string]graph.Entry{"bg": {Path: "bg.js"}},
+	}
+	matrix := &capability.TargetMatrix{
+		HostPerms: []string{
+			"https://addons.mozilla.org/*",
+			"https://shared.example/*",
+		},
+		HostPermsByTarget: map[string][]string{
+			"chrome":  {"https://shared.example/*"},
+			"firefox": {"https://addons.mozilla.org/*"},
+		},
+	}
+
+	result := Compile(CompileInput{
+		Graph:    g,
+		Matrix:   matrix,
+		Adapters: map[string]target.Adapter{"chrome": target.NewChrome(), "firefox": target.NewChrome()},
+	})
+
+	if len(result.Errors) > 0 {
+		t.Fatalf("errors: %v", result.Errors)
+	}
+	if len(result.Outputs) != 2 {
+		t.Fatalf("expected 2 outputs, got %d", len(result.Outputs))
+	}
+
+	outputs := make(map[string]CompileOutput, len(result.Outputs))
+	for _, out := range result.Outputs {
+		outputs[out.Target] = out
+	}
+
+	if got := outputs["chrome"].HostPermissions; len(got) != 1 || got[0] != "https://shared.example/*" {
+		t.Fatalf("chrome host permissions: got %v", got)
+	}
+	if got := outputs["firefox"].HostPermissions; len(got) != 1 || got[0] != "https://addons.mozilla.org/*" {
+		t.Fatalf("firefox host permissions: got %v", got)
+	}
+}
+
 func TestCompile_ManifestHashStable(t *testing.T) {
 	g := &graph.Graph{
 		Project:         graph.ProjectIdentity{Name: "test"},

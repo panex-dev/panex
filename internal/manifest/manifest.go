@@ -157,10 +157,7 @@ func hostPermsFromMatrix(matrix *capability.TargetMatrix, tgt string) []string {
 	if matrix == nil {
 		return nil
 	}
-	// Host permissions come from the matrix-level list
-	// In a multi-target scenario, we'd filter per-target.
-	// For now, return all host perms (Phase 1: single target).
-	return matrix.HostPerms
+	return matrix.HostPermissionsForTarget(tgt)
 }
 
 func validatePermissionAuthority(manifestPerms, capabilityPerms []string) error {

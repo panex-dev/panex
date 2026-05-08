@@ -4,6 +4,8 @@
 package capability
 
 import (
+	"sort"
+
 	"github.com/panex-dev/panex/internal/target"
 )
 
@@ -18,26 +20,31 @@ type Resolution struct {
 
 // TargetMatrix is the full resolution matrix across all capabilities and targets.
 type TargetMatrix struct {
-	Resolutions []Resolution `json:"resolutions"`
-	Permissions []string     `json:"permissions"`
-	HostPerms   []string     `json:"host_permissions"`
-	Warnings    []string     `json:"warnings"`
-	Errors      []string     `json:"errors"`
+	Resolutions       []Resolution        `json:"resolutions"`
+	Permissions       []string            `json:"permissions"`
+	HostPerms         []string            `json:"host_permissions"`
+	HostPermsByTarget map[string][]string `json:"host_permissions_by_target,omitempty"`
+	Warnings          []string            `json:"warnings"`
+	Errors            []string            `json:"errors"`
 }
 
 // CompilerInput is everything the compiler needs.
 type CompilerInput struct {
-	Capabilities    map[string]any
-	Targets         []string
-	Adapters        map[string]target.Adapter
-	HostPermissions []string
+	Capabilities            map[string]any
+	Targets                 []string
+	Adapters                map[string]target.Adapter
+	HostPermissions         []string
+	HostPermissionsByTarget map[string][]string
 }
 
 // Compile runs the full capability compilation pipeline:
 // normalize → expand → intersect with catalogs → resolve → generate.
 func Compile(input CompilerInput) (*TargetMatrix, error) {
-	matrix := &TargetMatrix{}
+	matrix := &TargetMatrix{
+		HostPermsByTarget: make(map[string][]string),
+	}
 	permSet := make(map[string]bool)
+	hostPermSet := make(map[string]bool)
 
 	for _, tgt := range input.Targets {
 		adapter, ok := input.Adapters[tgt]
@@ -52,6 +59,14 @@ func Compile(input CompilerInput) (*TargetMatrix, error) {
 			matrix.Errors = append(matrix.Errors,
 				"capability resolution failed for "+tgt+": "+result.Reason)
 			continue
+		}
+
+		hostPerms := hostPermissionsForTargetInput(input, tgt)
+		if len(hostPerms) > 0 {
+			matrix.HostPermsByTarget[tgt] = hostPerms
+			for _, p := range hostPerms {
+				hostPermSet[p] = true
+			}
 		}
 
 		for capName, res := range resolved {
@@ -88,7 +103,14 @@ func Compile(input CompilerInput) (*TargetMatrix, error) {
 	for p := range permSet {
 		matrix.Permissions = append(matrix.Permissions, p)
 	}
-	matrix.HostPerms = input.HostPermissions
+	sort.Strings(matrix.Permissions)
+	for p := range hostPermSet {
+		matrix.HostPerms = append(matrix.HostPerms, p)
+	}
+	sort.Strings(matrix.HostPerms)
+	if len(matrix.HostPermsByTarget) == 0 {
+		matrix.HostPermsByTarget = nil
+	}
 
 	return matrix, nil
 }
@@ -131,5 +153,41 @@ func (m *TargetMatrix) ResolutionsForTarget(tgt string) []Resolution {
 			out = append(out, r)
 		}
 	}
+	return out
+}
+
+// HostPermissionsForTarget returns the host permission set for a specific target.
+func (m *TargetMatrix) HostPermissionsForTarget(tgt string) []string {
+	if m == nil {
+		return nil
+	}
+	if len(m.HostPermsByTarget) > 0 {
+		return append([]string(nil), m.HostPermsByTarget[tgt]...)
+	}
+	return append([]string(nil), m.HostPerms...)
+}
+
+func hostPermissionsForTargetInput(input CompilerInput, tgt string) []string {
+	hostPerms := input.HostPermissions
+	if perTarget, ok := input.HostPermissionsByTarget[tgt]; ok {
+		hostPerms = perTarget
+	}
+	return dedupeSortedStrings(hostPerms)
+}
+
+func dedupeSortedStrings(values []string) []string {
+	if len(values) == 0 {
+		return nil
+	}
+	seen := make(map[string]struct{}, len(values))
+	out := make([]string, 0, len(values))
+	for _, value := range values {
+		if _, ok := seen[value]; ok {
+			continue
+		}
+		seen[value] = struct{}{}
+		out = append(out, value)
+	}
+	sort.Strings(out)
 	return out
 }
