@@ -38,6 +38,46 @@ func TestFirstPartyClientKinds(t *testing.T) {
 	}
 }
 
+func TestFirstPartySourceRolesByClientKind(t *testing.T) {
+	want := map[ClientKind]SourceRole{
+		ClientKindDevAgent:  SourceDevAgent,
+		ClientKindInspector: SourceInspector,
+		ClientKindChromeSim: SourceChromeSim,
+	}
+
+	if !reflect.DeepEqual(FirstPartySourceRolesByClientKind, want) {
+		t.Fatalf("unexpected first-party source roles by client kind:\n  got=%v\n  want=%v", FirstPartySourceRolesByClientKind, want)
+	}
+}
+
+func TestSourceRoleForClientKind(t *testing.T) {
+	testCases := []struct {
+		name       string
+		clientKind string
+		want       SourceRole
+		wantOK     bool
+	}{
+		{name: "dev-agent", clientKind: string(ClientKindDevAgent), want: SourceDevAgent, wantOK: true},
+		{name: "inspector", clientKind: string(ClientKindInspector), want: SourceInspector, wantOK: true},
+		{name: "chrome-sim", clientKind: string(ClientKindChromeSim), want: SourceChromeSim, wantOK: true},
+		{name: "trimmed", clientKind: "  inspector  ", want: SourceInspector, wantOK: true},
+		{name: "unknown", clientKind: "unknown-client", want: "", wantOK: false},
+		{name: "blank", clientKind: " ", want: "", wantOK: false},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			got, ok := SourceRoleForClientKind(tc.clientKind)
+			if ok != tc.wantOK {
+				t.Fatalf("unexpected lookup status: got %v, want %v", ok, tc.wantOK)
+			}
+			if got != tc.want {
+				t.Fatalf("unexpected source role: got %q, want %q", got, tc.want)
+			}
+		})
+	}
+}
+
 func TestMessageTypeForName(t *testing.T) {
 	testCases := []struct {
 		name    MessageName

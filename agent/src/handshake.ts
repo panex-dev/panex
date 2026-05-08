@@ -1,5 +1,6 @@
 import {
   firstPartyRequestedCapabilities,
+  firstPartySourceRolesByClientKind,
   PROTOCOL_VERSION,
   isHelloAck,
   type Envelope,
@@ -11,8 +12,10 @@ import { handleReloadCommand } from "./reload";
 
 const closeProtocolError = 1002;
 const closePolicyViolation = 1008;
+const agentClientKind = "dev-agent";
+const agentSourceRole = firstPartySourceRolesByClientKind[agentClientKind];
 
-export const requestedCapabilities = firstPartyRequestedCapabilities["dev-agent"];
+export const requestedCapabilities = firstPartyRequestedCapabilities[agentClientKind];
 
 export interface AgentHandshakeState {
   complete: boolean;
@@ -46,11 +49,11 @@ export function buildHelloEnvelope(config: AgentConfig): Envelope<Hello> {
     v: PROTOCOL_VERSION,
     t: "lifecycle",
     name: "hello",
-    src: { role: "dev-agent", id: config.agentId },
+    src: { role: agentSourceRole, id: config.agentId },
     data: {
       protocol_version: PROTOCOL_VERSION,
       auth_token: config.token,
-      client_kind: "dev-agent",
+      client_kind: agentClientKind,
       client_version: "dev",
       extension_id: config.extensionId,
       capabilities_requested: [...requestedCapabilities]

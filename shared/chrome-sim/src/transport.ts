@@ -1,6 +1,7 @@
 import { decode, encode } from "@msgpack/msgpack";
 import {
   firstPartyRequestedCapabilities,
+  firstPartySourceRolesByClientKind,
   PROTOCOL_VERSION,
   isEnvelope,
   isHelloAck,
@@ -58,7 +59,9 @@ const defaultCallTimeoutMS = 5000;
 const defaultHandshakeTimeoutMS = 5000;
 const closeMessageTooBig = 1009;
 const callCapability = "chrome.api.call";
-const requestedCapabilities = firstPartyRequestedCapabilities["chrome-sim"];
+const chromeSimClientKind = "chrome-sim";
+const chromeSimSourceRole = firstPartySourceRolesByClientKind[chromeSimClientKind];
+const requestedCapabilities = firstPartyRequestedCapabilities[chromeSimClientKind];
 
 export function createChromeSimTransport(options: ChromeSimTransportOptions = {}): ChromeSimTransport {
   const resolvedDaemonBaseURL =
@@ -219,11 +222,11 @@ export function createChromeSimTransport(options: ChromeSimTransportOptions = {}
           v: PROTOCOL_VERSION,
           t: "lifecycle",
           name: "hello",
-          src: { role: "chrome-sim", id: clientID },
+          src: { role: chromeSimSourceRole, id: clientID },
           data: {
             protocol_version: PROTOCOL_VERSION,
             auth_token: authToken,
-            client_kind: "chrome-sim",
+            client_kind: chromeSimClientKind,
             client_version: "dev",
             extension_id: extensionID,
             capabilities_requested: [...requestedCapabilities]
@@ -356,7 +359,7 @@ export function createChromeSimTransport(options: ChromeSimTransportOptions = {}
         v: PROTOCOL_VERSION,
         t: "command",
         name: "chrome.api.call",
-        src: { role: "chrome-sim", id: clientID },
+        src: { role: chromeSimSourceRole, id: clientID },
         data: {
           call_id: callID,
           namespace: normalizedNamespace,

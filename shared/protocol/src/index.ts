@@ -43,6 +43,12 @@ export type NegotiableCapabilityName = (typeof negotiableCapabilityNames)[number
 export const firstPartyClientKinds = ["dev-agent", "inspector", "chrome-sim"] as const;
 export type FirstPartyClientKind = (typeof firstPartyClientKinds)[number];
 
+export const firstPartySourceRolesByClientKind = {
+  "dev-agent": "dev-agent",
+  inspector: "inspector",
+  "chrome-sim": "chrome-sim"
+} as const satisfies Readonly<Record<FirstPartyClientKind, Exclude<SourceRole, "daemon">>>;
+
 export const firstPartyRequestedCapabilities = {
   "dev-agent": ["command.reload"],
   inspector: [

@@ -48,6 +48,12 @@ func TestTypeScriptProtocolParity(t *testing.T) {
 		t.Fatalf("first-party client kind drift:\n  ts=%v\n  go=%v", got, want)
 	}
 
+	gotSourceRoles := parseTSStringMap(t, source, "firstPartySourceRolesByClientKind")
+	wantSourceRoles := sourceRolesByClientKindToStrings(FirstPartySourceRolesByClientKind)
+	if !maps.Equal(gotSourceRoles, wantSourceRoles) {
+		t.Fatalf("first-party source-role drift:\n  ts=%s\n  go=%s", formatMap(gotSourceRoles), formatMap(wantSourceRoles))
+	}
+
 	if got, want := parseTSStringArray(t, source, "envelopeNames"), []string{
 		string(MessageHello),
 		string(MessageHelloAck),
@@ -157,11 +163,20 @@ func clientKindsToStrings(kinds []ClientKind) []string {
 	return values
 }
 
+func sourceRolesByClientKindToStrings(sourceRoles map[ClientKind]SourceRole) map[string]string {
+	values := make(map[string]string, len(sourceRoles))
+	for clientKind, sourceRole := range sourceRoles {
+		values[string(clientKind)] = string(sourceRole)
+	}
+
+	return values
+}
+
 func parseTSStringMap(t *testing.T, source, constName string) map[string]string {
 	t.Helper()
 
 	mapRE := regexp.MustCompile(
-		fmt.Sprintf(`(?s)export const %s(?:\s*:[^=]+)?\s*=\s*\{(.*?)\};`, regexp.QuoteMeta(constName)),
+		fmt.Sprintf(`(?s)export const %s(?:\s*:[^=]+)?\s*=\s*\{(.*?)\}(?:\s*as const(?:\s+satisfies[^;]+)?)?;`, regexp.QuoteMeta(constName)),
 	)
 	match := mapRE.FindStringSubmatch(source)
 	if len(match) != 2 {

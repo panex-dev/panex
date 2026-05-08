@@ -1656,21 +1656,8 @@ func supportedCapabilitiesForClientKind(clientKind string) []string {
 	}
 }
 
-func expectedSourceRoleForClientKind(clientKind string) (protocol.SourceRole, bool) {
-	switch normalizeClientKind(clientKind) {
-	case string(protocol.ClientKindDevAgent):
-		return protocol.SourceDevAgent, true
-	case string(protocol.ClientKindChromeSim):
-		return protocol.SourceChromeSim, true
-	case string(protocol.ClientKindInspector):
-		return protocol.SourceInspector, true
-	default:
-		return "", false
-	}
-}
-
 func validateSourceRoleForClientKind(sourceRole protocol.SourceRole, clientKind string) error {
-	expectedSourceRole, ok := expectedSourceRoleForClientKind(clientKind)
+	expectedSourceRole, ok := protocol.SourceRoleForClientKind(clientKind)
 	if !ok {
 		return nil
 	}
