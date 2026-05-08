@@ -548,6 +548,7 @@ auth_token = "tok"
 		_, err := io.WriteString(stdout, "dev started\n")
 		return err
 	})
+	withStubbedGOOS(t, "linux")
 	withStubbedReadProcVersion(t, []byte("Linux version 5.15.133.1-microsoft-standard-WSL2"))
 
 	err := withWorkingDir(tempDir, func() error {
@@ -585,6 +586,7 @@ auth_token = "tok"
 		_, err := io.WriteString(stdout, "dev started\n")
 		return err
 	})
+	withStubbedGOOS(t, "linux")
 	withStubbedReadProcVersion(t, []byte("Linux version 5.15.133.1-microsoft-standard-WSL2"))
 
 	err := withWorkingDir(tempDir, func() error {

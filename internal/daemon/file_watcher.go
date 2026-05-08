@@ -196,7 +196,7 @@ func (w *FileWatcher) Run(ctx context.Context) error {
 			}
 
 			relPath, err := w.normalizePath(event.Name)
-			if err == nil {
+			if err == nil && !isInfrastructurePath(relPath) {
 				pending[relPath] = struct{}{}
 			}
 
@@ -314,6 +314,14 @@ func (w *FileWatcher) normalizePath(path string) (string, error) {
 	}
 
 	return clean, nil
+}
+
+// isInfrastructurePath returns true when a normalized relative path falls
+// inside an infrastructure directory. On Windows, the root-level watcher can
+// report events for unwatched subdirectories when their contents change.
+func isInfrastructurePath(relPath string) bool {
+	top, _, _ := strings.Cut(relPath, "/")
+	return isInfrastructureDir(top)
 }
 
 func isRelevantFileEvent(op fsnotify.Op) bool {
