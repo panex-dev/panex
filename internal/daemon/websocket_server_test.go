@@ -88,7 +88,7 @@ func TestWebSocketHandshakeSendsHelloAckAndTracksConnection(t *testing.T) {
 		_ = conn.Close()
 	})
 
-	helloAckEnv := mustHandshake(t, conn)
+	helloAckEnv := mustHandshakeAsDevAgent(t, conn)
 	if helloAckEnv.Name != protocol.MessageHelloAck {
 		t.Fatalf("unexpected message name: got %q, want %q", helloAckEnv.Name, protocol.MessageHelloAck)
 	}
@@ -118,8 +118,11 @@ func TestWebSocketHandshakeSendsHelloAckAndTracksConnection(t *testing.T) {
 	if helloAck.DaemonVersion != "test-version" {
 		t.Fatalf("unexpected daemon version: got %q, want %q", helloAck.DaemonVersion, "test-version")
 	}
-	if len(helloAck.CapabilitiesSupported) != len(daemonCapabilities) {
-		t.Fatalf("unexpected supported capabilities count: got %d, want %d (%v)", len(helloAck.CapabilitiesSupported), len(daemonCapabilities), helloAck.CapabilitiesSupported)
+	if len(helloAck.CapabilitiesSupported) != len(devAgentCapabilities) {
+		t.Fatalf("unexpected supported capabilities count: got %d, want %d (%v)", len(helloAck.CapabilitiesSupported), len(devAgentCapabilities), helloAck.CapabilitiesSupported)
+	}
+	if helloAck.CapabilitiesSupported[0] != "command.reload" {
+		t.Fatalf("unexpected supported capabilities: %v", helloAck.CapabilitiesSupported)
 	}
 
 	waitForConnectionCount(t, server.ws, 1)
@@ -174,6 +177,92 @@ func TestWebSocketHandshakeNegotiatesCapabilities(t *testing.T) {
 	}
 	if payload.ExtensionID != "" {
 		t.Fatalf("unexpected extension id for inspector handshake: got %q, want empty", payload.ExtensionID)
+	}
+}
+
+func TestWebSocketHandshakeScopesDevAgentCapabilitiesByClientKind(t *testing.T) {
+	server := newTestServer(t)
+	defer server.httpServer.Close()
+
+	conn := dialAuthorizedConnection(t, server.wsURL, server.token)
+	t.Cleanup(func() {
+		_ = conn.Close()
+	})
+
+	helloAck := mustHandshakeWithClient(t, conn, server.token, "dev-agent", "popup", []string{
+		"query.events",
+		"command.reload",
+		"storage.set",
+	})
+
+	var payload protocol.HelloAck
+	if err := protocol.DecodePayload(helloAck.Data, &payload); err != nil {
+		t.Fatalf("DecodePayload(hello.ack) returned error: %v", err)
+	}
+	if len(payload.CapabilitiesSupported) != 1 || payload.CapabilitiesSupported[0] != "command.reload" {
+		t.Fatalf("unexpected supported capabilities: %v", payload.CapabilitiesSupported)
+	}
+}
+
+func TestWebSocketHandshakeScopesChromeSimCapabilitiesByClientKind(t *testing.T) {
+	server := newTestServer(t)
+	defer server.httpServer.Close()
+
+	conn := dialAuthorizedConnection(t, server.wsURL, server.token)
+	t.Cleanup(func() {
+		_ = conn.Close()
+	})
+
+	helloAck := mustHandshakeWithClient(t, conn, server.token, "chrome-sim", "popup", []string{
+		"chrome.api.call",
+		"storage.set",
+		"chrome.api.result",
+		"chrome.api.event",
+		"storage.diff",
+		"query.events",
+	})
+
+	var payload protocol.HelloAck
+	if err := protocol.DecodePayload(helloAck.Data, &payload); err != nil {
+		t.Fatalf("DecodePayload(hello.ack) returned error: %v", err)
+	}
+	want := []string{"chrome.api.call", "chrome.api.event", "storage.diff"}
+	if len(payload.CapabilitiesSupported) != len(want) {
+		t.Fatalf("unexpected supported capabilities count: got %d, want %d (%v)", len(payload.CapabilitiesSupported), len(want), payload.CapabilitiesSupported)
+	}
+	for index, capability := range want {
+		if payload.CapabilitiesSupported[index] != capability {
+			t.Fatalf("unexpected supported capabilities: got %v, want %v", payload.CapabilitiesSupported, want)
+		}
+	}
+	if payload.ExtensionID != "popup" {
+		t.Fatalf("unexpected extension id for chrome-sim handshake: got %q, want %q", payload.ExtensionID, "popup")
+	}
+}
+
+func TestWebSocketHandshakeUnknownClientKindFallsBackToGlobalCapabilities(t *testing.T) {
+	server := newTestServer(t)
+	defer server.httpServer.Close()
+
+	conn := dialAuthorizedConnection(t, server.wsURL, server.token)
+	t.Cleanup(func() {
+		_ = conn.Close()
+	})
+
+	helloAck := mustHandshakeWithClient(t, conn, server.token, "", "", []string{"query.events", "storage.set"})
+
+	var payload protocol.HelloAck
+	if err := protocol.DecodePayload(helloAck.Data, &payload); err != nil {
+		t.Fatalf("DecodePayload(hello.ack) returned error: %v", err)
+	}
+	want := []string{"query.events", "storage.set"}
+	if len(payload.CapabilitiesSupported) != len(want) {
+		t.Fatalf("unexpected supported capabilities count: got %d, want %d (%v)", len(payload.CapabilitiesSupported), len(want), payload.CapabilitiesSupported)
+	}
+	for index, capability := range want {
+		if payload.CapabilitiesSupported[index] != capability {
+			t.Fatalf("unexpected supported capabilities: got %v, want %v", payload.CapabilitiesSupported, want)
+		}
 	}
 }
 
@@ -1922,6 +2011,21 @@ func TestWebSocketCapabilityListsSeparateBroadcastAndHandler(t *testing.T) {
 		t.Fatal("query.events must be a handler capability")
 	}
 
+	// Verify first-party role scopes stay narrower than the full daemon catalog where intended.
+	if len(devAgentCapabilities) != 1 || devAgentCapabilities[0] != "command.reload" {
+		t.Fatalf("unexpected dev-agent capabilities: %v", devAgentCapabilities)
+	}
+	if len(chromeSimCapabilities) != 3 {
+		t.Fatalf("unexpected chrome-sim capability count: got %d, want 3 (%v)", len(chromeSimCapabilities), chromeSimCapabilities)
+	}
+	if len(supportedCapabilitiesForClientKind("inspector")) != len(daemonCapabilities) {
+		t.Fatalf(
+			"unexpected inspector capabilities count: got %d, want %d",
+			len(supportedCapabilitiesForClientKind("inspector")),
+			len(daemonCapabilities),
+		)
+	}
+
 	// Verify combined list equals handler + broadcast.
 	if len(daemonCapabilities) != len(daemonHandlerCapabilities)+len(daemonBroadcastCapabilities) {
 		t.Fatalf(
@@ -2064,11 +2168,15 @@ func singleSessionID(t *testing.T, server *WebSocketServer) string {
 }
 
 func mustHandshake(t *testing.T, conn *websocket.Conn) protocol.Envelope {
+	return mustHandshakeWithClient(t, conn, defaultHandshakeToken, "inspector", "", daemonCapabilities)
+}
+
+func mustHandshakeAsDevAgent(t *testing.T, conn *websocket.Conn) protocol.Envelope {
 	return mustHandshakeWithClient(t, conn, defaultHandshakeToken, "dev-agent", "", daemonCapabilities)
 }
 
 func mustHandshakeWithCapabilities(t *testing.T, conn *websocket.Conn, token string, capabilities []string) protocol.Envelope {
-	return mustHandshakeWithClient(t, conn, token, "dev-agent", "", capabilities)
+	return mustHandshakeWithClient(t, conn, token, "inspector", "", capabilities)
 }
 
 func mustHandshakeWithClient(

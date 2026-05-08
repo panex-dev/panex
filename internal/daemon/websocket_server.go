@@ -39,6 +39,12 @@ var daemonBroadcastCapabilities = []string{
 }
 
 var daemonCapabilities = append(append([]string(nil), daemonHandlerCapabilities...), daemonBroadcastCapabilities...)
+var devAgentCapabilities = []string{
+	"command.reload",
+}
+var chromeSimCapabilities = []string{
+	"chrome.api.call", "storage.diff", "chrome.api.event",
+}
 
 var handlerCapabilitySet = func() map[string]struct{} {
 	m := make(map[string]struct{}, len(daemonHandlerCapabilities))
@@ -365,7 +371,10 @@ func (s *WebSocketServer) handshake(ctx context.Context, conn *websocket.Conn) (
 		// Support older clients that sent `capabilities` before `capabilities_requested`.
 		requestedCapabilities = hello.Capabilities
 	}
-	supportedCapabilities := negotiateCapabilities(requestedCapabilities, daemonCapabilities)
+	supportedCapabilities := negotiateCapabilities(
+		requestedCapabilities,
+		supportedCapabilitiesForClientKind(hello.ClientKind),
+	)
 
 	sessionID := s.nextSessionID()
 	helloAck, err := s.writeHelloAck(conn, protocol.HelloAck{
@@ -1606,6 +1615,20 @@ func negotiateCapabilities(requested, supported []string) []string {
 	}
 
 	return accepted
+}
+
+func supportedCapabilitiesForClientKind(clientKind string) []string {
+	switch normalizeClientKind(clientKind) {
+	case "dev-agent":
+		return devAgentCapabilities
+	case "chrome-sim":
+		return chromeSimCapabilities
+	case "inspector":
+		return daemonCapabilities
+	default:
+		// Preserve older clients that predated explicit role scoping.
+		return daemonCapabilities
+	}
 }
 
 // isLocalOrigin validates that WebSocket upgrade requests originate from localhost.
