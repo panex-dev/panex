@@ -19,7 +19,7 @@ import (
 //
 //  1. Start daemon with event store
 //  2. Agent connects, sends hello, receives hello.ack with capabilities
-//  3. Daemon broadcasts build.complete + command.reload to agent
+//  3. Daemon broadcasts build.complete + command.reload to the negotiated clients
 //  4. Inspector connects, sends hello, receives hello.ack
 //  5. Inspector queries events, receives timeline with persisted messages
 //  6. Daemon mutates storage, inspector receives storage.diff
@@ -92,11 +92,7 @@ func TestIntegrationDaemonLifecycle(t *testing.T) {
 		t.Fatalf("Broadcast(command.reload) returned error: %v", err)
 	}
 
-	// Agent should receive both broadcasts.
-	buildEnv := readEnvelope(t, agentConn)
-	if buildEnv.Name != protocol.MessageBuildComplete {
-		t.Fatalf("agent: expected build.complete, got %q", buildEnv.Name)
-	}
+	// Agent only negotiated command.reload, so build.complete stays out-of-band.
 	reloadEnv := readEnvelope(t, agentConn)
 	if reloadEnv.Name != protocol.MessageCommandReload {
 		t.Fatalf("agent: expected command.reload, got %q", reloadEnv.Name)
@@ -174,11 +170,8 @@ func TestIntegrationDaemonLifecycle(t *testing.T) {
 		t.Fatalf("SetStorageItem returned error: %v", err)
 	}
 
-	// Both agent and inspector should receive the storage.diff broadcast.
-	agentDiff := readEnvelope(t, agentConn)
-	if agentDiff.Name != protocol.MessageStorageDiff {
-		t.Fatalf("agent: expected storage.diff, got %q", agentDiff.Name)
-	}
+	// Only the inspector negotiated storage.diff.
+	assertNoEnvelope(t, agentConn)
 	inspectorDiff := readEnvelope(t, inspectorConn)
 	if inspectorDiff.Name != protocol.MessageStorageDiff {
 		t.Fatalf("inspector: expected storage.diff, got %q", inspectorDiff.Name)
@@ -415,7 +408,7 @@ func TestIntegrationTargetedReloadRoutesByExtensionID(t *testing.T) {
 		AuthToken:             token,
 		ClientKind:            "inspector",
 		ClientVersion:         "test",
-		CapabilitiesRequested: []string{"query.events"},
+		CapabilitiesRequested: []string{"query.events", "build.complete", "command.reload"},
 	})
 	waitForConnectionCount(t, ws, 3)
 
@@ -444,9 +437,6 @@ func TestIntegrationTargetedReloadRoutesByExtensionID(t *testing.T) {
 		t.Fatalf("Broadcast(command.reload) returned error: %v", err)
 	}
 
-	if env := readEnvelope(t, popupAgent); env.Name != protocol.MessageBuildComplete {
-		t.Fatalf("popup agent: expected build.complete, got %q", env.Name)
-	}
 	if env := readEnvelope(t, popupAgent); env.Name != protocol.MessageCommandReload {
 		t.Fatalf("popup agent: expected command.reload, got %q", env.Name)
 	}
