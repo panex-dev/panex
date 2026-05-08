@@ -118,6 +118,30 @@ describe("chrome-sim transport", () => {
     transport.close();
   });
 
+  it("rejects calls when hello.ack does not negotiate chrome.api.call", async () => {
+    const sockets: FakeSocket[] = [];
+    const transport = createChromeSimTransport({
+      daemonURL: "ws://127.0.0.1:4317/ws",
+      webSocketFactory: (url) => {
+        const socket = new FakeSocket(url);
+        sockets.push(socket);
+        return socket;
+      }
+    });
+
+    const pending = transport.call("storage.local", "get");
+    sockets[0].open();
+    sockets[0].messageEnvelope(
+      buildHelloAckEnvelope("sess-no-call", {
+        capabilities_supported: ["chrome.api.result", "chrome.api.event", "storage.diff"]
+      })
+    );
+
+    await assert.rejects(async () => pending, /did not negotiate chrome\.api\.call/);
+    assert.equal(sockets[0].sent.length, 1);
+    transport.close();
+  });
+
   it("reconnects after socket close and can process subsequent calls", async () => {
     const sockets: FakeSocket[] = [];
     let seq = 0;
@@ -361,7 +385,16 @@ function decodeEnvelope(raw: Uint8Array): Envelope {
   return value;
 }
 
-function buildHelloAckEnvelope(sessionID: string): Envelope {
+function buildHelloAckEnvelope(
+  sessionID: string,
+  overrides: Partial<{
+    protocol_version: number;
+    daemon_version: string;
+    session_id: string;
+    auth_ok: boolean;
+    capabilities_supported: string[];
+  }> = {}
+): Envelope {
   return {
     v: PROTOCOL_VERSION,
     t: "lifecycle",
@@ -372,7 +405,8 @@ function buildHelloAckEnvelope(sessionID: string): Envelope {
       daemon_version: "test",
       session_id: sessionID,
       auth_ok: true,
-      capabilities_supported: ["chrome.api.call", "chrome.api.result", "chrome.api.event"]
+      capabilities_supported: ["chrome.api.call", "chrome.api.result", "chrome.api.event"],
+      ...overrides
     }
   };
 }

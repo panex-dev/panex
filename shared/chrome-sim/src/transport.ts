@@ -56,6 +56,7 @@ const socketOpenState = 1;
 const defaultCallTimeoutMS = 5000;
 const defaultHandshakeTimeoutMS = 5000;
 const closeMessageTooBig = 1009;
+const callCapability = "chrome.api.call";
 
 export function createChromeSimTransport(options: ChromeSimTransportOptions = {}): ChromeSimTransport {
   const resolvedDaemonBaseURL =
@@ -77,6 +78,7 @@ export function createChromeSimTransport(options: ChromeSimTransportOptions = {}
   let socket: TransportSocket | null = null;
   let connectPromise: Promise<void> | null = null;
   let reconnectTimer: ReturnType<typeof setTimeout> | undefined;
+  let capabilitiesSupported = new Set<string>();
   const pendingCalls = new Map<string, PendingCall>();
   const eventHandlers = new Set<(event: Envelope<ChromeAPIEvent>) => void>();
   const storageDiffHandlers = new Set<(event: Envelope<StorageDiff>) => void>();
@@ -263,6 +265,13 @@ export function createChromeSimTransport(options: ChromeSimTransportOptions = {}
             return;
           }
 
+          capabilitiesSupported = new Set(
+            Array.isArray(decoded.data.capabilities_supported)
+              ? decoded.data.capabilities_supported.filter(
+                  (value): value is string => typeof value === "string"
+                )
+              : []
+          );
           reconnectAttempt = 0;
           setState("open");
           resolveOnce();
@@ -282,6 +291,7 @@ export function createChromeSimTransport(options: ChromeSimTransportOptions = {}
         if (socket === nextSocket) {
           socket = null;
         }
+        capabilitiesSupported.clear();
 
         if (!settled) {
           rejectOnce(new Error("chrome-sim websocket closed before hello.ack"));
@@ -334,6 +344,9 @@ export function createChromeSimTransport(options: ChromeSimTransportOptions = {}
       await ensureConnected();
       if (!socket || socket.readyState !== socketOpenState) {
         throw new Error("chrome-sim transport is not connected");
+      }
+      if (!capabilitiesSupported.has(callCapability)) {
+        throw new Error(`daemon did not negotiate ${callCapability}`);
       }
 
       const callID = options.callIDFactory?.() ?? `call-${++callSeq}`;
