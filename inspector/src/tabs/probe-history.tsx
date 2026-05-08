@@ -1,13 +1,14 @@
 import h from "solid-js/h";
 import { createMemo, createSignal, type Accessor, type JSX } from "solid-js";
 
-import type { ConnectionStatus } from "../connection";
+import type { BridgeSession, ConnectionStatus } from "../connection";
 import { summarizeReplayHistory } from "../replay";
 import { replayFamilies } from "../replay-contract";
 import { formatTime, type TimelineEntry } from "../timeline";
 
 interface ReplayTabProps {
   status: Accessor<ConnectionStatus>;
+  bridgeSession: Accessor<BridgeSession | null>;
   socketURL: Accessor<string>;
   lastError: Accessor<string | null>;
   timeline: Accessor<TimelineEntry[]>;
@@ -18,6 +19,9 @@ export function ProbeHistoryTab(props: ReplayTabProps): JSX.Element {
   const [feedback, setFeedback] = createSignal<string | null>(null);
   const entries = createMemo(() => summarizeReplayHistory(props.timeline()));
   const replayFamily = replayFamilies[0];
+  const canReplayRuntime = createMemo(() =>
+    props.bridgeSession()?.capabilitiesSupported.includes("chrome.api.call") ?? false
+  );
 
   return (
     <section class="panel replay-panel">
@@ -47,6 +51,11 @@ export function ProbeHistoryTab(props: ReplayTabProps): JSX.Element {
             {feedback()}
           </p>
         ) : null}
+        {props.bridgeSession() && !canReplayRuntime() ? (
+          <p class="subtle" role="status" aria-live="polite">
+            Runtime replay requires negotiated <code>chrome.api.call</code>.
+          </p>
+        ) : null}
       </div>
 
       <div class="placeholder-body">
@@ -74,7 +83,7 @@ export function ProbeHistoryTab(props: ReplayTabProps): JSX.Element {
                   <button
                     class="filter-reset"
                     type="button"
-                    disabled={props.status() !== "open"}
+                    disabled={props.status() !== "open" || !canReplayRuntime()}
                     onClick={() => {
                       const sent = props.sendRuntimeMessage(entry.payload);
                       setFeedback(

@@ -122,6 +122,7 @@ As of 2026-05-08.
 | — | Phase 2 manifest compiler: target-scoped host permissions | `docs/build-log/2026-05-08-phase2-target-scoped-host-permissions.md` |
 | — | Phase 2 runtime: collect extension ID in dev session identity metadata | `docs/build-log/2026-05-08-phase2-runtime-identity-collection.md` |
 | — | Phase 2 Dev Bridge daemon: surface handshake runtime metadata in hello.ack and Workbench | `docs/build-log/2026-05-08-phase2-dev-bridge-handshake-runtime-metadata.md` |
+| — | Phase 2 Dev Bridge daemon: guard inspector follow-ups and tools by negotiated capabilities | `docs/build-log/2026-05-08-phase2-dev-bridge-capability-aware-inspector.md` |
 
 ## In progress
 - None.

@@ -1,6 +1,7 @@
 import h from "solid-js/h";
 import { createEffect, createMemo, createSignal, type Accessor, type JSX } from "solid-js";
 
+import type { BridgeSession } from "../connection";
 import {
   defaultTimelineFilter,
   defaultTimelineLimit,
@@ -14,6 +15,7 @@ import {
 } from "../timeline";
 
 interface TimelineTabProps {
+  bridgeSession: Accessor<BridgeSession | null>;
   timeline: Accessor<TimelineEntry[]>;
   canLoadOlderTimeline: Accessor<boolean>;
   loadingOlderTimeline: Accessor<boolean>;
@@ -48,6 +50,9 @@ export function TimelineTab(props: TimelineTabProps): JSX.Element {
   );
   const hiddenOlderCount = createMemo(() =>
     hiddenOlderTimelineCount(filteredTimeline(), visibleCount())
+  );
+  const canQueryTimeline = createMemo(() =>
+    props.bridgeSession()?.capabilitiesSupported.includes("query.events") ?? false
   );
 
   createEffect(() => {
@@ -200,6 +205,12 @@ export function TimelineTab(props: TimelineTabProps): JSX.Element {
       <p id="timeline-filter-hint" class="filter-hint">
         operators: <code>name:</code> <code>src:</code> <code>type:</code> (combine with free text)
       </p>
+      {props.bridgeSession() && !canQueryTimeline() ? (
+        <p class="subtle" role="status" aria-live="polite">
+          Persisted timeline queries were not negotiated for this session. Live bridge events can
+          still appear here when the daemon broadcasts them.
+        </p>
+      ) : null}
 
       <div
         class="timeline"

@@ -2,7 +2,7 @@ import h from "solid-js/h";
 import { createEffect, createMemo, createSignal, type Accessor, type JSX } from "solid-js";
 
 import type { QueryStorage, StorageSnapshot } from "@panex/protocol";
-import type { ConnectionStatus } from "../connection";
+import type { BridgeSession, ConnectionStatus } from "../connection";
 import {
   flattenStorageSnapshots,
   isStorageAreaFilter,
@@ -12,6 +12,7 @@ import {
 
 interface StorageTabProps {
   status: Accessor<ConnectionStatus>;
+  bridgeSession: Accessor<BridgeSession | null>;
   storage: Accessor<StorageSnapshot[]>;
   storageHighlights: Accessor<Set<string>>;
   refreshStorage: (area?: QueryStorage["area"]) => boolean;
@@ -33,9 +34,21 @@ export function StorageTab(props: StorageTabProps): JSX.Element {
 
   const rows = createMemo(() => flattenStorageSnapshots(props.storage(), area()));
   const selectedAreaLabel = createMemo(() => (area() === "all" ? "all areas" : area()));
+  const canQueryStorage = createMemo(() =>
+    props.bridgeSession()?.capabilitiesSupported.includes("query.storage") ?? false
+  );
+  const canSetStorage = createMemo(() =>
+    props.bridgeSession()?.capabilitiesSupported.includes("storage.set") ?? false
+  );
+  const canRemoveStorage = createMemo(() =>
+    props.bridgeSession()?.capabilitiesSupported.includes("storage.remove") ?? false
+  );
+  const canClearStorage = createMemo(() =>
+    props.bridgeSession()?.capabilitiesSupported.includes("storage.clear") ?? false
+  );
 
   createEffect(() => {
-    if (props.status() !== "open") {
+    if (props.status() !== "open" || !canQueryStorage()) {
       return;
     }
 
@@ -72,6 +85,7 @@ export function StorageTab(props: StorageTabProps): JSX.Element {
         <button
           class="filter-reset"
           type="button"
+          disabled={props.status() !== "open" || !canQueryStorage()}
           onClick={() => {
             const selectedArea = area();
             const sent = props.refreshStorage(selectedArea === "all" ? undefined : selectedArea);
@@ -128,6 +142,7 @@ export function StorageTab(props: StorageTabProps): JSX.Element {
           <button
             class="filter-reset"
             type="button"
+            disabled={props.status() !== "open" || !canSetStorage()}
             onClick={() => {
               const key = mutationKey().trim();
               if (key.length === 0) {
@@ -153,6 +168,7 @@ export function StorageTab(props: StorageTabProps): JSX.Element {
           <button
             class="filter-reset"
             type="button"
+            disabled={props.status() !== "open" || !canRemoveStorage()}
             onClick={() => {
               const key = mutationKey().trim();
               if (key.length === 0) {
@@ -174,6 +190,7 @@ export function StorageTab(props: StorageTabProps): JSX.Element {
           <button
             class="filter-reset"
             type="button"
+            disabled={props.status() !== "open" || !canClearStorage()}
             onClick={() => {
               const sent = props.clearStorageArea(mutationArea());
               setMutationError(
@@ -196,6 +213,14 @@ export function StorageTab(props: StorageTabProps): JSX.Element {
 
         {props.status() === "open" ? (
           <div aria-live="polite" aria-atomic="true">
+            {props.bridgeSession() && !canQueryStorage() ? (
+              <p class="subtle">Storage snapshots were not negotiated for this session.</p>
+            ) : null}
+            {props.bridgeSession() && (!canSetStorage() || !canRemoveStorage() || !canClearStorage()) ? (
+              <p class="subtle">
+                Storage mutations only enable commands negotiated during hello.ack.
+              </p>
+            ) : null}
             {requestError() ? <p class="error">{requestError()}</p> : null}
             {mutationError() ? <p class="error">{mutationError()}</p> : null}
           </div>
