@@ -2347,14 +2347,11 @@ func mustHandshakeWithSourceAndClient(
 }
 
 func defaultSourceRoleForClientKind(clientKind string) protocol.SourceRole {
-	switch normalizeClientKind(clientKind) {
-	case string(protocol.ClientKindInspector):
-		return protocol.SourceInspector
-	case string(protocol.ClientKindChromeSim):
-		return protocol.SourceChromeSim
-	default:
-		return protocol.SourceDevAgent
+	if role, ok := protocol.SourceRoleForClientKind(clientKind); ok {
+		return role
 	}
+
+	return protocol.SourceDevAgent
 }
 
 func mustReadEnvelope(t *testing.T, conn *websocket.Conn) protocol.Envelope {

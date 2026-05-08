@@ -131,6 +131,7 @@ As of 2026-05-09.
 | — | Phase 2 Dev Bridge daemon: centralize first-party requested capabilities in the shared protocol contract | `docs/build-log/2026-05-08-phase2-dev-bridge-client-capability-constants.md` |
 | — | Phase 2 Dev Bridge daemon: add Go↔TypeScript parity coverage for first-party capability scopes | `docs/build-log/2026-05-09-phase2-dev-bridge-client-capability-parity.md` |
 | — | Phase 2 Dev Bridge daemon: centralize Go protocol client kinds and negotiable capability names | `docs/build-log/2026-05-09-phase2-dev-bridge-go-protocol-client-kind-constants.md` |
+| — | Phase 2 Dev Bridge daemon: centralize first-party client kind to source role mapping in protocol contracts | `docs/build-log/2026-05-09-phase2-dev-bridge-first-party-source-role-map.md` |
 
 ## In progress
 - None.

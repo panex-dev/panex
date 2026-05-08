@@ -72,6 +72,18 @@ var FirstPartyClientKinds = []ClientKind{
 	ClientKindChromeSim,
 }
 
+var FirstPartySourceRolesByClientKind = map[ClientKind]SourceRole{
+	ClientKindDevAgent:  SourceDevAgent,
+	ClientKindInspector: SourceInspector,
+	ClientKindChromeSim: SourceChromeSim,
+}
+
+func SourceRoleForClientKind(clientKind string) (SourceRole, bool) {
+	role, ok := FirstPartySourceRolesByClientKind[ClientKind(strings.TrimSpace(clientKind))]
+
+	return role, ok
+}
+
 type Source struct {
 	Role SourceRole `msgpack:"role"`
 	ID   string     `msgpack:"id"`

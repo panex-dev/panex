@@ -3,6 +3,7 @@ import {
   PROTOCOL_VERSION,
   buildDaemonURL,
   firstPartyRequestedCapabilities,
+  firstPartySourceRolesByClientKind,
   isEnvelope,
   isHelloAck,
   isQueryEventsResult,
@@ -68,7 +69,9 @@ export function bridgeSessionSupportsCapability(
 const defaultDaemonWSURL = "ws://127.0.0.1:4317/ws";
 const defaultDaemonToken = "";
 const closeMessageTooBig = 1009;
-export const inspectorRequestedCapabilities = firstPartyRequestedCapabilities.inspector;
+const inspectorClientKind = "inspector";
+const inspectorSourceRole = firstPartySourceRolesByClientKind[inspectorClientKind];
+export const inspectorRequestedCapabilities = firstPartyRequestedCapabilities[inspectorClientKind];
 
 interface ConnectionContextValue {
   status: Accessor<ConnectionStatus>;
@@ -284,11 +287,11 @@ export function ConnectionProvider(props: ParentProps) {
         v: PROTOCOL_VERSION,
         t: "lifecycle",
         name: "hello",
-        src: { role: "inspector", id: inspectorID },
+        src: { role: inspectorSourceRole, id: inspectorID },
         data: {
           protocol_version: PROTOCOL_VERSION,
           auth_token: token,
-          client_kind: "inspector",
+          client_kind: inspectorClientKind,
           client_version: "dev",
           capabilities_requested: [...inspectorRequestedCapabilities]
         }
@@ -587,7 +590,7 @@ export function buildTimelineQuery(limit = defaultTimelineLimit, beforeID?: numb
     v: PROTOCOL_VERSION,
     t: "command",
     name: "query.events",
-    src: { role: "inspector", id: inspectorID },
+    src: { role: inspectorSourceRole, id: inspectorID },
     data: typeof beforeID === "number" ? { limit, before_id: beforeID } : { limit }
   };
 }
@@ -631,7 +634,7 @@ function buildStorageQuery(area?: QueryStorage["area"]): Envelope<QueryStorage> 
     v: PROTOCOL_VERSION,
     t: "command",
     name: "query.storage",
-    src: { role: "inspector", id: inspectorID },
+    src: { role: inspectorSourceRole, id: inspectorID },
     data: typeof normalizedArea === "string" ? { area: normalizedArea } : {}
   };
 }
@@ -647,7 +650,7 @@ function buildStorageSet(area: string, key: string, value: unknown): Envelope<St
     v: PROTOCOL_VERSION,
     t: "command",
     name: "storage.set",
-    src: { role: "inspector", id: inspectorID },
+    src: { role: inspectorSourceRole, id: inspectorID },
     data: {
       area: normalizedArea,
       key: normalizedKey,
@@ -667,7 +670,7 @@ function buildStorageRemove(area: string, key: string): Envelope<StorageRemove> 
     v: PROTOCOL_VERSION,
     t: "command",
     name: "storage.remove",
-    src: { role: "inspector", id: inspectorID },
+    src: { role: inspectorSourceRole, id: inspectorID },
     data: {
       area: normalizedArea,
       key: normalizedKey
@@ -685,7 +688,7 @@ function buildStorageClear(area: string): Envelope<StorageClear> | null {
     v: PROTOCOL_VERSION,
     t: "command",
     name: "storage.clear",
-    src: { role: "inspector", id: inspectorID },
+    src: { role: inspectorSourceRole, id: inspectorID },
     data: {
       area: normalizedArea
     }
@@ -700,7 +703,7 @@ function buildChromeRuntimeSendMessage(
     v: PROTOCOL_VERSION,
     t: "command",
     name: "chrome.api.call",
-    src: { role: "inspector", id: inspectorID },
+    src: { role: inspectorSourceRole, id: inspectorID },
     data: {
       call_id: `runtime-send-${seq}`,
       namespace: "runtime",

@@ -4,6 +4,7 @@ import { describe, it } from "node:test";
 import {
   envelopeNames,
   firstPartyRequestedCapabilities,
+  firstPartySourceRolesByClientKind,
   isEnvelope,
   isHelloAck,
   isQueryEventsResult,
@@ -127,5 +128,13 @@ describe("capability contracts", () => {
       "chrome.api.call",
       "chrome.api.event"
     ]);
+  });
+
+  it("publishes the first-party source-role contract", () => {
+    assert.deepEqual(firstPartySourceRolesByClientKind, {
+      "dev-agent": "dev-agent",
+      inspector: "inspector",
+      "chrome-sim": "chrome-sim"
+    });
   });
 });
