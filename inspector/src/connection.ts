@@ -77,7 +77,6 @@ export const inspectorRequestedCapabilities = [
   "storage.remove",
   "storage.clear",
   "chrome.api.call",
-  "chrome.api.result",
   "chrome.api.event"
 ] as const;
 

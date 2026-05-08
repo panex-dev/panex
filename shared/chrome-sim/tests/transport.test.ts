@@ -53,6 +53,11 @@ describe("chrome-sim transport", () => {
     assert.equal(hello.src.role, "chrome-sim");
     assert.equal(helloData.auth_token, "dev-token");
     assert.equal(helloData.extension_id, "panex.simulated.extension");
+    assert.deepEqual((hello.data as { capabilities_requested?: string[] }).capabilities_requested, [
+      "chrome.api.call",
+      "chrome.api.event",
+      "storage.diff"
+    ]);
 
     socket.messageEnvelope(buildHelloAckEnvelope("sess-1"));
     await waitFor(() => socket.sent.length >= 2);
@@ -135,7 +140,7 @@ describe("chrome-sim transport", () => {
     sockets[0].open();
     sockets[0].messageEnvelope(
       buildHelloAckEnvelope("sess-no-call", {
-        capabilities_supported: ["chrome.api.result", "chrome.api.event", "storage.diff"]
+        capabilities_supported: ["chrome.api.event", "storage.diff"]
       })
     );
 
@@ -234,7 +239,7 @@ describe("chrome-sim transport", () => {
         daemon_version: "test",
         session_id: "sess-mismatch",
         auth_ok: true,
-        capabilities_supported: ["chrome.api.call", "chrome.api.result", "chrome.api.event"]
+        capabilities_supported: ["chrome.api.call", "chrome.api.event"]
       }
     };
 
@@ -407,7 +412,7 @@ function buildHelloAckEnvelope(
       daemon_version: "test",
       session_id: sessionID,
       auth_ok: true,
-      capabilities_supported: ["chrome.api.call", "chrome.api.result", "chrome.api.event"],
+      capabilities_supported: ["chrome.api.call", "chrome.api.event", "storage.diff"],
       ...overrides
     }
   };

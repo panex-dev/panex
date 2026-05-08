@@ -167,9 +167,18 @@ describe("buildPostHelloAckMessages", () => {
 });
 
 describe("inspectorRequestedCapabilities", () => {
-  it("includes the live broadcast capabilities used by the timeline", () => {
+  it("includes the live and command capabilities the inspector actually negotiates", () => {
     assert.equal(inspectorRequestedCapabilities.includes("build.complete"), true);
     assert.equal(inspectorRequestedCapabilities.includes("command.reload"), true);
     assert.equal(inspectorRequestedCapabilities.includes("storage.diff"), true);
+    assert.equal(inspectorRequestedCapabilities.includes("chrome.api.call"), true);
+    assert.equal(inspectorRequestedCapabilities.includes("chrome.api.event"), true);
+  });
+
+  it("omits response-only capability names from the handshake request set", () => {
+    assert.equal(
+      (inspectorRequestedCapabilities as readonly string[]).includes("chrome.api.result"),
+      false,
+    );
   });
 });

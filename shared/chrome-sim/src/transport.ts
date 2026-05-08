@@ -224,7 +224,7 @@ export function createChromeSimTransport(options: ChromeSimTransportOptions = {}
             client_kind: "chrome-sim",
             client_version: "dev",
             extension_id: extensionID,
-            capabilities_requested: ["chrome.api.call", "chrome.api.result", "chrome.api.event", "storage.diff"]
+            capabilities_requested: ["chrome.api.call", "chrome.api.event", "storage.diff"]
           }
         };
 
