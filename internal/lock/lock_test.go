@@ -33,6 +33,7 @@ func TestAcquireRelease(t *testing.T) {
 	}
 	if info == nil {
 		t.Fatal("expected info to be non-nil when lock is held")
+		return
 	}
 	if info.Operation != "apply" {
 		t.Errorf("operation: got %s", info.Operation)

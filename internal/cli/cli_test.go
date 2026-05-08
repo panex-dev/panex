@@ -262,6 +262,71 @@ func TestCmdResume_NoRun(t *testing.T) {
 	}
 }
 
+func TestFullWorkflow_Inspect_Plan_Apply_Verify_Package(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, filepath.Join(dir, "manifest.json"), `{"manifest_version":3,"name":"Integration","version":"1.0.0"}`)
+	writeFile(t, filepath.Join(dir, "background.js"), `console.log("bg")`)
+	writeFile(t, filepath.Join(dir, "package.json"), `{"name":"integration-test"}`)
+	if err := os.MkdirAll(filepath.Join(dir, "node_modules"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	// 1. Inspect
+	code := captureExitCode(func() int { return CmdInspect(dir) })
+	if code != ExitSuccess {
+		t.Fatalf("inspect: exit %d", code)
+	}
+
+	// 2. Init
+	code = captureExitCode(func() int {
+		return CmdInit(dir, InitOptions{Name: "integration-test", Targets: []string{"chrome"}})
+	})
+	if code != ExitSuccess {
+		t.Fatalf("init: exit %d", code)
+	}
+
+	// 3. Plan
+	code = captureExitCode(func() int { return CmdPlan(dir) })
+	if code != ExitSuccess {
+		t.Fatalf("plan: exit %d", code)
+	}
+	if _, err := os.Stat(filepath.Join(dir, ".panex", "current.plan.json")); err != nil {
+		t.Fatal("plan file not written")
+	}
+
+	// 4. Apply
+	code = captureExitCode(func() int { return CmdApply(dir, ApplyOptions{}) })
+	if code != ExitSuccess {
+		t.Fatalf("apply: exit %d", code)
+	}
+
+	// 5. Verify
+	code = captureExitCode(func() int { return CmdVerify(dir) })
+	if code == ExitInternalFault {
+		t.Fatal("verify: internal fault")
+	}
+
+	// 6. Package
+	code = captureExitCode(func() int {
+		return CmdPackage(dir, PackageOptions{SourceDir: dir, Version: "1.0.0"})
+	})
+	if code != ExitSuccess {
+		t.Fatalf("package: exit %d", code)
+	}
+
+	// Verify artifacts
+	entries, _ := os.ReadDir(filepath.Join(dir, ".panex", "artifacts", "chrome"))
+	if len(entries) == 0 {
+		t.Error("no artifacts produced")
+	}
+
+	// 7. Report (should read the latest run)
+	code = captureExitCode(func() int { return CmdReport(dir, "") })
+	if code != ExitSuccess {
+		t.Fatalf("report: exit %d", code)
+	}
+}
+
 func TestOutput_JSON(t *testing.T) {
 	out := Output{
 		Status:  "ok",

@@ -12,48 +12,48 @@ import (
 
 // Policy is the resolved project policy.
 type Policy struct {
-	Version     int              `yaml:"version"     toml:"version"`
-	Mutation    MutationPolicy   `yaml:"mutation"    toml:"mutation"`
-	Targets     TargetsPolicy    `yaml:"targets"     toml:"targets"`
-	Permissions PermPolicy       `yaml:"permissions" toml:"permissions"`
-	Runtime     RuntimePolicy    `yaml:"runtime"     toml:"runtime"`
-	Repairs     RepairsPolicy    `yaml:"repairs"     toml:"repairs"`
-	Publishing  PublishingPolicy `yaml:"publishing"  toml:"publishing"`
-	Hash        string           `yaml:"-"           toml:"-"`
+	Version     int              `toml:"version"`
+	Mutation    MutationPolicy   `toml:"mutation"`
+	Targets     TargetsPolicy    `toml:"targets"`
+	Permissions PermPolicy       `toml:"permissions"`
+	Runtime     RuntimePolicy    `toml:"runtime"`
+	Repairs     RepairsPolicy    `toml:"repairs"`
+	Publishing  PublishingPolicy `toml:"publishing"`
+	Hash        string           `toml:"-"`
 }
 
 type MutationPolicy struct {
-	AllowFileCreation      bool `yaml:"allow_file_creation"     toml:"allow_file_creation"`
-	AllowFileUpdate        bool `yaml:"allow_file_update"       toml:"allow_file_update"`
-	AllowFileDeletion      bool `yaml:"allow_file_deletion"     toml:"allow_file_deletion"`
-	AllowDependencyInstall bool `yaml:"allow_dependency_install" toml:"allow_dependency_install"`
-	AllowLockfileChanges   bool `yaml:"allow_lockfile_changes"  toml:"allow_lockfile_changes"`
-	AllowBundlerRewrite    bool `yaml:"allow_bundler_rewrite"   toml:"allow_bundler_rewrite"`
+	AllowFileCreation      bool `toml:"allow_file_creation"`
+	AllowFileUpdate        bool `toml:"allow_file_update"`
+	AllowFileDeletion      bool `toml:"allow_file_deletion"`
+	AllowDependencyInstall bool `toml:"allow_dependency_install"`
+	AllowLockfileChanges   bool `toml:"allow_lockfile_changes"`
+	AllowBundlerRewrite    bool `toml:"allow_bundler_rewrite"`
 }
 
 type TargetsPolicy struct {
-	Allowed []string `yaml:"allowed" toml:"allowed"`
+	Allowed []string `toml:"allowed"`
 }
 
 type PermPolicy struct {
-	AllowNewPermissions     bool `yaml:"allow_new_permissions"          toml:"allow_new_permissions"`
-	AllowNewHostPermissions bool `yaml:"allow_new_host_permissions"     toml:"allow_new_host_permissions"`
-	RequirePermDiffReview   bool `yaml:"require_permission_diff_review" toml:"require_permission_diff_review"`
+	AllowNewPermissions     bool `toml:"allow_new_permissions"`
+	AllowNewHostPermissions bool `toml:"allow_new_host_permissions"`
+	RequirePermDiffReview   bool `toml:"require_permission_diff_review"`
 }
 
 type RuntimePolicy struct {
-	AllowLoopbackBridge  bool `yaml:"allow_loopback_bridge"  toml:"allow_loopback_bridge"`
-	AllowNativeMessaging bool `yaml:"allow_native_messaging" toml:"allow_native_messaging"`
+	AllowLoopbackBridge  bool `toml:"allow_loopback_bridge"`
+	AllowNativeMessaging bool `toml:"allow_native_messaging"`
 }
 
 type RepairsPolicy struct {
-	AutoApplySafe bool `yaml:"auto_apply_safe_repairs" toml:"auto_apply_safe_repairs"`
-	MaxAttempts   int  `yaml:"max_attempts"            toml:"max_attempts"`
+	AutoApplySafe bool `toml:"auto_apply_safe_repairs"`
+	MaxAttempts   int  `toml:"max_attempts"`
 }
 
 type PublishingPolicy struct {
-	AllowPublish      bool `yaml:"allow_publish"       toml:"allow_publish"`
-	RequireVerifyPass bool `yaml:"require_verify_pass"  toml:"require_verify_pass"`
+	AllowPublish      bool `toml:"allow_publish"`
+	RequireVerifyPass bool `toml:"require_verify_pass"`
 }
 
 // Default returns a conservative default policy.

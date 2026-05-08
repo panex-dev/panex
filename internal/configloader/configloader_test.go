@@ -38,14 +38,16 @@ func TestLoad_JSONConfig(t *testing.T) {
 	if err != nil {
 		t.Fatalf("load: %v", err)
 	}
-	if loaded == nil {
+	if loaded == nil || loaded.Config == nil {
 		t.Fatal("expected loaded config")
+		return
 	}
-	if loaded.Config.Project.Name != "test-ext" {
-		t.Errorf("name: got %s", loaded.Config.Project.Name)
+	loadedCfg := loaded.Config
+	if loadedCfg.Project.Name != "test-ext" {
+		t.Errorf("name: got %s", loadedCfg.Project.Name)
 	}
-	if loaded.Config.Project.ID != "com.test.ext" {
-		t.Errorf("id: got %s", loaded.Config.Project.ID)
+	if loadedCfg.Project.ID != "com.test.ext" {
+		t.Errorf("id: got %s", loadedCfg.Project.ID)
 	}
 	if !strings.HasPrefix(loaded.ConfigHash, "sha256:") {
 		t.Errorf("hash: got %s", loaded.ConfigHash)
@@ -76,6 +78,10 @@ func TestLoadFromFile(t *testing.T) {
 	loaded, err := LoadFromFile(path)
 	if err != nil {
 		t.Fatalf("load: %v", err)
+	}
+	if loaded == nil || loaded.Config == nil {
+		t.Fatal("expected loaded config")
+		return
 	}
 	if loaded.Config.Project.Name != "custom" {
 		t.Errorf("name: got %s", loaded.Config.Project.Name)
@@ -113,6 +119,10 @@ func TestWriteToFile(t *testing.T) {
 	loaded, err := LoadFromFile(path)
 	if err != nil {
 		t.Fatalf("read back: %v", err)
+	}
+	if loaded == nil || loaded.Config == nil {
+		t.Fatal("expected loaded config")
+		return
 	}
 	if loaded.Config.Project.Name != "write-test" {
 		t.Errorf("name: got %s", loaded.Config.Project.Name)
