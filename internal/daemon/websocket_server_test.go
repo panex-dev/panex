@@ -2,6 +2,7 @@ package daemon
 
 import (
 	"context"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
@@ -229,6 +230,95 @@ func TestWebSocketBroadcastToConnectedClient(t *testing.T) {
 	}
 }
 
+func TestWebSocketBroadcastSkipsSessionsWithoutNegotiatedCapability(t *testing.T) {
+	server := newTestServer(t)
+	defer server.httpServer.Close()
+
+	noBuildConn := dialAuthorizedConnection(t, server.wsURL, server.token)
+	t.Cleanup(func() {
+		_ = noBuildConn.Close()
+	})
+	buildConn := dialAuthorizedConnection(t, server.wsURL, server.token)
+	t.Cleanup(func() {
+		_ = buildConn.Close()
+	})
+
+	_ = mustHandshakeWithCapabilities(t, noBuildConn, server.token, []string{"query.events"})
+	_ = mustHandshakeWithCapabilities(t, buildConn, server.token, []string{"build.complete"})
+	waitForConnectionCount(t, server.ws, 2)
+
+	buildComplete := protocol.NewBuildComplete(
+		protocol.Source{
+			Role: protocol.SourceDaemon,
+			ID:   "daemon-test",
+		},
+		protocol.BuildComplete{
+			BuildID:         "build-filtered",
+			Success:         true,
+			DurationMS:      42,
+			TriggeringFiles: []string{"index.ts"},
+		},
+	)
+	if err := server.ws.Broadcast(context.Background(), buildComplete); err != nil {
+		t.Fatalf("Broadcast(build.complete) returned error: %v", err)
+	}
+
+	buildEnvelope := mustReadEnvelopeByName(t, buildConn, protocol.MessageBuildComplete, 1)
+	var payload protocol.BuildComplete
+	if err := protocol.DecodePayload(buildEnvelope.Data, &payload); err != nil {
+		t.Fatalf("DecodePayload(build.complete) returned error: %v", err)
+	}
+	if payload.BuildID != "build-filtered" {
+		t.Fatalf("unexpected build id: got %q, want %q", payload.BuildID, "build-filtered")
+	}
+
+	assertNoEnvelopeWithin(t, noBuildConn, 150*time.Millisecond)
+}
+
+func TestWebSocketTargetedBroadcastSkipsSessionsWithoutNegotiatedCapability(t *testing.T) {
+	server := newTestServer(t)
+	defer server.httpServer.Close()
+
+	targetConn := dialAuthorizedConnection(t, server.wsURL, server.token)
+	t.Cleanup(func() {
+		_ = targetConn.Close()
+	})
+	missingCapabilityConn := dialAuthorizedConnection(t, server.wsURL, server.token)
+	t.Cleanup(func() {
+		_ = missingCapabilityConn.Close()
+	})
+
+	_ = mustHandshakeWithClient(t, targetConn, server.token, "dev-agent", "popup", []string{"command.reload"})
+	_ = mustHandshakeWithClient(t, missingCapabilityConn, server.token, "dev-agent", "popup", []string{"query.events"})
+	waitForConnectionCount(t, server.ws, 2)
+
+	reload := protocol.NewCommandReload(
+		protocol.Source{
+			Role: protocol.SourceDaemon,
+			ID:   "daemon-test",
+		},
+		protocol.CommandReload{
+			Reason:      "build.complete",
+			BuildID:     "build-targeted",
+			ExtensionID: "popup",
+		},
+	)
+	if err := server.ws.Broadcast(context.Background(), reload); err != nil {
+		t.Fatalf("Broadcast(command.reload) returned error: %v", err)
+	}
+
+	reloadEnvelope := mustReadEnvelopeByName(t, targetConn, protocol.MessageCommandReload, 1)
+	var payload protocol.CommandReload
+	if err := protocol.DecodePayload(reloadEnvelope.Data, &payload); err != nil {
+		t.Fatalf("DecodePayload(command.reload) returned error: %v", err)
+	}
+	if payload.ExtensionID != "popup" {
+		t.Fatalf("unexpected command.reload extension_id: got %q, want %q", payload.ExtensionID, "popup")
+	}
+
+	assertNoEnvelopeWithin(t, missingCapabilityConn, 150*time.Millisecond)
+}
+
 func TestWebSocketBroadcastUnregistersClosedSession(t *testing.T) {
 	server := newTestServer(t)
 	defer server.httpServer.Close()
@@ -255,7 +345,7 @@ func TestWebSocketBroadcastUnregistersClosedSession(t *testing.T) {
 	waitForConnectionCount(t, server.ws, 0)
 
 	const staleSessionID = "stale-session"
-	server.ws.register(staleSessionID, session, sessionMetadata{})
+	server.ws.register(staleSessionID, session, sessionMetadata{capabilities: []string{"build.complete"}})
 	waitForConnectionCount(t, server.ws, 1)
 
 	buildComplete := protocol.NewBuildComplete(
@@ -1974,10 +2064,21 @@ func singleSessionID(t *testing.T, server *WebSocketServer) string {
 }
 
 func mustHandshake(t *testing.T, conn *websocket.Conn) protocol.Envelope {
-	return mustHandshakeWithCapabilities(t, conn, defaultHandshakeToken, daemonCapabilities)
+	return mustHandshakeWithClient(t, conn, defaultHandshakeToken, "dev-agent", "", daemonCapabilities)
 }
 
 func mustHandshakeWithCapabilities(t *testing.T, conn *websocket.Conn, token string, capabilities []string) protocol.Envelope {
+	return mustHandshakeWithClient(t, conn, token, "dev-agent", "", capabilities)
+}
+
+func mustHandshakeWithClient(
+	t *testing.T,
+	conn *websocket.Conn,
+	token string,
+	clientKind string,
+	extensionID string,
+	capabilities []string,
+) protocol.Envelope {
 	t.Helper()
 
 	hello := protocol.NewHello(
@@ -1988,8 +2089,9 @@ func mustHandshakeWithCapabilities(t *testing.T, conn *websocket.Conn, token str
 		protocol.Hello{
 			ProtocolVersion:       protocol.CurrentVersion,
 			AuthToken:             token,
-			ClientKind:            "dev-agent",
+			ClientKind:            clientKind,
 			ClientVersion:         "dev",
+			ExtensionID:           extensionID,
 			CapabilitiesRequested: capabilities,
 		},
 	)
@@ -2051,6 +2153,29 @@ func mustReadEnvelopeByName(
 
 	t.Fatalf("did not receive envelope %q within %d reads", name, maxReads)
 	return protocol.Envelope{}
+}
+
+func assertNoEnvelopeWithin(t *testing.T, conn *websocket.Conn, timeout time.Duration) {
+	t.Helper()
+
+	if err := conn.SetReadDeadline(time.Now().Add(timeout)); err != nil {
+		t.Fatalf("SetReadDeadline() returned error: %v", err)
+	}
+	defer func() {
+		if err := conn.SetReadDeadline(time.Time{}); err != nil {
+			t.Fatalf("SetReadDeadline(reset) returned error: %v", err)
+		}
+	}()
+
+	_, _, err := conn.ReadMessage()
+	if err == nil {
+		t.Fatalf("expected no message within %s", timeout)
+	}
+
+	netErr, ok := err.(net.Error)
+	if !ok || !netErr.Timeout() {
+		t.Fatalf("expected read timeout while waiting for no message, got %T (%v)", err, err)
+	}
 }
 
 func mustMapStringAny(t *testing.T, value any) map[string]any {

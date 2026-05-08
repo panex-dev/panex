@@ -6,6 +6,7 @@ import {
   bridgeSessionFromHelloAck,
   buildPostHelloAckMessages,
   buildTimelineQuery,
+  inspectorRequestedCapabilities,
   resolveConnectionParamsFromSearch
 } from "../src/connection";
 
@@ -162,5 +163,13 @@ describe("buildPostHelloAckMessages", () => {
     assert.equal(messages[1]?.name, "query.storage");
     assert.equal(messages[1]?.t, "command");
     assert.deepEqual(messages[1]?.data, {});
+  });
+});
+
+describe("inspectorRequestedCapabilities", () => {
+  it("includes the live broadcast capabilities used by the timeline", () => {
+    assert.equal(inspectorRequestedCapabilities.includes("build.complete"), true);
+    assert.equal(inspectorRequestedCapabilities.includes("command.reload"), true);
+    assert.equal(inspectorRequestedCapabilities.includes("storage.diff"), true);
   });
 });

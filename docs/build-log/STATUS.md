@@ -124,6 +124,7 @@ As of 2026-05-08.
 | — | Phase 2 Dev Bridge daemon: surface handshake runtime metadata in hello.ack and Workbench | `docs/build-log/2026-05-08-phase2-dev-bridge-handshake-runtime-metadata.md` |
 | — | Phase 2 Dev Bridge daemon: guard inspector follow-ups and tools by negotiated capabilities | `docs/build-log/2026-05-08-phase2-dev-bridge-capability-aware-inspector.md` |
 | — | Phase 2 Dev Bridge daemon: reject unsupported chrome-sim calls from negotiated capabilities | `docs/build-log/2026-05-08-phase2-dev-bridge-capability-aware-chrome-sim.md` |
+| — | Phase 2 Dev Bridge daemon: deliver broadcasts only to sessions that negotiated them | `docs/build-log/2026-05-08-phase2-dev-bridge-broadcast-capability-delivery.md` |
 
 ## In progress
 - None.

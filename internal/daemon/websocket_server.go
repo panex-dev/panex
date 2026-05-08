@@ -490,7 +490,7 @@ func (s *WebSocketServer) broadcastLiveMessage(message protocol.Envelope) error 
 	var failed []string
 	targetExtensionID := messageTargetExtensionID(message)
 	for sessionID, session := range sessions {
-		if !shouldDeliverLiveMessage(session, targetExtensionID) {
+		if !shouldDeliverLiveMessage(session, message, targetExtensionID) {
 			continue
 		}
 		writeErr := session.writeMessage(websocket.BinaryMessage, encoded, s.cfg.WriteTimeout)
@@ -1473,7 +1473,10 @@ func messageTargetExtensionID(message protocol.Envelope) string {
 	}
 }
 
-func shouldDeliverLiveMessage(session *sessionConn, targetExtensionID string) bool {
+func shouldDeliverLiveMessage(session *sessionConn, message protocol.Envelope, targetExtensionID string) bool {
+	if !sessionHasCapability(session, string(message.Name)) {
+		return false
+	}
 	if strings.TrimSpace(targetExtensionID) == "" {
 		return true
 	}

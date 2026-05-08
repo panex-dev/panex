@@ -67,6 +67,19 @@ export function bridgeSessionSupportsCapability(
 const defaultDaemonWSURL = "ws://127.0.0.1:4317/ws";
 const defaultDaemonToken = "";
 const closeMessageTooBig = 1009;
+export const inspectorRequestedCapabilities = [
+  "query.events",
+  "build.complete",
+  "command.reload",
+  "query.storage",
+  "storage.diff",
+  "storage.set",
+  "storage.remove",
+  "storage.clear",
+  "chrome.api.call",
+  "chrome.api.result",
+  "chrome.api.event"
+] as const;
 
 interface ConnectionContextValue {
   status: Accessor<ConnectionStatus>;
@@ -288,17 +301,7 @@ export function ConnectionProvider(props: ParentProps) {
           auth_token: token,
           client_kind: "inspector",
           client_version: "dev",
-          capabilities_requested: [
-            "query.events",
-            "query.storage",
-            "storage.diff",
-            "storage.set",
-            "storage.remove",
-            "storage.clear",
-            "chrome.api.call",
-            "chrome.api.result",
-            "chrome.api.event"
-          ]
+          capabilities_requested: [...inspectorRequestedCapabilities]
         }
       };
 
