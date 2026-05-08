@@ -3,6 +3,7 @@ import { describe, it } from "node:test";
 
 import {
   envelopeNames,
+  firstPartyRequestedCapabilities,
   isEnvelope,
   isHelloAck,
   isQueryEventsResult,
@@ -10,6 +11,7 @@ import {
   isReloadCommand,
   messageTypeByName,
   messageTypeForName,
+  negotiableCapabilityNames,
   type Envelope,
   type EnvelopeName
 } from "../src/index";
@@ -95,5 +97,35 @@ describe("message guards", () => {
     assert.equal(messageTypeForName("chrome.api.call"), "command");
     assert.equal(messageTypeForName("chrome.api.result"), "event");
     assert.equal(messageTypeForName("chrome.api.event"), "event");
+  });
+});
+
+describe("capability contracts", () => {
+  it("keeps response-only message names out of negotiable capabilities", () => {
+    const capabilities = negotiableCapabilityNames as readonly string[];
+    assert.equal(capabilities.includes("chrome.api.result"), false);
+    assert.equal(capabilities.includes("query.events.result"), false);
+    assert.equal(capabilities.includes("query.storage.result"), false);
+  });
+
+  it("publishes the scoped first-party request sets", () => {
+    assert.deepEqual(firstPartyRequestedCapabilities["dev-agent"], ["command.reload"]);
+    assert.deepEqual(firstPartyRequestedCapabilities["chrome-sim"], [
+      "chrome.api.call",
+      "chrome.api.event",
+      "storage.diff"
+    ]);
+    assert.deepEqual(firstPartyRequestedCapabilities.inspector, [
+      "query.events",
+      "build.complete",
+      "command.reload",
+      "query.storage",
+      "storage.diff",
+      "storage.set",
+      "storage.remove",
+      "storage.clear",
+      "chrome.api.call",
+      "chrome.api.event"
+    ]);
   });
 });

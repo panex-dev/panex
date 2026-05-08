@@ -128,6 +128,7 @@ As of 2026-05-08.
 | — | Phase 2 Dev Bridge daemon: scope negotiated capabilities by client kind | `docs/build-log/2026-05-08-phase2-dev-bridge-client-kind-capability-scoping.md` |
 | — | Phase 2 Dev Bridge daemon: add a distinct chrome-sim source role and enforce source-role/session provenance | `docs/build-log/2026-05-08-phase2-dev-bridge-chrome-sim-source-role.md` |
 | — | Phase 2 Dev Bridge daemon: request only negotiable capabilities from first-party bridge clients | `docs/build-log/2026-05-08-phase2-dev-bridge-negotiable-capability-requests.md` |
+| — | Phase 2 Dev Bridge daemon: centralize first-party requested capabilities in the shared protocol contract | `docs/build-log/2026-05-08-phase2-dev-bridge-client-capability-constants.md` |
 
 ## In progress
 - None.
