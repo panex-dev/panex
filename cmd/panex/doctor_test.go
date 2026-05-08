@@ -171,6 +171,7 @@ port = 4317
 auth_token = "test-token"
 `)
 
+	withStubbedGOOS(t, "linux")
 	withStubbedReadProcVersion(t, []byte("Linux version 5.15.0 (microsoft@microsoft.com) (WSL2)"))
 
 	var out bytes.Buffer
@@ -241,28 +242,39 @@ func TestDoctorViaRunCommand(t *testing.T) {
 func TestIsWSL(t *testing.T) {
 	testCases := []struct {
 		name        string
+		goos        string
 		procVersion []byte
 		want        bool
 	}{
 		{
 			name:        "WSL2 kernel",
+			goos:        "linux",
 			procVersion: []byte("Linux version 5.15.90.1-microsoft-standard-WSL2"),
 			want:        true,
 		},
 		{
 			name:        "standard linux kernel",
+			goos:        "linux",
 			procVersion: []byte("Linux version 6.1.0-debian"),
 			want:        false,
 		},
 		{
 			name:        "nil proc version",
+			goos:        "linux",
 			procVersion: nil,
+			want:        false,
+		},
+		{
+			name:        "non-linux platforms never report WSL",
+			goos:        "windows",
+			procVersion: []byte("Linux version 5.15.90.1-microsoft-standard-WSL2"),
 			want:        false,
 		},
 	}
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
+			withStubbedGOOS(t, tc.goos)
 			withStubbedReadProcVersion(t, tc.procVersion)
 			got := isWSL()
 			if got != tc.want {
@@ -270,6 +282,16 @@ func TestIsWSL(t *testing.T) {
 			}
 		})
 	}
+}
+
+func withStubbedGOOS(t *testing.T, goos string) {
+	t.Helper()
+
+	original := currentGOOS
+	currentGOOS = goos
+	t.Cleanup(func() {
+		currentGOOS = original
+	})
 }
 
 func withStubbedReadProcVersion(t *testing.T, data []byte) {

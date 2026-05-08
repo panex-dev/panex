@@ -12,6 +12,7 @@ import (
 )
 
 var readProcVersion = defaultReadProcVersion
+var currentGOOS = runtime.GOOS
 
 func runDoctor(stdout io.Writer) error {
 	if err := writeString(stdout, "panex doctor\n\n"); err != nil {
@@ -124,7 +125,7 @@ func writeDoctorSummary(w io.Writer, issues int) error {
 }
 
 func isWSL() bool {
-	if runtime.GOOS != "linux" {
+	if currentGOOS != "linux" {
 		return false
 	}
 	data := readProcVersion()
