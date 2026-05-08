@@ -40,6 +40,7 @@ type Session struct {
 	ProjectDir          string   `json:"project_dir"`
 	Target              string   `json:"target"`
 	State               State    `json:"state"`
+	ExtensionID         string   `json:"extension_id"`
 	BrowserPID          int      `json:"browser_pid,omitempty"`
 	ProfileDir          string   `json:"profile_dir"`
 	ExtensionDir        string   `json:"extension_dir"`
@@ -62,6 +63,7 @@ type Session struct {
 type Options struct {
 	ProjectDir          string
 	Target              string
+	ExtensionID         string
 	ExtensionDir        string // built extension directory
 	DaemonPort          int
 	ChromeBinary        string   // path to Chrome binary (auto-detect if empty)
@@ -98,6 +100,7 @@ func New(opts Options) (*Session, error) {
 		ProjectDir:          opts.ProjectDir,
 		Target:              opts.Target,
 		State:               Provisioned,
+		ExtensionID:         opts.ExtensionID,
 		ProfileDir:          profileDir,
 		ExtensionDir:        opts.ExtensionDir,
 		DaemonPort:          opts.DaemonPort,
@@ -215,6 +218,7 @@ func (s *Session) Info() map[string]any {
 		"session_id":    s.SessionID,
 		"target":        s.Target,
 		"state":         s.State,
+		"extension_id":  s.ExtensionID,
 		"browser_pid":   s.BrowserPID,
 		"profile_dir":   s.ProfileDir,
 		"extension_dir": s.ExtensionDir,

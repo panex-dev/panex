@@ -202,6 +202,21 @@ func TestCmdDev_NoLaunch(t *testing.T) {
 	if len(entries) == 0 {
 		t.Error("expected session dir")
 	}
+
+	data, err := os.ReadFile(filepath.Join(sessionsDir, entries[0].Name(), "session.json"))
+	if err != nil {
+		t.Fatalf("read session.json: %v", err)
+	}
+
+	var stored struct {
+		ExtensionID string `json:"extension_id"`
+	}
+	if err := json.Unmarshal(data, &stored); err != nil {
+		t.Fatalf("unmarshal session.json: %v", err)
+	}
+	if stored.ExtensionID != "test" {
+		t.Fatalf("extension id: got %q, want %q", stored.ExtensionID, "test")
+	}
 }
 
 func TestCmdTest(t *testing.T) {

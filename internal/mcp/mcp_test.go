@@ -342,13 +342,7 @@ func TestToolResume_NoRun(t *testing.T) {
 
 func TestToolStartDevSession(t *testing.T) {
 	dir := t.TempDir()
-	root, err := fsmodel.NewRoot(dir)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := root.Init(); err != nil {
-		t.Fatal(err)
-	}
+	setupProject(t, dir)
 
 	srv := NewServerWithIO(dir, nil, nil)
 
@@ -379,6 +373,21 @@ func TestToolStartDevSession(t *testing.T) {
 	}
 	if len(sessions) == 0 {
 		t.Error("expected session directory to be created")
+	}
+
+	data, err := os.ReadFile(filepath.Join(dir, ".panex", "sessions", sessions[0].Name(), "session.json"))
+	if err != nil {
+		t.Fatalf("read session.json: %v", err)
+	}
+
+	var stored struct {
+		ExtensionID string `json:"extension_id"`
+	}
+	if err := json.Unmarshal(data, &stored); err != nil {
+		t.Fatalf("unmarshal session.json: %v", err)
+	}
+	if stored.ExtensionID != "test-ext" {
+		t.Fatalf("extension id: got %q, want %q", stored.ExtensionID, "test-ext")
 	}
 }
 

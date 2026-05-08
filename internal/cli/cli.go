@@ -542,6 +542,7 @@ func CmdDev(projectDir string, opts DevOptions) int {
 	sess, err := session.New(session.Options{
 		ProjectDir:          projectDir,
 		Target:              targetName,
+		ExtensionID:         g.RuntimeExtensionID(),
 		ExtensionDir:        extDir,
 		DaemonPort:          opts.Port,
 		AllowedCapabilities: allowed,

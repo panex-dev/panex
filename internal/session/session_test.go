@@ -1,6 +1,7 @@
 package session
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"testing"
@@ -18,6 +19,7 @@ func TestNew(t *testing.T) {
 	s, err := New(Options{
 		ProjectDir:   dir,
 		Target:       "chrome",
+		ExtensionID:  "acme.popup",
 		ExtensionDir: filepath.Join(dir, "dist"),
 		DaemonPort:   9222,
 		Adapter:      target.NewChrome(),
@@ -37,6 +39,9 @@ func TestNew(t *testing.T) {
 	}
 	if s.Target != "chrome" {
 		t.Errorf("target: got %s", s.Target)
+	}
+	if s.ExtensionID != "acme.popup" {
+		t.Errorf("extension id: got %q", s.ExtensionID)
 	}
 }
 
@@ -68,7 +73,7 @@ func TestSessionInfo(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	s, _ := New(Options{ProjectDir: dir, DaemonPort: 9222})
+	s, _ := New(Options{ProjectDir: dir, ExtensionID: "acme.popup", DaemonPort: 9222})
 	info := s.Info()
 
 	if info["session_id"] != s.SessionID {
@@ -76,6 +81,9 @@ func TestSessionInfo(t *testing.T) {
 	}
 	if info["daemon_port"] != 9222 {
 		t.Errorf("daemon_port: got %v", info["daemon_port"])
+	}
+	if info["extension_id"] != "acme.popup" {
+		t.Errorf("extension_id: got %v", info["extension_id"])
 	}
 }
 
@@ -204,7 +212,7 @@ func TestWriteToDir(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	s, _ := New(Options{ProjectDir: dir})
+	s, _ := New(Options{ProjectDir: dir, ExtensionID: "acme.popup"})
 	sessDir := filepath.Join(dir, ".panex", "sessions", s.SessionID)
 
 	if err := s.WriteToDir(sessDir); err != nil {
@@ -213,6 +221,25 @@ func TestWriteToDir(t *testing.T) {
 
 	if _, err := os.Stat(filepath.Join(sessDir, "session.json")); err != nil {
 		t.Error("expected session.json")
+	}
+
+	data, err := os.ReadFile(filepath.Join(sessDir, "session.json"))
+	if err != nil {
+		t.Fatalf("read session.json: %v", err)
+	}
+
+	var stored struct {
+		ExtensionID string `json:"extension_id"`
+		ProfileDir  string `json:"profile_dir"`
+	}
+	if err := json.Unmarshal(data, &stored); err != nil {
+		t.Fatalf("unmarshal session.json: %v", err)
+	}
+	if stored.ExtensionID != "acme.popup" {
+		t.Fatalf("stored extension id: got %q, want %q", stored.ExtensionID, "acme.popup")
+	}
+	if stored.ProfileDir == "" {
+		t.Fatal("expected stored profile_dir")
 	}
 }
 
