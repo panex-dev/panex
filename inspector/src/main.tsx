@@ -34,6 +34,7 @@ function InspectorApp(): JSX.Element {
     switch (activeTab) {
       case "timeline":
         return TimelineTab({
+          bridgeSession: connection.bridgeSession,
           timeline: connection.timeline,
           canLoadOlderTimeline: connection.canLoadOlderTimeline,
           loadingOlderTimeline: connection.loadingOlderTimeline,
@@ -46,6 +47,7 @@ function InspectorApp(): JSX.Element {
       case "storage":
         return StorageTab({
           status: connection.status,
+          bridgeSession: connection.bridgeSession,
           storage: connection.storage,
           storageHighlights: connection.storageHighlights,
           refreshStorage: connection.refreshStorage,
@@ -68,6 +70,7 @@ function InspectorApp(): JSX.Element {
       case "probe-history":
         return ProbeHistoryTab({
           status: connection.status,
+          bridgeSession: connection.bridgeSession,
           socketURL: connection.socketURL,
           lastError: connection.lastError,
           timeline: connection.timeline,
@@ -75,6 +78,7 @@ function InspectorApp(): JSX.Element {
         });
       default:
         return TimelineTab({
+          bridgeSession: connection.bridgeSession,
           timeline: connection.timeline,
           canLoadOlderTimeline: connection.canLoadOlderTimeline,
           loadingOlderTimeline: connection.loadingOlderTimeline,

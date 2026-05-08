@@ -2,7 +2,9 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
 import {
+  bridgeSessionSupportsCapability,
   bridgeSessionFromHelloAck,
+  buildPostHelloAckMessages,
   buildTimelineQuery,
   resolveConnectionParamsFromSearch
 } from "../src/connection";
@@ -107,5 +109,58 @@ describe("bridgeSessionFromHelloAck", () => {
       }).extensionID,
       null
     );
+  });
+});
+
+describe("bridgeSessionSupportsCapability", () => {
+  it("matches negotiated capabilities exactly", () => {
+    const session = bridgeSessionFromHelloAck({
+      protocol_version: 1,
+      daemon_version: "dev",
+      session_id: "session-1",
+      auth_ok: true,
+      capabilities_supported: ["query.events", "chrome.api.call"]
+    });
+
+    assert.equal(bridgeSessionSupportsCapability(session, "query.events"), true);
+    assert.equal(bridgeSessionSupportsCapability(session, "query.storage"), false);
+    assert.equal(bridgeSessionSupportsCapability(null, "query.events"), false);
+  });
+});
+
+describe("buildPostHelloAckMessages", () => {
+  it("queues only the follow-up queries negotiated during hello.ack", () => {
+    const session = bridgeSessionFromHelloAck({
+      protocol_version: 1,
+      daemon_version: "dev",
+      session_id: "session-1",
+      auth_ok: true,
+      capabilities_supported: ["query.storage"]
+    });
+
+    const messages = buildPostHelloAckMessages(session);
+    assert.equal(messages.length, 1);
+    assert.equal(messages[0]?.name, "query.storage");
+    assert.equal(messages[0]?.t, "command");
+    assert.equal(messages[0]?.src.role, "inspector");
+    assert.deepEqual(messages[0]?.data, {});
+  });
+
+  it("queues both timeline and storage follow-ups when both capabilities are negotiated", () => {
+    const session = bridgeSessionFromHelloAck({
+      protocol_version: 1,
+      daemon_version: "dev",
+      session_id: "session-1",
+      auth_ok: true,
+      capabilities_supported: ["query.events", "query.storage"]
+    });
+
+    const messages = buildPostHelloAckMessages(session);
+    assert.equal(messages[0]?.name, "query.events");
+    assert.equal(messages[0]?.t, "command");
+    assert.deepEqual(messages[0]?.data, { limit: 500 });
+    assert.equal(messages[1]?.name, "query.storage");
+    assert.equal(messages[1]?.t, "command");
+    assert.deepEqual(messages[1]?.data, {});
   });
 });

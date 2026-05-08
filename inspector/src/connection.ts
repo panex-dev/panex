@@ -57,6 +57,13 @@ export interface BridgeSession {
   capabilitiesSupported: string[];
 }
 
+export function bridgeSessionSupportsCapability(
+  session: BridgeSession | null,
+  capability: string
+): boolean {
+  return !!session?.capabilitiesSupported.includes(capability);
+}
+
 const defaultDaemonWSURL = "ws://127.0.0.1:4317/ws";
 const defaultDaemonToken = "";
 const closeMessageTooBig = 1009;
@@ -122,6 +129,7 @@ export function ConnectionProvider(props: ParentProps) {
 
   const loadOlderTimeline = (): boolean => {
     if (
+      !bridgeSessionSupportsCapability(bridgeSession(), "query.events") ||
       !socket ||
       socket.readyState !== WebSocket.OPEN ||
       loadingOlderTimeline() ||
@@ -143,6 +151,7 @@ export function ConnectionProvider(props: ParentProps) {
 
   const jumpToLatestTimeline = (): boolean => {
     if (
+      !bridgeSessionSupportsCapability(bridgeSession(), "query.events") ||
       !socket ||
       socket.readyState !== WebSocket.OPEN ||
       loadingOlderTimeline() ||
@@ -161,7 +170,11 @@ export function ConnectionProvider(props: ParentProps) {
   };
 
   const refreshStorage = (area?: QueryStorage["area"]): boolean => {
-    if (!socket || socket.readyState !== WebSocket.OPEN) {
+    if (
+      !bridgeSessionSupportsCapability(bridgeSession(), "query.storage") ||
+      !socket ||
+      socket.readyState !== WebSocket.OPEN
+    ) {
       return false;
     }
 
@@ -170,7 +183,11 @@ export function ConnectionProvider(props: ParentProps) {
   };
 
   const setStorageItem = (area: string, key: string, value: unknown): boolean => {
-    if (!socket || socket.readyState !== WebSocket.OPEN) {
+    if (
+      !bridgeSessionSupportsCapability(bridgeSession(), "storage.set") ||
+      !socket ||
+      socket.readyState !== WebSocket.OPEN
+    ) {
       return false;
     }
 
@@ -184,7 +201,11 @@ export function ConnectionProvider(props: ParentProps) {
   };
 
   const removeStorageItem = (area: string, key: string): boolean => {
-    if (!socket || socket.readyState !== WebSocket.OPEN) {
+    if (
+      !bridgeSessionSupportsCapability(bridgeSession(), "storage.remove") ||
+      !socket ||
+      socket.readyState !== WebSocket.OPEN
+    ) {
       return false;
     }
 
@@ -198,7 +219,11 @@ export function ConnectionProvider(props: ParentProps) {
   };
 
   const clearStorageArea = (area: string): boolean => {
-    if (!socket || socket.readyState !== WebSocket.OPEN) {
+    if (
+      !bridgeSessionSupportsCapability(bridgeSession(), "storage.clear") ||
+      !socket ||
+      socket.readyState !== WebSocket.OPEN
+    ) {
       return false;
     }
 
@@ -212,7 +237,11 @@ export function ConnectionProvider(props: ParentProps) {
   };
 
   const sendRuntimeMessage = (message: unknown): boolean => {
-    if (!socket || socket.readyState !== WebSocket.OPEN) {
+    if (
+      !bridgeSessionSupportsCapability(bridgeSession(), "chrome.api.call") ||
+      !socket ||
+      socket.readyState !== WebSocket.OPEN
+    ) {
       return false;
     }
 
@@ -310,11 +339,13 @@ export function ConnectionProvider(props: ParentProps) {
           return;
         }
 
-        setBridgeSession(bridgeSessionFromHelloAck(decoded.data));
+        const nextBridgeSession = bridgeSessionFromHelloAck(decoded.data);
+        setBridgeSession(nextBridgeSession);
         setStatus("open");
         setLastError(null);
-        next.send(encode(buildTimelineQuery(defaultTimelineLimit)));
-        next.send(encode(buildStorageQuery()));
+        for (const message of buildPostHelloAckMessages(nextBridgeSession)) {
+          next.send(encode(message));
+        }
         return;
       }
 
@@ -482,6 +513,17 @@ export function bridgeSessionFromHelloAck(data: HelloAck): BridgeSession {
       ? data.capabilities_supported.filter((value): value is string => typeof value === "string")
       : []
   };
+}
+
+export function buildPostHelloAckMessages(session: BridgeSession): Envelope[] {
+  const messages: Envelope[] = [];
+  if (bridgeSessionSupportsCapability(session, "query.events")) {
+    messages.push(buildTimelineQuery(defaultTimelineLimit));
+  }
+  if (bridgeSessionSupportsCapability(session, "query.storage")) {
+    messages.push(buildStorageQuery());
+  }
+  return messages;
 }
 
 function applyQueryResult(

@@ -4,7 +4,7 @@ import { createMemo, createSignal, type Accessor, type JSX } from "solid-js";
 import type { StorageSnapshot } from "@panex/protocol";
 
 import { summarizeChromeAPIActivity } from "../activity-log";
-import type { BridgeSession, ConnectionStatus } from "../connection";
+import { bridgeSessionSupportsCapability, type BridgeSession, type ConnectionStatus } from "../connection";
 import type { TimelineEntry } from "../timeline";
 import { formatTime } from "../timeline";
 import { buildWorkbenchModel } from "../workbench";
@@ -40,6 +40,9 @@ export function WorkbenchTab(props: WorkbenchTabProps): JSX.Element {
 
   const runtimeProbe = () => model().runtimeProbe;
   const activity = createMemo(() => summarizeChromeAPIActivity(props.timeline()));
+  const canSendRuntimeProbe = createMemo(() =>
+    bridgeSessionSupportsCapability(props.bridgeSession(), "chrome.api.call")
+  );
 
   return (
     <section class="panel workbench-panel">
@@ -127,7 +130,7 @@ export function WorkbenchTab(props: WorkbenchTabProps): JSX.Element {
           <button
             class="filter-reset"
             type="button"
-            disabled={props.status() !== "open"}
+            disabled={props.status() !== "open" || !canSendRuntimeProbe()}
             onClick={() => {
               const sent = props.sendRuntimeMessage(runtimeProbe().payload);
               setRuntimeMessage(
@@ -162,7 +165,11 @@ export function WorkbenchTab(props: WorkbenchTabProps): JSX.Element {
           <button
             class="filter-reset"
             type="button"
-            disabled={props.status() !== "open" || runtimeProbe().replayPayload === null}
+            disabled={
+              props.status() !== "open" ||
+              !canSendRuntimeProbe() ||
+              runtimeProbe().replayPayload === null
+            }
             onClick={() => {
               const replayPayload = runtimeProbe().replayPayload;
               if (!replayPayload) {
@@ -183,6 +190,11 @@ export function WorkbenchTab(props: WorkbenchTabProps): JSX.Element {
           {replayMessage() ? (
             <p class="subtle" role="status" aria-live="polite">
               {replayMessage()}
+            </p>
+          ) : null}
+          {props.bridgeSession() && !canSendRuntimeProbe() ? (
+            <p class="subtle" role="status" aria-live="polite">
+              Runtime probes require negotiated <code>chrome.api.call</code>.
             </p>
           ) : null}
         </article>
@@ -266,7 +278,13 @@ export function WorkbenchTab(props: WorkbenchTabProps): JSX.Element {
                   <button
                     class="filter-reset"
                     type="button"
-                    disabled={props.status() !== "open"}
+                    disabled={
+                      props.status() !== "open" ||
+                      !bridgeSessionSupportsCapability(
+                        props.bridgeSession(),
+                        preset.actionLabel === "remove" ? "storage.remove" : "storage.set"
+                      )
+                    }
                     onClick={() => {
                       const sent =
                         preset.actionLabel === "remove"
