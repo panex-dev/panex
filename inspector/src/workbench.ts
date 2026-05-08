@@ -3,7 +3,7 @@ import type {
   StorageSnapshot
 } from "@panex/protocol";
 
-import type { ConnectionStatus } from "./connection";
+import type { BridgeSession, ConnectionStatus } from "./connection";
 import { findLatestReplayObservation, isReplayPayload } from "./replay-contract";
 import { formatStorageValue, type StorageArea } from "./storage";
 import type { TimelineEntry } from "./timeline";
@@ -59,6 +59,7 @@ export interface WorkbenchModel {
   status: ConnectionStatus;
   socketURL: string;
   lastError: string | null;
+  bridgeSession: BridgeSession | null;
   totalStorageKeys: number;
   storageAreas: WorkbenchStorageAreaSummary[];
   storagePresets: WorkbenchStoragePresetSummary[];
@@ -126,6 +127,7 @@ export function buildWorkbenchModel(args: {
   status: ConnectionStatus;
   socketURL: string;
   lastError: string | null;
+  bridgeSession: BridgeSession | null;
   storage: StorageSnapshot[];
   timeline: TimelineEntry[];
 }): WorkbenchModel {
@@ -133,6 +135,7 @@ export function buildWorkbenchModel(args: {
     status: args.status,
     socketURL: args.socketURL,
     lastError: args.lastError,
+    bridgeSession: args.bridgeSession,
     totalStorageKeys: countStorageKeys(args.storage),
     storageAreas: summarizeStorageAreas(args.storage),
     storagePresets: summarizeStoragePresets(args.storage),

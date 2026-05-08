@@ -121,6 +121,7 @@ As of 2026-05-08.
 | — | Phase 1 C5/H1: graph hash via view struct (concurrent-safe, SourceRoot-independent) | `docs/build-log/2026-04-20-phase1-c5-h1-graph-hash-view.md` |
 | — | Phase 2 manifest compiler: target-scoped host permissions | `docs/build-log/2026-05-08-phase2-target-scoped-host-permissions.md` |
 | — | Phase 2 runtime: collect extension ID in dev session identity metadata | `docs/build-log/2026-05-08-phase2-runtime-identity-collection.md` |
+| — | Phase 2 Dev Bridge daemon: surface handshake runtime metadata in hello.ack and Workbench | `docs/build-log/2026-05-08-phase2-dev-bridge-handshake-runtime-metadata.md` |
 
 ## In progress
 - None.

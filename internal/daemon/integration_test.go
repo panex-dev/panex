@@ -64,6 +64,9 @@ func TestIntegrationDaemonLifecycle(t *testing.T) {
 	if agentHelloAck.SessionID == "" {
 		t.Fatal("agent hello.ack: expected non-empty session_id")
 	}
+	if agentHelloAck.ExtensionID != "default" {
+		t.Fatalf("agent hello.ack: unexpected extension_id: got %q, want %q", agentHelloAck.ExtensionID, "default")
+	}
 
 	waitForConnectionCount(t, ws, 1)
 
@@ -115,6 +118,9 @@ func TestIntegrationDaemonLifecycle(t *testing.T) {
 	})
 	if !inspectorHelloAck.AuthOK {
 		t.Fatal("inspector hello.ack: expected auth_ok=true")
+	}
+	if inspectorHelloAck.ExtensionID != "" {
+		t.Fatalf("inspector hello.ack: unexpected extension_id: got %q, want empty", inspectorHelloAck.ExtensionID)
 	}
 
 	waitForConnectionCount(t, ws, 2)
