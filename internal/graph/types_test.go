@@ -107,3 +107,26 @@ func TestComputeHash_ChangesWithContent(t *testing.T) {
 		t.Errorf("hash should change when entries change")
 	}
 }
+
+func TestRuntimeExtensionID(t *testing.T) {
+	t.Run("prefers project id", func(t *testing.T) {
+		g := &Graph{Project: ProjectIdentity{ID: "acme.popup", Name: "popup"}}
+		if got := g.RuntimeExtensionID(); got != "acme.popup" {
+			t.Fatalf("runtime extension id: got %q, want %q", got, "acme.popup")
+		}
+	})
+
+	t.Run("falls back to project name", func(t *testing.T) {
+		g := &Graph{Project: ProjectIdentity{Name: "popup"}}
+		if got := g.RuntimeExtensionID(); got != "popup" {
+			t.Fatalf("runtime extension id: got %q, want %q", got, "popup")
+		}
+	})
+
+	t.Run("handles nil graph", func(t *testing.T) {
+		var g *Graph
+		if got := g.RuntimeExtensionID(); got != "" {
+			t.Fatalf("runtime extension id: got %q, want empty", got)
+		}
+	})
+}

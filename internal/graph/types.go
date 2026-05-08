@@ -7,6 +7,7 @@ import (
 	"crypto/sha256"
 	"encoding/json"
 	"fmt"
+	"strings"
 )
 
 // Graph is the normalized internal representation of the extension project.
@@ -27,6 +28,18 @@ type Graph struct {
 	StateDir         string            `json:"state_dir"`
 	ConfigHash       string            `json:"config_hash"`
 	GraphHash        string            `json:"graph_hash"`
+}
+
+// RuntimeExtensionID returns the stable extension identifier that runtime
+// session metadata should expose for this graph.
+func (g *Graph) RuntimeExtensionID() string {
+	if g == nil {
+		return ""
+	}
+	if id := strings.TrimSpace(g.Project.ID); id != "" {
+		return id
+	}
+	return strings.TrimSpace(g.Project.Name)
 }
 
 // ProjectIdentity is the stable project identity.

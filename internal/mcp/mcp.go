@@ -658,6 +658,7 @@ func (s *Server) toolStartDevSession(_ context.Context, args map[string]any) (an
 	sess, err := session.New(session.Options{
 		ProjectDir:          s.projectDir,
 		Target:              targetName,
+		ExtensionID:         g.RuntimeExtensionID(),
 		AllowedCapabilities: allowed,
 		LockManager:         mgr,
 		Adapter:             adapter,
