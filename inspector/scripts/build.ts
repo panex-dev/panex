@@ -1,6 +1,7 @@
 import { build } from "esbuild";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
+import { DEFAULT_DAEMON_WEBSOCKET_URL } from "@panex/protocol";
 
 import { injectChromeSimIntoHTML } from "./preview_injection";
 
@@ -32,7 +33,7 @@ await build({
 
 const sourceMarkup = await readFile(sourceHTML, "utf8");
 const previewMarkup = injectChromeSimIntoHTML(normalizeMainScriptPath(sourceMarkup), {
-  daemonURL: readEnv("PANEX_DAEMON_URL", "ws://127.0.0.1:4317/ws"),
+  daemonURL: readEnv("PANEX_DAEMON_URL", DEFAULT_DAEMON_WEBSOCKET_URL),
   authToken: readEnv("PANEX_DAEMON_TOKEN", "dev-token"),
   extensionID: readEnv("PANEX_EXTENSION_ID", ""),
   moduleURL: "./chrome-sim.js"

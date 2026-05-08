@@ -13,6 +13,12 @@ func TestMaxWebSocketMessageBytes(t *testing.T) {
 	}
 }
 
+func TestDefaultDaemonWebSocketPath(t *testing.T) {
+	if DefaultDaemonWebSocketPath != "/ws" {
+		t.Fatalf("unexpected default daemon websocket path: got %q, want %q", DefaultDaemonWebSocketPath, "/ws")
+	}
+}
+
 func TestNegotiableCapabilityNames(t *testing.T) {
 	want := []MessageName{
 		MessageBuildComplete,

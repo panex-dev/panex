@@ -2,7 +2,10 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
 import {
+  DEFAULT_DAEMON_WEBSOCKET_PATH,
+  DEFAULT_DAEMON_WEBSOCKET_URL,
   MAX_WEBSOCKET_MESSAGE_BYTES,
+  normalizeDaemonWebSocketURL,
   readWebSocketMessageData
 } from "../src/index";
 
@@ -44,5 +47,14 @@ describe("readWebSocketMessageData", () => {
 
   it("rejects unsupported websocket payload shapes", () => {
     assert.deepEqual(readWebSocketMessageData("nope"), { kind: "unsupported" });
+  });
+
+  it("publishes the default daemon websocket contract", () => {
+    assert.equal(DEFAULT_DAEMON_WEBSOCKET_PATH, "/ws");
+    assert.equal(DEFAULT_DAEMON_WEBSOCKET_URL, "ws://127.0.0.1:4317/ws");
+    assert.equal(
+      normalizeDaemonWebSocketURL(undefined, DEFAULT_DAEMON_WEBSOCKET_URL),
+      DEFAULT_DAEMON_WEBSOCKET_URL
+    );
   });
 });
