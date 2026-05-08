@@ -1,5 +1,6 @@
 import { decode, encode } from "@msgpack/msgpack";
 import {
+  firstPartyRequestedCapabilities,
   PROTOCOL_VERSION,
   isEnvelope,
   isHelloAck,
@@ -57,6 +58,7 @@ const defaultCallTimeoutMS = 5000;
 const defaultHandshakeTimeoutMS = 5000;
 const closeMessageTooBig = 1009;
 const callCapability = "chrome.api.call";
+const requestedCapabilities = firstPartyRequestedCapabilities["chrome-sim"];
 
 export function createChromeSimTransport(options: ChromeSimTransportOptions = {}): ChromeSimTransport {
   const resolvedDaemonBaseURL =
@@ -224,7 +226,7 @@ export function createChromeSimTransport(options: ChromeSimTransportOptions = {}
             client_kind: "chrome-sim",
             client_version: "dev",
             extension_id: extensionID,
-            capabilities_requested: ["chrome.api.call", "chrome.api.event", "storage.diff"]
+            capabilities_requested: [...requestedCapabilities]
           }
         };
 

@@ -26,6 +26,40 @@ export const envelopeNames = [
 ] as const;
 export type EnvelopeName = (typeof envelopeNames)[number];
 
+export const negotiableCapabilityNames = [
+  "build.complete",
+  "command.reload",
+  "query.events",
+  "query.storage",
+  "storage.diff",
+  "storage.set",
+  "storage.remove",
+  "storage.clear",
+  "chrome.api.call",
+  "chrome.api.event"
+] as const;
+export type NegotiableCapabilityName = (typeof negotiableCapabilityNames)[number];
+
+export const firstPartyClientKinds = ["dev-agent", "inspector", "chrome-sim"] as const;
+export type FirstPartyClientKind = (typeof firstPartyClientKinds)[number];
+
+export const firstPartyRequestedCapabilities = {
+  "dev-agent": ["command.reload"],
+  inspector: [
+    "query.events",
+    "build.complete",
+    "command.reload",
+    "query.storage",
+    "storage.diff",
+    "storage.set",
+    "storage.remove",
+    "storage.clear",
+    "chrome.api.call",
+    "chrome.api.event"
+  ],
+  "chrome-sim": ["chrome.api.call", "chrome.api.event", "storage.diff"]
+} as const satisfies Readonly<Record<FirstPartyClientKind, readonly NegotiableCapabilityName[]>>;
+
 export const messageTypeByName: Readonly<Record<EnvelopeName, EnvelopeType>> = {
   hello: "lifecycle",
   "hello.ack": "lifecycle",

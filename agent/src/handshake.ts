@@ -1,4 +1,5 @@
 import {
+  firstPartyRequestedCapabilities,
   PROTOCOL_VERSION,
   isHelloAck,
   type Envelope,
@@ -11,7 +12,7 @@ import { handleReloadCommand } from "./reload";
 const closeProtocolError = 1002;
 const closePolicyViolation = 1008;
 
-export const requestedCapabilities = ["command.reload"] as const;
+export const requestedCapabilities = firstPartyRequestedCapabilities["dev-agent"];
 
 export interface AgentHandshakeState {
   complete: boolean;
