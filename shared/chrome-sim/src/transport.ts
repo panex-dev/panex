@@ -217,7 +217,7 @@ export function createChromeSimTransport(options: ChromeSimTransportOptions = {}
           v: PROTOCOL_VERSION,
           t: "lifecycle",
           name: "hello",
-          src: { role: "inspector", id: clientID },
+          src: { role: "chrome-sim", id: clientID },
           data: {
             protocol_version: PROTOCOL_VERSION,
             auth_token: authToken,
@@ -354,7 +354,7 @@ export function createChromeSimTransport(options: ChromeSimTransportOptions = {}
         v: PROTOCOL_VERSION,
         t: "command",
         name: "chrome.api.call",
-        src: { role: "inspector", id: clientID },
+        src: { role: "chrome-sim", id: clientID },
         data: {
           call_id: callID,
           namespace: normalizedNamespace,

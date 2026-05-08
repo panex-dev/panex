@@ -266,6 +266,54 @@ func TestWebSocketHandshakeUnknownClientKindFallsBackToGlobalCapabilities(t *tes
 	}
 }
 
+func TestWebSocketHandshakeRejectsKnownClientKindWithUnexpectedSourceRole(t *testing.T) {
+	server := newTestServer(t)
+	defer server.httpServer.Close()
+
+	conn := dialAuthorizedConnection(t, server.wsURL, server.token)
+	t.Cleanup(func() {
+		_ = conn.Close()
+	})
+
+	hello := protocol.NewHello(
+		protocol.Source{
+			Role: protocol.SourceInspector,
+			ID:   "inspector-1",
+		},
+		protocol.Hello{
+			ProtocolVersion:       protocol.CurrentVersion,
+			AuthToken:             server.token,
+			ClientKind:            "dev-agent",
+			ClientVersion:         "dev",
+			CapabilitiesRequested: []string{"command.reload"},
+		},
+	)
+	rawHello, err := protocol.Encode(hello)
+	if err != nil {
+		t.Fatalf("Encode(hello) returned error: %v", err)
+	}
+	if err := conn.WriteMessage(websocket.BinaryMessage, rawHello); err != nil {
+		t.Fatalf("WriteMessage(hello) returned error: %v", err)
+	}
+
+	_, _, err = conn.ReadMessage()
+	if err == nil {
+		t.Fatal("expected connection close for mismatched hello source role")
+	}
+	closeErr, ok := err.(*websocket.CloseError)
+	if !ok {
+		t.Fatalf("expected websocket.CloseError, got %T (%v)", err, err)
+	}
+	if closeErr.Code != websocket.ClosePolicyViolation {
+		t.Fatalf("unexpected close code: got %d, want %d", closeErr.Code, websocket.ClosePolicyViolation)
+	}
+	if !strings.Contains(closeErr.Text, "does not match client_kind") {
+		t.Fatalf("expected close text to mention client_kind mismatch, got %q", closeErr.Text)
+	}
+
+	waitForConnectionCount(t, server.ws, 0)
+}
+
 func TestWebSocketBroadcastToConnectedClient(t *testing.T) {
 	server := newTestServer(t)
 	defer server.httpServer.Close()
@@ -1937,6 +1985,48 @@ func TestWebSocketCapabilityEnforcementRejectsUnnegotiatedMessage(t *testing.T) 
 	waitForConnectionCount(t, server.ws, 0)
 }
 
+func TestWebSocketCapabilityEnforcementRejectsMessageSourceRoleDrift(t *testing.T) {
+	server := newTestServer(t)
+	defer server.httpServer.Close()
+
+	conn := dialAuthorizedConnection(t, server.wsURL, server.token)
+	t.Cleanup(func() {
+		_ = conn.Close()
+	})
+
+	_ = mustHandshake(t, conn)
+	waitForConnectionCount(t, server.ws, 1)
+
+	query := protocol.NewQueryEvents(
+		protocol.Source{Role: protocol.SourceDevAgent, ID: "agent-1"},
+		protocol.QueryEvents{Limit: 1},
+	)
+	rawQuery, err := protocol.Encode(query)
+	if err != nil {
+		t.Fatalf("Encode(query.events) returned error: %v", err)
+	}
+	if err := conn.WriteMessage(websocket.BinaryMessage, rawQuery); err != nil {
+		t.Fatalf("WriteMessage(query.events) returned error: %v", err)
+	}
+
+	_, _, err = conn.ReadMessage()
+	if err == nil {
+		t.Fatal("expected connection close for source role drift")
+	}
+	closeErr, ok := err.(*websocket.CloseError)
+	if !ok {
+		t.Fatalf("expected websocket.CloseError, got %T (%v)", err, err)
+	}
+	if closeErr.Code != websocket.ClosePolicyViolation {
+		t.Fatalf("unexpected close code: got %d, want %d", closeErr.Code, websocket.ClosePolicyViolation)
+	}
+	if !strings.Contains(closeErr.Text, "does not match negotiated session role") {
+		t.Fatalf("expected close text to mention negotiated session role, got %q", closeErr.Text)
+	}
+
+	waitForConnectionCount(t, server.ws, 0)
+}
+
 func TestWebSocketCapabilityEnforcementRejectsBroadcastOnlyMessage(t *testing.T) {
 	server := newTestServer(t)
 	defer server.httpServer.Close()
@@ -2187,12 +2277,34 @@ func mustHandshakeWithClient(
 	extensionID string,
 	capabilities []string,
 ) protocol.Envelope {
+	return mustHandshakeWithSourceAndClient(
+		t,
+		conn,
+		defaultSourceRoleForClientKind(clientKind),
+		"agent-1",
+		token,
+		clientKind,
+		extensionID,
+		capabilities,
+	)
+}
+
+func mustHandshakeWithSourceAndClient(
+	t *testing.T,
+	conn *websocket.Conn,
+	sourceRole protocol.SourceRole,
+	sourceID string,
+	token string,
+	clientKind string,
+	extensionID string,
+	capabilities []string,
+) protocol.Envelope {
 	t.Helper()
 
 	hello := protocol.NewHello(
 		protocol.Source{
-			Role: protocol.SourceDevAgent,
-			ID:   "agent-1",
+			Role: sourceRole,
+			ID:   sourceID,
 		},
 		protocol.Hello{
 			ProtocolVersion:       protocol.CurrentVersion,
@@ -2222,6 +2334,17 @@ func mustHandshakeWithClient(
 	}
 
 	return helloAckEnv
+}
+
+func defaultSourceRoleForClientKind(clientKind string) protocol.SourceRole {
+	switch normalizeClientKind(clientKind) {
+	case "inspector":
+		return protocol.SourceInspector
+	case "chrome-sim":
+		return protocol.SourceChromeSim
+	default:
+		return protocol.SourceDevAgent
+	}
 }
 
 func mustReadEnvelope(t *testing.T, conn *websocket.Conn) protocol.Envelope {

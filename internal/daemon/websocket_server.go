@@ -131,12 +131,14 @@ type sessionConn struct {
 	closeErr     error
 	done         chan struct{}
 	clientKind   string
+	sourceRole   protocol.SourceRole
 	extensionID  string
 	capabilities map[string]struct{}
 }
 
 type sessionMetadata struct {
 	clientKind   string
+	sourceRole   protocol.SourceRole
 	extensionID  string
 	capabilities []string
 }
@@ -361,6 +363,9 @@ func (s *WebSocketServer) handshake(ctx context.Context, conn *websocket.Conn) (
 		}
 		return "", sessionMetadata{}, errors.New("unauthorized")
 	}
+	if err := validateSourceRoleForClientKind(message.Src.Role, hello.ClientKind); err != nil {
+		return "", sessionMetadata{}, err
+	}
 	helloExtID := normalizeExtensionID(hello.ClientKind, hello.ExtensionID)
 	if err := s.eventStore.Append(ctx, message, helloExtID); err != nil {
 		return "", sessionMetadata{}, fmt.Errorf("persist hello message: %w", err)
@@ -394,6 +399,7 @@ func (s *WebSocketServer) handshake(ctx context.Context, conn *websocket.Conn) (
 
 	return sessionID, sessionMetadata{
 		clientKind:   normalizeClientKind(hello.ClientKind),
+		sourceRole:   message.Src.Role,
 		extensionID:  helloExtID,
 		capabilities: supportedCapabilities,
 	}, nil
@@ -541,6 +547,13 @@ func (s *WebSocketServer) handleClientMessage(ctx context.Context, sessionID str
 	s.mu.RUnlock()
 	if session != nil && !sessionHasCapability(session, msgName) {
 		return fmt.Errorf("message %q was not negotiated for this session", msgName)
+	}
+	if session != nil && strings.TrimSpace(string(session.sourceRole)) != "" && message.Src.Role != session.sourceRole {
+		return fmt.Errorf(
+			"message source role %q does not match negotiated session role %q",
+			message.Src.Role,
+			session.sourceRole,
+		)
 	}
 
 	switch message.Name {
@@ -1433,6 +1446,7 @@ func (s *WebSocketServer) register(sessionID string, conn *sessionConn, metadata
 	defer s.mu.Unlock()
 
 	conn.clientKind = metadata.clientKind
+	conn.sourceRole = metadata.sourceRole
 	conn.extensionID = metadata.extensionID
 	conn.capabilities = make(map[string]struct{}, len(metadata.capabilities))
 	for _, cap := range metadata.capabilities {
@@ -1629,6 +1643,35 @@ func supportedCapabilitiesForClientKind(clientKind string) []string {
 		// Preserve older clients that predated explicit role scoping.
 		return daemonCapabilities
 	}
+}
+
+func expectedSourceRoleForClientKind(clientKind string) (protocol.SourceRole, bool) {
+	switch normalizeClientKind(clientKind) {
+	case "dev-agent":
+		return protocol.SourceDevAgent, true
+	case "chrome-sim":
+		return protocol.SourceChromeSim, true
+	case "inspector":
+		return protocol.SourceInspector, true
+	default:
+		return "", false
+	}
+}
+
+func validateSourceRoleForClientKind(sourceRole protocol.SourceRole, clientKind string) error {
+	expectedSourceRole, ok := expectedSourceRoleForClientKind(clientKind)
+	if !ok {
+		return nil
+	}
+	if sourceRole != expectedSourceRole {
+		return fmt.Errorf(
+			"hello source role %q does not match client_kind %q",
+			sourceRole,
+			normalizeClientKind(clientKind),
+		)
+	}
+
+	return nil
 }
 
 // isLocalOrigin validates that WebSocket upgrade requests originate from localhost.

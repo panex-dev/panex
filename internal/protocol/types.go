@@ -41,6 +41,7 @@ type SourceRole string
 const (
 	SourceDaemon    SourceRole = "daemon"
 	SourceDevAgent  SourceRole = "dev-agent"
+	SourceChromeSim SourceRole = "chrome-sim"
 	SourceInspector SourceRole = "inspector"
 )
 

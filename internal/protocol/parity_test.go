@@ -34,6 +34,7 @@ func TestTypeScriptProtocolParity(t *testing.T) {
 	if got, want := parseTSStringArray(t, source, "sourceRoles"), []string{
 		string(SourceDaemon),
 		string(SourceDevAgent),
+		string(SourceChromeSim),
 		string(SourceInspector),
 	}; !slices.Equal(got, want) {
 		t.Fatalf("source role drift:\n  ts=%v\n  go=%v", got, want)

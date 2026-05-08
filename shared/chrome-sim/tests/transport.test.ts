@@ -50,6 +50,7 @@ describe("chrome-sim transport", () => {
     const helloData = hello.data as { auth_token?: string; extension_id?: string };
     assert.equal(hello.name, "hello");
     assert.equal(hello.t, "lifecycle");
+    assert.equal(hello.src.role, "chrome-sim");
     assert.equal(helloData.auth_token, "dev-token");
     assert.equal(helloData.extension_id, "panex.simulated.extension");
 
@@ -59,6 +60,7 @@ describe("chrome-sim transport", () => {
     const call = decodeEnvelope(socket.sent[1]);
     assert.equal(call.name, "chrome.api.call");
     assert.equal(call.t, "command");
+    assert.equal(call.src.role, "chrome-sim");
     assert.deepEqual(call.data, {
       call_id: "call-1",
       namespace: "storage.local",
