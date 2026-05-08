@@ -112,6 +112,7 @@ As of 2026-04-15.
 | — | Phase 1 audit: important design issues (config dedup, run dirs, policy tags, integration test) | `docs/build-log/2026-04-16-phase1-audit-important.md` |
 | — | Phase 1 lint cleanup: errcheck violations across new test files + chrome zip close errors | `docs/build-log/2026-04-18-phase1-lint-cleanup.md` |
 | — | Phase 1 CI green: Go 1.25.9 (vuln fix), macOS path symlinks, Windows separators, chrome --version timeout | `docs/build-log/2026-04-18-phase1-ci-green.md` |
+| — | Go 1.25.10 toolchain bump for `GO-2026-4971` in `net` | `docs/build-log/2026-05-08-go-1.25.10-govulncheck.md` |
 | — | Phase 1 Windows platform: lock liveness via OpenProcess, fsmodel path FromSlash, file_watcher infra filter, parity CRLF | `docs/build-log/2026-04-18-phase1-windows-platform.md` |
 | — | Phase 1 watcher new-dir race: synthesize pending children when attaching a new directory watch | `docs/build-log/2026-04-18-phase1-watcher-newdir-race.md` |
 | — | Phase 1 L1: polymorphic Action — closes audit C1/H5/H6 | `docs/build-log/2026-04-20-phase1-l1-polymorphic-action.md` |

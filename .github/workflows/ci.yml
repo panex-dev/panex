@@ -41,7 +41,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version: "1.25.9"
+          go-version: "1.25.10"
           cache: true
 
       - name: Verify Go modules
@@ -78,7 +78,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version: "1.25.9"
+          go-version: "1.25.10"
           cache: true
 
       - name: Run golangci-lint
@@ -100,7 +100,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version: "1.25.9"
+          go-version: "1.25.10"
           cache: true
 
       - name: Run tests (make)
