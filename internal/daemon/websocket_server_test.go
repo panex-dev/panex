@@ -32,9 +32,9 @@ func TestWebSocketHandshakeRejectsMissingHelloAuthToken(t *testing.T) {
 		},
 		protocol.Hello{
 			ProtocolVersion:       protocol.CurrentVersion,
-			ClientKind:            "dev-agent",
+			ClientKind:            string(protocol.ClientKindDevAgent),
 			ClientVersion:         "dev",
-			CapabilitiesRequested: []string{"command.reload"},
+			CapabilitiesRequested: []string{string(protocol.MessageCommandReload)},
 		},
 	)
 	rawHello, err := protocol.Encode(hello)
@@ -121,7 +121,7 @@ func TestWebSocketHandshakeSendsHelloAckAndTracksConnection(t *testing.T) {
 	if len(helloAck.CapabilitiesSupported) != len(devAgentCapabilities) {
 		t.Fatalf("unexpected supported capabilities count: got %d, want %d (%v)", len(helloAck.CapabilitiesSupported), len(devAgentCapabilities), helloAck.CapabilitiesSupported)
 	}
-	if helloAck.CapabilitiesSupported[0] != "command.reload" {
+	if helloAck.CapabilitiesSupported[0] != string(protocol.MessageCommandReload) {
 		t.Fatalf("unexpected supported capabilities: %v", helloAck.CapabilitiesSupported)
 	}
 
@@ -150,9 +150,9 @@ func TestWebSocketHandshakeNegotiatesCapabilities(t *testing.T) {
 		protocol.Hello{
 			ProtocolVersion:       protocol.CurrentVersion,
 			AuthToken:             server.token,
-			ClientKind:            "inspector",
+			ClientKind:            string(protocol.ClientKindInspector),
 			ClientVersion:         "dev",
-			CapabilitiesRequested: []string{"query.events", "unknown.capability", "query.events"},
+			CapabilitiesRequested: []string{string(protocol.MessageQueryEvents), "unknown.capability", string(protocol.MessageQueryEvents)},
 		},
 	)
 	rawHello, err := protocol.Encode(hello)
@@ -172,7 +172,7 @@ func TestWebSocketHandshakeNegotiatesCapabilities(t *testing.T) {
 	if err := protocol.DecodePayload(helloAck.Data, &payload); err != nil {
 		t.Fatalf("DecodePayload(hello.ack) returned error: %v", err)
 	}
-	if len(payload.CapabilitiesSupported) != 1 || payload.CapabilitiesSupported[0] != "query.events" {
+	if len(payload.CapabilitiesSupported) != 1 || payload.CapabilitiesSupported[0] != string(protocol.MessageQueryEvents) {
 		t.Fatalf("unexpected supported capabilities: %v", payload.CapabilitiesSupported)
 	}
 	if payload.ExtensionID != "" {
@@ -189,17 +189,17 @@ func TestWebSocketHandshakeScopesDevAgentCapabilitiesByClientKind(t *testing.T) 
 		_ = conn.Close()
 	})
 
-	helloAck := mustHandshakeWithClient(t, conn, server.token, "dev-agent", "popup", []string{
-		"query.events",
-		"command.reload",
-		"storage.set",
+	helloAck := mustHandshakeWithClient(t, conn, server.token, string(protocol.ClientKindDevAgent), "popup", []string{
+		string(protocol.MessageQueryEvents),
+		string(protocol.MessageCommandReload),
+		string(protocol.MessageStorageSet),
 	})
 
 	var payload protocol.HelloAck
 	if err := protocol.DecodePayload(helloAck.Data, &payload); err != nil {
 		t.Fatalf("DecodePayload(hello.ack) returned error: %v", err)
 	}
-	if len(payload.CapabilitiesSupported) != 1 || payload.CapabilitiesSupported[0] != "command.reload" {
+	if len(payload.CapabilitiesSupported) != 1 || payload.CapabilitiesSupported[0] != string(protocol.MessageCommandReload) {
 		t.Fatalf("unexpected supported capabilities: %v", payload.CapabilitiesSupported)
 	}
 }
@@ -213,20 +213,24 @@ func TestWebSocketHandshakeScopesChromeSimCapabilitiesByClientKind(t *testing.T)
 		_ = conn.Close()
 	})
 
-	helloAck := mustHandshakeWithClient(t, conn, server.token, "chrome-sim", "popup", []string{
-		"chrome.api.call",
-		"storage.set",
+	helloAck := mustHandshakeWithClient(t, conn, server.token, string(protocol.ClientKindChromeSim), "popup", []string{
+		string(protocol.MessageChromeAPICall),
+		string(protocol.MessageStorageSet),
 		"chrome.api.result",
-		"chrome.api.event",
-		"storage.diff",
-		"query.events",
+		string(protocol.MessageChromeAPIEvent),
+		string(protocol.MessageStorageDiff),
+		string(protocol.MessageQueryEvents),
 	})
 
 	var payload protocol.HelloAck
 	if err := protocol.DecodePayload(helloAck.Data, &payload); err != nil {
 		t.Fatalf("DecodePayload(hello.ack) returned error: %v", err)
 	}
-	want := []string{"chrome.api.call", "chrome.api.event", "storage.diff"}
+	want := []string{
+		string(protocol.MessageChromeAPICall),
+		string(protocol.MessageChromeAPIEvent),
+		string(protocol.MessageStorageDiff),
+	}
 	if len(payload.CapabilitiesSupported) != len(want) {
 		t.Fatalf("unexpected supported capabilities count: got %d, want %d (%v)", len(payload.CapabilitiesSupported), len(want), payload.CapabilitiesSupported)
 	}
@@ -249,13 +253,19 @@ func TestWebSocketHandshakeUnknownClientKindFallsBackToGlobalCapabilities(t *tes
 		_ = conn.Close()
 	})
 
-	helloAck := mustHandshakeWithClient(t, conn, server.token, "", "", []string{"query.events", "storage.set"})
+	helloAck := mustHandshakeWithClient(t, conn, server.token, "", "", []string{
+		string(protocol.MessageQueryEvents),
+		string(protocol.MessageStorageSet),
+	})
 
 	var payload protocol.HelloAck
 	if err := protocol.DecodePayload(helloAck.Data, &payload); err != nil {
 		t.Fatalf("DecodePayload(hello.ack) returned error: %v", err)
 	}
-	want := []string{"query.events", "storage.set"}
+	want := []string{
+		string(protocol.MessageQueryEvents),
+		string(protocol.MessageStorageSet),
+	}
 	if len(payload.CapabilitiesSupported) != len(want) {
 		t.Fatalf("unexpected supported capabilities count: got %d, want %d (%v)", len(payload.CapabilitiesSupported), len(want), payload.CapabilitiesSupported)
 	}
@@ -283,9 +293,9 @@ func TestWebSocketHandshakeRejectsKnownClientKindWithUnexpectedSourceRole(t *tes
 		protocol.Hello{
 			ProtocolVersion:       protocol.CurrentVersion,
 			AuthToken:             server.token,
-			ClientKind:            "dev-agent",
+			ClientKind:            string(protocol.ClientKindDevAgent),
 			ClientVersion:         "dev",
-			CapabilitiesRequested: []string{"command.reload"},
+			CapabilitiesRequested: []string{string(protocol.MessageCommandReload)},
 		},
 	)
 	rawHello, err := protocol.Encode(hello)
@@ -2087,31 +2097,31 @@ func TestWebSocketCapabilityListsSeparateBroadcastAndHandler(t *testing.T) {
 	}
 
 	// Verify command.reload is broadcast-only.
-	if isHandlerCapability("command.reload") {
+	if isHandlerCapability(string(protocol.MessageCommandReload)) {
 		t.Fatal("command.reload must be broadcast-only, not a handler capability")
 	}
 
 	// Verify build.complete is broadcast-only.
-	if isHandlerCapability("build.complete") {
+	if isHandlerCapability(string(protocol.MessageBuildComplete)) {
 		t.Fatal("build.complete must be broadcast-only, not a handler capability")
 	}
 
 	// Verify query.events is a handler capability.
-	if !isHandlerCapability("query.events") {
+	if !isHandlerCapability(string(protocol.MessageQueryEvents)) {
 		t.Fatal("query.events must be a handler capability")
 	}
 
 	// Verify first-party role scopes stay narrower than the full daemon catalog where intended.
-	if len(devAgentCapabilities) != 1 || devAgentCapabilities[0] != "command.reload" {
+	if len(devAgentCapabilities) != 1 || devAgentCapabilities[0] != string(protocol.MessageCommandReload) {
 		t.Fatalf("unexpected dev-agent capabilities: %v", devAgentCapabilities)
 	}
 	if len(chromeSimCapabilities) != 3 {
 		t.Fatalf("unexpected chrome-sim capability count: got %d, want 3 (%v)", len(chromeSimCapabilities), chromeSimCapabilities)
 	}
-	if len(supportedCapabilitiesForClientKind("inspector")) != len(daemonCapabilities) {
+	if len(supportedCapabilitiesForClientKind(string(protocol.ClientKindInspector))) != len(daemonCapabilities) {
 		t.Fatalf(
 			"unexpected inspector capabilities count: got %d, want %d",
-			len(supportedCapabilitiesForClientKind("inspector")),
+			len(supportedCapabilitiesForClientKind(string(protocol.ClientKindInspector))),
 			len(daemonCapabilities),
 		)
 	}
@@ -2258,15 +2268,15 @@ func singleSessionID(t *testing.T, server *WebSocketServer) string {
 }
 
 func mustHandshake(t *testing.T, conn *websocket.Conn) protocol.Envelope {
-	return mustHandshakeWithClient(t, conn, defaultHandshakeToken, "inspector", "", daemonCapabilities)
+	return mustHandshakeWithClient(t, conn, defaultHandshakeToken, string(protocol.ClientKindInspector), "", daemonCapabilities)
 }
 
 func mustHandshakeAsDevAgent(t *testing.T, conn *websocket.Conn) protocol.Envelope {
-	return mustHandshakeWithClient(t, conn, defaultHandshakeToken, "dev-agent", "", daemonCapabilities)
+	return mustHandshakeWithClient(t, conn, defaultHandshakeToken, string(protocol.ClientKindDevAgent), "", daemonCapabilities)
 }
 
 func mustHandshakeWithCapabilities(t *testing.T, conn *websocket.Conn, token string, capabilities []string) protocol.Envelope {
-	return mustHandshakeWithClient(t, conn, token, "inspector", "", capabilities)
+	return mustHandshakeWithClient(t, conn, token, string(protocol.ClientKindInspector), "", capabilities)
 }
 
 func mustHandshakeWithClient(
@@ -2338,9 +2348,9 @@ func mustHandshakeWithSourceAndClient(
 
 func defaultSourceRoleForClientKind(clientKind string) protocol.SourceRole {
 	switch normalizeClientKind(clientKind) {
-	case "inspector":
+	case string(protocol.ClientKindInspector):
 		return protocol.SourceInspector
-	case "chrome-sim":
+	case string(protocol.ClientKindChromeSim):
 		return protocol.SourceChromeSim
 	default:
 		return protocol.SourceDevAgent

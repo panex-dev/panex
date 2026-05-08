@@ -36,6 +36,19 @@ const (
 	MessageChromeAPIEvent  MessageName = "chrome.api.event"
 )
 
+var NegotiableCapabilityNames = []MessageName{
+	MessageBuildComplete,
+	MessageCommandReload,
+	MessageQueryEvents,
+	MessageQueryStorage,
+	MessageStorageDiff,
+	MessageStorageSet,
+	MessageStorageRemove,
+	MessageStorageClear,
+	MessageChromeAPICall,
+	MessageChromeAPIEvent,
+}
+
 type SourceRole string
 
 const (
@@ -44,6 +57,20 @@ const (
 	SourceChromeSim SourceRole = "chrome-sim"
 	SourceInspector SourceRole = "inspector"
 )
+
+type ClientKind string
+
+const (
+	ClientKindDevAgent  ClientKind = "dev-agent"
+	ClientKindInspector ClientKind = "inspector"
+	ClientKindChromeSim ClientKind = "chrome-sim"
+)
+
+var FirstPartyClientKinds = []ClientKind{
+	ClientKindDevAgent,
+	ClientKindInspector,
+	ClientKindChromeSim,
+}
 
 type Source struct {
 	Role SourceRole `msgpack:"role"`

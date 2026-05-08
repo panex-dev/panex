@@ -2,9 +2,41 @@ package protocol
 
 import (
 	"reflect"
+	"slices"
 	"strings"
 	"testing"
 )
+
+func TestNegotiableCapabilityNames(t *testing.T) {
+	want := []MessageName{
+		MessageBuildComplete,
+		MessageCommandReload,
+		MessageQueryEvents,
+		MessageQueryStorage,
+		MessageStorageDiff,
+		MessageStorageSet,
+		MessageStorageRemove,
+		MessageStorageClear,
+		MessageChromeAPICall,
+		MessageChromeAPIEvent,
+	}
+
+	if !slices.Equal(NegotiableCapabilityNames, want) {
+		t.Fatalf("unexpected negotiable capability names:\n  got=%v\n  want=%v", NegotiableCapabilityNames, want)
+	}
+}
+
+func TestFirstPartyClientKinds(t *testing.T) {
+	want := []ClientKind{
+		ClientKindDevAgent,
+		ClientKindInspector,
+		ClientKindChromeSim,
+	}
+
+	if !slices.Equal(FirstPartyClientKinds, want) {
+		t.Fatalf("unexpected first-party client kinds:\n  got=%v\n  want=%v", FirstPartyClientKinds, want)
+	}
+}
 
 func TestMessageTypeForName(t *testing.T) {
 	testCases := []struct {
