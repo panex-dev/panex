@@ -143,18 +143,21 @@ func TestFileWatcherWatchesNewDirectories(t *testing.T) {
 		t.Fatalf("write nested file: %v", err)
 	}
 
-	// If we miss the event, we poll-write to eventually trigger it after syncTree catches up.
-	// We use a long deadline for Windows CI (15s).
+	// If we miss the first write, retry with a quiet period long enough for the
+	// debounce timer to flush. Rewriting too aggressively can keep resetting the
+	// timer on slower Windows runners and starve the emission we are waiting for.
 	deadline := time.Now().Add(15 * time.Second)
+	attempt := 0
 	for time.Now().Before(deadline) {
-		_ = os.WriteFile(newFile, []byte("y"), 0o600)
+		_ = os.WriteFile(newFile, []byte{byte('a' + attempt%26)}, 0o600)
 		select {
 		case event := <-events:
 			if slices.Contains(event.Paths, "nested/entry.js") {
 				return
 			}
-		case <-time.After(200 * time.Millisecond):
+		case <-time.After(750 * time.Millisecond):
 		}
+		attempt++
 	}
 	t.Fatal("timed out waiting for nested file event")
 }
