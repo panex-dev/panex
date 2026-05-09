@@ -1,3 +1,8 @@
+import {
+  CHROME_API_EVENT_MESSAGE_NAME,
+  CHROME_API_RESULT_MESSAGE_NAME
+} from "@panex/protocol";
+
 import type { TimelineEntry } from "./timeline";
 
 export type ReplayFamilyID = "runtime-probe";
@@ -50,7 +55,7 @@ export function findLatestReplayObservation(timeline: TimelineEntry[]): ReplayOb
 export function decodeReplayObservation(entry: TimelineEntry): ReplayObservation | null {
   const envelope = entry.envelope;
 
-  if (envelope.name === "chrome.api.result" && envelope.t === "event" && isRecord(envelope.data)) {
+  if (envelope.name === CHROME_API_RESULT_MESSAGE_NAME && envelope.t === "event" && isRecord(envelope.data)) {
     const payload = envelope.data.data;
     if (!isReplayPayload(payload)) {
       return null;
@@ -67,7 +72,7 @@ export function decodeReplayObservation(entry: TimelineEntry): ReplayObservation
     };
   }
 
-  if (envelope.name === "chrome.api.event" && envelope.t === "event" && isRecord(envelope.data)) {
+  if (envelope.name === CHROME_API_EVENT_MESSAGE_NAME && envelope.t === "event" && isRecord(envelope.data)) {
     if (envelope.data.namespace !== "runtime" || envelope.data.event !== "onMessage") {
       return null;
     }

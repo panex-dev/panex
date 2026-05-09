@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
-import type { Envelope } from "@panex/protocol";
+import { CHROME_API_EVENT_MESSAGE_NAME, type Envelope } from "@panex/protocol";
 import { createRuntimeNamespace } from "../src/runtime";
 import type { ChromeSimTransport } from "../src/transport";
 
@@ -67,7 +67,7 @@ describe("runtime namespace", () => {
     eventHandler?.({
       v: 1,
       t: "event",
-      name: "chrome.api.event",
+      name: CHROME_API_EVENT_MESSAGE_NAME,
       src: { role: "daemon", id: "daemon-1" },
       data: {
         namespace: "runtime",

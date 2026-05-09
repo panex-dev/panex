@@ -1,5 +1,6 @@
 import { decode, encode } from "@msgpack/msgpack";
 import {
+  CHROME_API_CALL_MESSAGE_NAME,
   DEFAULT_DAEMON_WEBSOCKET_URL,
   DEFAULT_FIRST_PARTY_CLIENT_VERSION,
   HELLO_MESSAGE_NAME,
@@ -706,7 +707,7 @@ function buildChromeRuntimeSendMessage(
   return {
     v: PROTOCOL_VERSION,
     t: "command",
-    name: "chrome.api.call",
+    name: CHROME_API_CALL_MESSAGE_NAME,
     src: { role: inspectorSourceRole, id: inspectorID },
     data: {
       call_id: `runtime-send-${seq}`,

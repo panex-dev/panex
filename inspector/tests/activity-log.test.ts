@@ -1,5 +1,10 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
+import {
+  CHROME_API_CALL_MESSAGE_NAME,
+  CHROME_API_EVENT_MESSAGE_NAME,
+  CHROME_API_RESULT_MESSAGE_NAME
+} from "@panex/protocol";
 
 import { summarizeChromeAPIActivity } from "../src/activity-log";
 import type { TimelineEntry } from "../src/timeline";
@@ -7,13 +12,13 @@ import type { TimelineEntry } from "../src/timeline";
 describe("summarizeChromeAPIActivity", () => {
   it("pairs chrome.api.call entries with matching results and computes latency", () => {
     const activity = summarizeChromeAPIActivity([
-      commandEntry("chrome.api.call", 100, {
+      commandEntry(CHROME_API_CALL_MESSAGE_NAME, 100, {
         call_id: "runtime-send-1",
         namespace: "runtime",
         method: "sendMessage",
         args: [{ kind: "panex.workbench.runtime-probe", probe_id: "runtime-ping" }]
       }),
-      eventEntry("chrome.api.result", 125, {
+      eventEntry(CHROME_API_RESULT_MESSAGE_NAME, 125, {
         call_id: "runtime-send-1",
         success: true,
         data: { echoed: true }
@@ -30,24 +35,24 @@ describe("summarizeChromeAPIActivity", () => {
 
   it("surfaces unsupported simulator calls distinctly from generic failures", () => {
     const activity = summarizeChromeAPIActivity([
-      commandEntry("chrome.api.call", 200, {
+      commandEntry(CHROME_API_CALL_MESSAGE_NAME, 200, {
         call_id: "bookmarks-1",
         namespace: "bookmarks",
         method: "search",
         args: [{ query: "foo" }]
       }),
-      eventEntry("chrome.api.result", 240, {
+      eventEntry(CHROME_API_RESULT_MESSAGE_NAME, 240, {
         call_id: "bookmarks-1",
         success: false,
         error: 'unsupported chrome namespace "bookmarks"'
       }),
-      commandEntry("chrome.api.call", 260, {
+      commandEntry(CHROME_API_CALL_MESSAGE_NAME, 260, {
         call_id: "storage-1",
         namespace: "storage.local",
         method: "clear",
         args: ["nope"]
       }),
-      eventEntry("chrome.api.result", 280, {
+      eventEntry(CHROME_API_RESULT_MESSAGE_NAME, 280, {
         call_id: "storage-1",
         success: false,
         error: "clear expects no arguments"
@@ -62,12 +67,12 @@ describe("summarizeChromeAPIActivity", () => {
 
   it("includes standalone chrome.api.event entries and unmatched calls", () => {
     const activity = summarizeChromeAPIActivity([
-      eventEntry("chrome.api.event", 300, {
+      eventEntry(CHROME_API_EVENT_MESSAGE_NAME, 300, {
         namespace: "runtime",
         event: "onMessage",
         args: [{ kind: "panex.workbench.runtime-probe", probe_id: "runtime-ping" }]
       }),
-      commandEntry("chrome.api.call", 280, {
+      commandEntry(CHROME_API_CALL_MESSAGE_NAME, 280, {
         call_id: "tabs-query-1",
         namespace: "tabs",
         method: "query",

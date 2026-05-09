@@ -1,7 +1,11 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
-import type { StorageSnapshot } from "@panex/protocol";
+import {
+  CHROME_API_EVENT_MESSAGE_NAME,
+  CHROME_API_RESULT_MESSAGE_NAME,
+  type StorageSnapshot
+} from "@panex/protocol";
 
 import {
   buildWorkbenchModel,
@@ -161,7 +165,7 @@ describe("summarizeStoragePresets", () => {
 describe("summarizeRuntimeProbe", () => {
   it("captures the latest runtime probe result and runtime.onMessage event from timeline entries", () => {
     const timeline: TimelineEntry[] = [
-      eventEntry("chrome.api.result", 100, {
+      eventEntry(CHROME_API_RESULT_MESSAGE_NAME, 100, {
         call_id: "runtime-send-1",
         success: true,
         data: {
@@ -171,7 +175,7 @@ describe("summarizeRuntimeProbe", () => {
           source: "workbench"
         }
       }),
-      eventEntry("chrome.api.event", 120, {
+      eventEntry(CHROME_API_EVENT_MESSAGE_NAME, 120, {
         namespace: "runtime",
         event: "onMessage",
         args: [
@@ -196,12 +200,12 @@ describe("summarizeRuntimeProbe", () => {
 
   it("ignores unrelated chrome api traffic", () => {
     const timeline: TimelineEntry[] = [
-      eventEntry("chrome.api.result", 200, {
+      eventEntry(CHROME_API_RESULT_MESSAGE_NAME, 200, {
         call_id: "tabs-query-1",
         success: true,
         data: [{ id: 7 }]
       }),
-      eventEntry("chrome.api.event", 220, {
+      eventEntry(CHROME_API_EVENT_MESSAGE_NAME, 220, {
         namespace: "runtime",
         event: "onMessage",
         args: [{ topic: "other" }]
@@ -218,7 +222,7 @@ describe("summarizeRuntimeProbe", () => {
 
   it("falls back to replaying the latest matching runtime result when no event is present", () => {
     const timeline: TimelineEntry[] = [
-      eventEntry("chrome.api.result", 300, {
+      eventEntry(CHROME_API_RESULT_MESSAGE_NAME, 300, {
         call_id: "runtime-send-7",
         success: true,
         data: {

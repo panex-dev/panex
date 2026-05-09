@@ -1,4 +1,11 @@
-import type { ChromeAPICall, ChromeAPIEvent, ChromeAPIResult } from "@panex/protocol";
+import {
+  CHROME_API_CALL_MESSAGE_NAME,
+  CHROME_API_EVENT_MESSAGE_NAME,
+  CHROME_API_RESULT_MESSAGE_NAME,
+  type ChromeAPICall,
+  type ChromeAPIEvent,
+  type ChromeAPIResult
+} from "@panex/protocol";
 
 import { formatStorageValue } from "./storage";
 import type { TimelineEntry } from "./timeline";
@@ -123,7 +130,7 @@ function summarizeResultEntry(
 
 function decodeChromeAPICall(entry: TimelineEntry): { call: ChromeAPICall } | null {
   const envelope = entry.envelope;
-  if (envelope.name !== "chrome.api.call" || envelope.t !== "command" || !isRecord(envelope.data)) {
+  if (envelope.name !== CHROME_API_CALL_MESSAGE_NAME || envelope.t !== "command" || !isRecord(envelope.data)) {
     return null;
   }
 
@@ -147,7 +154,7 @@ function decodeChromeAPICall(entry: TimelineEntry): { call: ChromeAPICall } | nu
 
 function decodeChromeAPIResult(entry: TimelineEntry): { result: ChromeAPIResult } | null {
   const envelope = entry.envelope;
-  if (envelope.name !== "chrome.api.result" || envelope.t !== "event" || !isRecord(envelope.data)) {
+  if (envelope.name !== CHROME_API_RESULT_MESSAGE_NAME || envelope.t !== "event" || !isRecord(envelope.data)) {
     return null;
   }
 
@@ -167,7 +174,7 @@ function decodeChromeAPIResult(entry: TimelineEntry): { result: ChromeAPIResult 
 
 function decodeChromeAPIEvent(entry: TimelineEntry): { event: ChromeAPIEvent } | null {
   const envelope = entry.envelope;
-  if (envelope.name !== "chrome.api.event" || envelope.t !== "event" || !isRecord(envelope.data)) {
+  if (envelope.name !== CHROME_API_EVENT_MESSAGE_NAME || envelope.t !== "event" || !isRecord(envelope.data)) {
     return null;
   }
 

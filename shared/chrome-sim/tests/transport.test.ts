@@ -3,6 +3,9 @@ import { describe, it } from "node:test";
 import { decode, encode } from "@msgpack/msgpack";
 
 import {
+  CHROME_API_CALL_MESSAGE_NAME,
+  CHROME_API_EVENT_MESSAGE_NAME,
+  CHROME_API_RESULT_MESSAGE_NAME,
   CHROME_SIM_CLIENT_KIND,
   CHROME_SIM_SOURCE_ROLE,
   DAEMON_SOURCE_ROLE,
@@ -71,8 +74,8 @@ describe("chrome-sim transport", () => {
     assert.equal(helloData.client_version, DEFAULT_FIRST_PARTY_CLIENT_VERSION);
     assert.equal(helloData.extension_id, "panex.simulated.extension");
     assert.deepEqual((hello.data as { capabilities_requested?: string[] }).capabilities_requested, [
-      "chrome.api.call",
-      "chrome.api.event",
+      CHROME_API_CALL_MESSAGE_NAME,
+      CHROME_API_EVENT_MESSAGE_NAME,
       "storage.diff"
     ]);
 
@@ -80,7 +83,7 @@ describe("chrome-sim transport", () => {
     await waitFor(() => socket.sent.length >= 2);
 
     const call = decodeEnvelope(socket.sent[1]);
-    assert.equal(call.name, "chrome.api.call");
+    assert.equal(call.name, CHROME_API_CALL_MESSAGE_NAME);
     assert.equal(call.t, "command");
     assert.equal(call.src.role, CHROME_SIM_SOURCE_ROLE);
     assert.deepEqual(call.data, {
@@ -157,7 +160,7 @@ describe("chrome-sim transport", () => {
     sockets[0].open();
     sockets[0].messageEnvelope(
       buildHelloAckEnvelope("sess-no-call", {
-        capabilities_supported: ["chrome.api.event", "storage.diff"]
+        capabilities_supported: [CHROME_API_EVENT_MESSAGE_NAME, "storage.diff"]
       })
     );
 
@@ -225,7 +228,7 @@ describe("chrome-sim transport", () => {
     await pending;
 
     assert.equal(received.length, 1);
-    assert.equal(received[0].name, "chrome.api.event");
+    assert.equal(received[0].name, CHROME_API_EVENT_MESSAGE_NAME);
     unsubscribe();
     transport.close();
   });
@@ -256,7 +259,7 @@ describe("chrome-sim transport", () => {
         daemon_version: "test",
         session_id: "sess-mismatch",
         auth_ok: true,
-        capabilities_supported: ["chrome.api.call", "chrome.api.event"]
+        capabilities_supported: [CHROME_API_CALL_MESSAGE_NAME, CHROME_API_EVENT_MESSAGE_NAME]
       }
     };
 
@@ -429,7 +432,7 @@ function buildHelloAckEnvelope(
       daemon_version: "test",
       session_id: sessionID,
       auth_ok: true,
-      capabilities_supported: ["chrome.api.call", "chrome.api.event", "storage.diff"],
+      capabilities_supported: [CHROME_API_CALL_MESSAGE_NAME, CHROME_API_EVENT_MESSAGE_NAME, "storage.diff"],
       ...overrides
     }
   };
@@ -444,7 +447,7 @@ function buildChromeAPIResultEnvelope(
   return {
     v: PROTOCOL_VERSION,
     t: "event",
-    name: "chrome.api.result",
+    name: CHROME_API_RESULT_MESSAGE_NAME,
     src: { role: DAEMON_SOURCE_ROLE, id: "daemon-1" },
     data: {
       call_id: callID,
@@ -459,7 +462,7 @@ function buildChromeAPIEventEnvelope(namespace: string, event: string, args: unk
   return {
     v: PROTOCOL_VERSION,
     t: "event",
-    name: "chrome.api.event",
+    name: CHROME_API_EVENT_MESSAGE_NAME,
     src: { role: DAEMON_SOURCE_ROLE, id: "daemon-1" },
     data: {
       namespace,
