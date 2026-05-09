@@ -10,6 +10,8 @@ export const DAEMON_SOURCE_ROLE = "daemon";
 export const DEV_AGENT_SOURCE_ROLE = "dev-agent";
 export const CHROME_SIM_SOURCE_ROLE = "chrome-sim";
 export const INSPECTOR_SOURCE_ROLE = "inspector";
+export const HELLO_MESSAGE_NAME = "hello";
+export const HELLO_ACK_MESSAGE_NAME = "hello.ack";
 
 export const envelopeTypes = ["lifecycle", "event", "command"] as const;
 export type EnvelopeType = (typeof envelopeTypes)[number];
@@ -265,7 +267,7 @@ export function isEnvelope(value: unknown): value is Envelope {
 }
 
 export function isHelloAck(envelope: Envelope): envelope is Envelope<HelloAck> {
-  return envelope.t === "lifecycle" && envelope.name === "hello.ack";
+  return envelope.t === "lifecycle" && envelope.name === HELLO_ACK_MESSAGE_NAME;
 }
 
 export function isQueryEventsResult(envelope: Envelope): envelope is Envelope<QueryEventsResult> {

@@ -3,6 +3,8 @@ import { describe, it } from "node:test";
 import {
   DEFAULT_FIRST_PARTY_CLIENT_VERSION,
   DEV_AGENT_CLIENT_KIND,
+  HELLO_ACK_MESSAGE_NAME,
+  HELLO_MESSAGE_NAME,
   type Envelope,
   type HelloAck
 } from "@panex/protocol";
@@ -28,7 +30,7 @@ describe("buildHelloEnvelope", () => {
   it("requests command.reload capability from the daemon", () => {
     const envelope = buildHelloEnvelope(config);
 
-    assert.equal(envelope.name, "hello");
+    assert.equal(envelope.name, HELLO_MESSAGE_NAME);
     assert.equal(envelope.t, "lifecycle");
     assert.equal(envelope.src.role, "dev-agent");
     assert.equal(envelope.src.id, "agent-1");
@@ -226,7 +228,7 @@ function helloAckEnvelope(
   return {
     v: 1,
     t: "lifecycle",
-    name: "hello.ack",
+    name: HELLO_ACK_MESSAGE_NAME,
     src: { role: "daemon", id: "daemon-1" },
     data: {
       protocol_version: 1,

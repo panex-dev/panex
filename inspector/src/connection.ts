@@ -2,6 +2,7 @@ import { decode, encode } from "@msgpack/msgpack";
 import {
   DEFAULT_DAEMON_WEBSOCKET_URL,
   DEFAULT_FIRST_PARTY_CLIENT_VERSION,
+  HELLO_MESSAGE_NAME,
   INSPECTOR_CLIENT_KIND,
   PROTOCOL_VERSION,
   buildDaemonURL,
@@ -289,7 +290,7 @@ export function ConnectionProvider(props: ParentProps) {
       const hello: Envelope<Hello> = {
         v: PROTOCOL_VERSION,
         t: "lifecycle",
-        name: "hello",
+        name: HELLO_MESSAGE_NAME,
         src: { role: inspectorSourceRole, id: inspectorID },
         data: {
           protocol_version: PROTOCOL_VERSION,

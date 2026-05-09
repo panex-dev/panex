@@ -137,6 +137,7 @@ As of 2026-05-09.
 | — | Phase 2 Dev Bridge daemon: centralize the shared first-party client version handshake contract | `docs/build-log/2026-05-09-phase2-dev-bridge-first-party-client-version.md` |
 | — | Phase 2 Dev Bridge daemon: centralize named first-party client kind constants in shared protocol contracts | `docs/build-log/2026-05-09-phase2-dev-bridge-ts-client-kind-constants.md` |
 | — | Phase 2 Dev Bridge daemon: centralize named source role constants in shared protocol contracts | `docs/build-log/2026-05-09-phase2-dev-bridge-ts-source-role-constants.md` |
+| — | Phase 2 Dev Bridge daemon: centralize named handshake lifecycle message constants in shared protocol contracts | `docs/build-log/2026-05-09-phase2-dev-bridge-ts-hello-message-constants.md` |
 
 ## In progress
 - None.

@@ -7,6 +7,8 @@ import {
   CHROME_SIM_SOURCE_ROLE,
   DAEMON_SOURCE_ROLE,
   DEFAULT_FIRST_PARTY_CLIENT_VERSION,
+  HELLO_ACK_MESSAGE_NAME,
+  HELLO_MESSAGE_NAME,
   MAX_WEBSOCKET_MESSAGE_BYTES,
   PROTOCOL_VERSION,
   type Envelope
@@ -61,7 +63,7 @@ describe("chrome-sim transport", () => {
       client_version?: string;
       extension_id?: string;
     };
-    assert.equal(hello.name, "hello");
+    assert.equal(hello.name, HELLO_MESSAGE_NAME);
     assert.equal(hello.t, "lifecycle");
     assert.equal(hello.src.role, CHROME_SIM_SOURCE_ROLE);
     assert.equal(helloData.auth_token, "dev-token");
@@ -247,7 +249,7 @@ describe("chrome-sim transport", () => {
     const mismatchedAck: Envelope = {
       v: PROTOCOL_VERSION,
       t: "lifecycle",
-      name: "hello.ack",
+      name: HELLO_ACK_MESSAGE_NAME,
       src: { role: DAEMON_SOURCE_ROLE, id: "daemon-1" },
       data: {
         protocol_version: 99,
@@ -420,7 +422,7 @@ function buildHelloAckEnvelope(
   return {
     v: PROTOCOL_VERSION,
     t: "lifecycle",
-    name: "hello.ack",
+    name: HELLO_ACK_MESSAGE_NAME,
     src: { role: DAEMON_SOURCE_ROLE, id: "daemon-1" },
     data: {
       protocol_version: PROTOCOL_VERSION,
