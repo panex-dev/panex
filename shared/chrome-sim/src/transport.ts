@@ -1,5 +1,6 @@
 import { decode, encode } from "@msgpack/msgpack";
 import {
+  CHROME_SIM_CLIENT_KIND,
   DEFAULT_DAEMON_WEBSOCKET_URL,
   DEFAULT_FIRST_PARTY_CLIENT_VERSION,
   firstPartyRequestedCapabilities,
@@ -61,7 +62,7 @@ const defaultCallTimeoutMS = 5000;
 const defaultHandshakeTimeoutMS = 5000;
 const closeMessageTooBig = 1009;
 const callCapability = "chrome.api.call";
-const chromeSimClientKind = "chrome-sim";
+const chromeSimClientKind = CHROME_SIM_CLIENT_KIND;
 const chromeSimSourceRole = firstPartySourceRolesByClientKind[chromeSimClientKind];
 const requestedCapabilities = firstPartyRequestedCapabilities[chromeSimClientKind];
 

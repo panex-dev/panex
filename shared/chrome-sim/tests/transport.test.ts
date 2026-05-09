@@ -3,6 +3,7 @@ import { describe, it } from "node:test";
 import { decode, encode } from "@msgpack/msgpack";
 
 import {
+  CHROME_SIM_CLIENT_KIND,
   DEFAULT_FIRST_PARTY_CLIENT_VERSION,
   MAX_WEBSOCKET_MESSAGE_BYTES,
   PROTOCOL_VERSION,
@@ -54,6 +55,7 @@ describe("chrome-sim transport", () => {
     const hello = decodeEnvelope(socket.sent[0]);
     const helloData = hello.data as {
       auth_token?: string;
+      client_kind?: string;
       client_version?: string;
       extension_id?: string;
     };
@@ -61,6 +63,7 @@ describe("chrome-sim transport", () => {
     assert.equal(hello.t, "lifecycle");
     assert.equal(hello.src.role, "chrome-sim");
     assert.equal(helloData.auth_token, "dev-token");
+    assert.equal(helloData.client_kind, CHROME_SIM_CLIENT_KIND);
     assert.equal(helloData.client_version, DEFAULT_FIRST_PARTY_CLIENT_VERSION);
     assert.equal(helloData.extension_id, "panex.simulated.extension");
     assert.deepEqual((hello.data as { capabilities_requested?: string[] }).capabilities_requested, [

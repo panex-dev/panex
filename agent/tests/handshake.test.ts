@@ -1,6 +1,11 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { DEFAULT_FIRST_PARTY_CLIENT_VERSION, type Envelope, type HelloAck } from "@panex/protocol";
+import {
+  DEFAULT_FIRST_PARTY_CLIENT_VERSION,
+  DEV_AGENT_CLIENT_KIND,
+  type Envelope,
+  type HelloAck
+} from "@panex/protocol";
 
 import type { AgentConfig } from "../src/config";
 import {
@@ -27,6 +32,7 @@ describe("buildHelloEnvelope", () => {
     assert.equal(envelope.t, "lifecycle");
     assert.equal(envelope.src.role, "dev-agent");
     assert.equal(envelope.src.id, "agent-1");
+    assert.equal(envelope.data.client_kind, DEV_AGENT_CLIENT_KIND);
     assert.equal(envelope.data.extension_id, "default");
     assert.equal(envelope.data.client_version, DEFAULT_FIRST_PARTY_CLIENT_VERSION);
     assert.deepEqual(envelope.data.capabilities_requested, [...requestedCapabilities]);
