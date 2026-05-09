@@ -2,6 +2,7 @@ export const PROTOCOL_VERSION = 1;
 export const MAX_WEBSOCKET_MESSAGE_BYTES = 1 << 20;
 export const DEFAULT_DAEMON_WEBSOCKET_PATH = "/ws";
 export const DEFAULT_DAEMON_WEBSOCKET_URL = "ws://127.0.0.1:4317/ws";
+export const DEFAULT_FIRST_PARTY_CLIENT_VERSION = "dev";
 
 export const envelopeTypes = ["lifecycle", "event", "command"] as const;
 export type EnvelopeType = (typeof envelopeTypes)[number];

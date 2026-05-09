@@ -19,6 +19,12 @@ func TestDefaultDaemonWebSocketPath(t *testing.T) {
 	}
 }
 
+func TestDefaultFirstPartyClientVersion(t *testing.T) {
+	if DefaultFirstPartyClientVersion != "dev" {
+		t.Fatalf("unexpected default first-party client version: got %q, want %q", DefaultFirstPartyClientVersion, "dev")
+	}
+}
+
 func TestNegotiableCapabilityNames(t *testing.T) {
 	want := []MessageName{
 		MessageBuildComplete,
