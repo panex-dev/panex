@@ -5,6 +5,7 @@ import {
   DEFAULT_FIRST_PARTY_CLIENT_VERSION,
   firstPartyRequestedCapabilities,
   firstPartySourceRolesByClientKind,
+  HELLO_MESSAGE_NAME,
   PROTOCOL_VERSION,
   isEnvelope,
   isHelloAck,
@@ -224,7 +225,7 @@ export function createChromeSimTransport(options: ChromeSimTransportOptions = {}
         const hello: Envelope<Hello> = {
           v: PROTOCOL_VERSION,
           t: "lifecycle",
-          name: "hello",
+          name: HELLO_MESSAGE_NAME,
           src: { role: chromeSimSourceRole, id: clientID },
           data: {
             protocol_version: PROTOCOL_VERSION,

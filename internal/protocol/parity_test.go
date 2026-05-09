@@ -28,6 +28,8 @@ var tsDaemonSourceRoleRE = regexp.MustCompile(`(?m)^export const DAEMON_SOURCE_R
 var tsDevAgentSourceRoleRE = regexp.MustCompile(`(?m)^export const DEV_AGENT_SOURCE_ROLE = "([^"]+)";$`)
 var tsChromeSimSourceRoleRE = regexp.MustCompile(`(?m)^export const CHROME_SIM_SOURCE_ROLE = "([^"]+)";$`)
 var tsInspectorSourceRoleRE = regexp.MustCompile(`(?m)^export const INSPECTOR_SOURCE_ROLE = "([^"]+)";$`)
+var tsHelloMessageNameRE = regexp.MustCompile(`(?m)^export const HELLO_MESSAGE_NAME = "([^"]+)";$`)
+var tsHelloAckMessageNameRE = regexp.MustCompile(`(?m)^export const HELLO_ACK_MESSAGE_NAME = "([^"]+)";$`)
 
 func TestTypeScriptProtocolParity(t *testing.T) {
 	source := loadSharedProtocolSource(t)
@@ -78,6 +80,14 @@ func TestTypeScriptProtocolParity(t *testing.T) {
 
 	if got, want := parseTSStringConst(t, source, tsInspectorSourceRoleRE, "INSPECTOR_SOURCE_ROLE"), string(SourceInspector); got != want {
 		t.Fatalf("inspector source role drift: ts=%q go=%q", got, want)
+	}
+
+	if got, want := parseTSStringConst(t, source, tsHelloMessageNameRE, "HELLO_MESSAGE_NAME"), string(MessageHello); got != want {
+		t.Fatalf("hello message name drift: ts=%q go=%q", got, want)
+	}
+
+	if got, want := parseTSStringConst(t, source, tsHelloAckMessageNameRE, "HELLO_ACK_MESSAGE_NAME"), string(MessageHelloAck); got != want {
+		t.Fatalf("hello.ack message name drift: ts=%q go=%q", got, want)
 	}
 
 	if got, want := parseTSStringArray(t, source, "envelopeTypes"), []string{

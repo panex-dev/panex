@@ -3,6 +3,7 @@ import {
   DEFAULT_FIRST_PARTY_CLIENT_VERSION,
   firstPartyRequestedCapabilities,
   firstPartySourceRolesByClientKind,
+  HELLO_MESSAGE_NAME,
   PROTOCOL_VERSION,
   isHelloAck,
   type Envelope,
@@ -50,7 +51,7 @@ export function buildHelloEnvelope(config: AgentConfig): Envelope<Hello> {
   return {
     v: PROTOCOL_VERSION,
     t: "lifecycle",
-    name: "hello",
+    name: HELLO_MESSAGE_NAME,
     src: { role: agentSourceRole, id: config.agentId },
     data: {
       protocol_version: PROTOCOL_VERSION,

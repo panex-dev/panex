@@ -8,6 +8,8 @@ import {
   DEFAULT_FIRST_PARTY_CLIENT_VERSION,
   DEV_AGENT_SOURCE_ROLE,
   DEV_AGENT_CLIENT_KIND,
+  HELLO_ACK_MESSAGE_NAME,
+  HELLO_MESSAGE_NAME,
   INSPECTOR_SOURCE_ROLE,
   INSPECTOR_CLIENT_KIND,
   envelopeNames,
@@ -78,8 +80,8 @@ describe("isEnvelope", () => {
 
 describe("message guards", () => {
   it("identifies hello.ack envelopes", () => {
-    assert.equal(isHelloAck(makeEnvelope("hello.ack")), true);
-    assert.equal(isHelloAck(makeEnvelope("hello")), false);
+    assert.equal(isHelloAck(makeEnvelope(HELLO_ACK_MESSAGE_NAME)), true);
+    assert.equal(isHelloAck(makeEnvelope(HELLO_MESSAGE_NAME)), false);
   });
 
   it("identifies query.events.result envelopes", () => {
@@ -131,6 +133,11 @@ describe("capability contracts", () => {
     assert.equal(DEV_AGENT_SOURCE_ROLE, "dev-agent");
     assert.equal(CHROME_SIM_SOURCE_ROLE, "chrome-sim");
     assert.equal(INSPECTOR_SOURCE_ROLE, "inspector");
+  });
+
+  it("publishes named handshake lifecycle message constants", () => {
+    assert.equal(HELLO_MESSAGE_NAME, "hello");
+    assert.equal(HELLO_ACK_MESSAGE_NAME, "hello.ack");
   });
 
   it("keeps response-only message names out of negotiable capabilities", () => {
