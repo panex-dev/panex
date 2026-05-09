@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
+import { INSPECTOR_SOURCE_ROLE } from "@panex/protocol";
 
 import {
   bridgeSessionSupportsCapability,
@@ -64,7 +65,7 @@ describe("buildTimelineQuery", () => {
       t: "command",
       name: "query.events",
       src: {
-        role: "inspector",
+        role: INSPECTOR_SOURCE_ROLE,
         id: query.src.id
       },
       data: { limit: 500 }
@@ -143,7 +144,7 @@ describe("buildPostHelloAckMessages", () => {
     assert.equal(messages.length, 1);
     assert.equal(messages[0]?.name, "query.storage");
     assert.equal(messages[0]?.t, "command");
-    assert.equal(messages[0]?.src.role, "inspector");
+    assert.equal(messages[0]?.src.role, INSPECTOR_SOURCE_ROLE);
     assert.deepEqual(messages[0]?.data, {});
   });
 

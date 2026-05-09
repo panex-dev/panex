@@ -6,6 +6,10 @@ export const DEFAULT_FIRST_PARTY_CLIENT_VERSION = "dev";
 export const DEV_AGENT_CLIENT_KIND = "dev-agent";
 export const INSPECTOR_CLIENT_KIND = "inspector";
 export const CHROME_SIM_CLIENT_KIND = "chrome-sim";
+export const DAEMON_SOURCE_ROLE = "daemon";
+export const DEV_AGENT_SOURCE_ROLE = "dev-agent";
+export const CHROME_SIM_SOURCE_ROLE = "chrome-sim";
+export const INSPECTOR_SOURCE_ROLE = "inspector";
 
 export const envelopeTypes = ["lifecycle", "event", "command"] as const;
 export type EnvelopeType = (typeof envelopeTypes)[number];

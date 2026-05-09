@@ -4,6 +4,8 @@ import { decode, encode } from "@msgpack/msgpack";
 
 import {
   CHROME_SIM_CLIENT_KIND,
+  CHROME_SIM_SOURCE_ROLE,
+  DAEMON_SOURCE_ROLE,
   DEFAULT_FIRST_PARTY_CLIENT_VERSION,
   MAX_WEBSOCKET_MESSAGE_BYTES,
   PROTOCOL_VERSION,
@@ -61,7 +63,7 @@ describe("chrome-sim transport", () => {
     };
     assert.equal(hello.name, "hello");
     assert.equal(hello.t, "lifecycle");
-    assert.equal(hello.src.role, "chrome-sim");
+    assert.equal(hello.src.role, CHROME_SIM_SOURCE_ROLE);
     assert.equal(helloData.auth_token, "dev-token");
     assert.equal(helloData.client_kind, CHROME_SIM_CLIENT_KIND);
     assert.equal(helloData.client_version, DEFAULT_FIRST_PARTY_CLIENT_VERSION);
@@ -78,7 +80,7 @@ describe("chrome-sim transport", () => {
     const call = decodeEnvelope(socket.sent[1]);
     assert.equal(call.name, "chrome.api.call");
     assert.equal(call.t, "command");
-    assert.equal(call.src.role, "chrome-sim");
+    assert.equal(call.src.role, CHROME_SIM_SOURCE_ROLE);
     assert.deepEqual(call.data, {
       call_id: "call-1",
       namespace: "storage.local",
@@ -246,7 +248,7 @@ describe("chrome-sim transport", () => {
       v: PROTOCOL_VERSION,
       t: "lifecycle",
       name: "hello.ack",
-      src: { role: "daemon", id: "daemon-1" },
+      src: { role: DAEMON_SOURCE_ROLE, id: "daemon-1" },
       data: {
         protocol_version: 99,
         daemon_version: "test",
@@ -419,7 +421,7 @@ function buildHelloAckEnvelope(
     v: PROTOCOL_VERSION,
     t: "lifecycle",
     name: "hello.ack",
-    src: { role: "daemon", id: "daemon-1" },
+    src: { role: DAEMON_SOURCE_ROLE, id: "daemon-1" },
     data: {
       protocol_version: PROTOCOL_VERSION,
       daemon_version: "test",
@@ -441,7 +443,7 @@ function buildChromeAPIResultEnvelope(
     v: PROTOCOL_VERSION,
     t: "event",
     name: "chrome.api.result",
-    src: { role: "daemon", id: "daemon-1" },
+    src: { role: DAEMON_SOURCE_ROLE, id: "daemon-1" },
     data: {
       call_id: callID,
       success,
@@ -456,7 +458,7 @@ function buildChromeAPIEventEnvelope(namespace: string, event: string, args: unk
     v: PROTOCOL_VERSION,
     t: "event",
     name: "chrome.api.event",
-    src: { role: "daemon", id: "daemon-1" },
+    src: { role: DAEMON_SOURCE_ROLE, id: "daemon-1" },
     data: {
       namespace,
       event,
