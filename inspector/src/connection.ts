@@ -2,6 +2,7 @@ import { decode, encode } from "@msgpack/msgpack";
 import {
   DEFAULT_DAEMON_WEBSOCKET_URL,
   DEFAULT_FIRST_PARTY_CLIENT_VERSION,
+  INSPECTOR_CLIENT_KIND,
   PROTOCOL_VERSION,
   buildDaemonURL,
   firstPartyRequestedCapabilities,
@@ -71,7 +72,7 @@ export function bridgeSessionSupportsCapability(
 const defaultDaemonWSURL = DEFAULT_DAEMON_WEBSOCKET_URL;
 const defaultDaemonToken = "";
 const closeMessageTooBig = 1009;
-const inspectorClientKind = "inspector";
+const inspectorClientKind = INSPECTOR_CLIENT_KIND;
 const inspectorSourceRole = firstPartySourceRolesByClientKind[inspectorClientKind];
 export const inspectorRequestedCapabilities = firstPartyRequestedCapabilities[inspectorClientKind];
 

@@ -1,4 +1,5 @@
 import {
+  DEV_AGENT_CLIENT_KIND,
   DEFAULT_FIRST_PARTY_CLIENT_VERSION,
   firstPartyRequestedCapabilities,
   firstPartySourceRolesByClientKind,
@@ -13,7 +14,7 @@ import { handleReloadCommand } from "./reload";
 
 const closeProtocolError = 1002;
 const closePolicyViolation = 1008;
-const agentClientKind = "dev-agent";
+const agentClientKind = DEV_AGENT_CLIENT_KIND;
 const agentSourceRole = firstPartySourceRolesByClientKind[agentClientKind];
 
 export const requestedCapabilities = firstPartyRequestedCapabilities[agentClientKind];

@@ -21,6 +21,9 @@ var tsMaxWebSocketMessageBytesRE = regexp.MustCompile(`(?m)^export const MAX_WEB
 var tsDefaultDaemonWebSocketPathRE = regexp.MustCompile(`(?m)^export const DEFAULT_DAEMON_WEBSOCKET_PATH = "([^"]+)";$`)
 var tsDefaultDaemonWebSocketURLRE = regexp.MustCompile(`(?m)^export const DEFAULT_DAEMON_WEBSOCKET_URL = "([^"]+)";$`)
 var tsDefaultFirstPartyClientVersionRE = regexp.MustCompile(`(?m)^export const DEFAULT_FIRST_PARTY_CLIENT_VERSION = "([^"]+)";$`)
+var tsDevAgentClientKindRE = regexp.MustCompile(`(?m)^export const DEV_AGENT_CLIENT_KIND = "([^"]+)";$`)
+var tsInspectorClientKindRE = regexp.MustCompile(`(?m)^export const INSPECTOR_CLIENT_KIND = "([^"]+)";$`)
+var tsChromeSimClientKindRE = regexp.MustCompile(`(?m)^export const CHROME_SIM_CLIENT_KIND = "([^"]+)";$`)
 
 func TestTypeScriptProtocolParity(t *testing.T) {
 	source := loadSharedProtocolSource(t)
@@ -43,6 +46,18 @@ func TestTypeScriptProtocolParity(t *testing.T) {
 
 	if got, want := parseTSStringConst(t, source, tsDefaultFirstPartyClientVersionRE, "DEFAULT_FIRST_PARTY_CLIENT_VERSION"), DefaultFirstPartyClientVersion; got != want {
 		t.Fatalf("default first-party client version drift: ts=%q go=%q", got, want)
+	}
+
+	if got, want := parseTSStringConst(t, source, tsDevAgentClientKindRE, "DEV_AGENT_CLIENT_KIND"), string(ClientKindDevAgent); got != want {
+		t.Fatalf("dev-agent client kind drift: ts=%q go=%q", got, want)
+	}
+
+	if got, want := parseTSStringConst(t, source, tsInspectorClientKindRE, "INSPECTOR_CLIENT_KIND"), string(ClientKindInspector); got != want {
+		t.Fatalf("inspector client kind drift: ts=%q go=%q", got, want)
+	}
+
+	if got, want := parseTSStringConst(t, source, tsChromeSimClientKindRE, "CHROME_SIM_CLIENT_KIND"), string(ClientKindChromeSim); got != want {
+		t.Fatalf("chrome-sim client kind drift: ts=%q go=%q", got, want)
 	}
 
 	if got, want := parseTSStringArray(t, source, "envelopeTypes"), []string{

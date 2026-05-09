@@ -2,9 +2,13 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
 import {
+  CHROME_SIM_CLIENT_KIND,
   DEFAULT_FIRST_PARTY_CLIENT_VERSION,
+  DEV_AGENT_CLIENT_KIND,
+  INSPECTOR_CLIENT_KIND,
   envelopeNames,
   firstPartyRequestedCapabilities,
+  firstPartyClientKinds,
   firstPartySourceRolesByClientKind,
   isEnvelope,
   isHelloAck,
@@ -105,6 +109,17 @@ describe("message guards", () => {
 describe("capability contracts", () => {
   it("publishes the shared first-party client version contract", () => {
     assert.equal(DEFAULT_FIRST_PARTY_CLIENT_VERSION, "dev");
+  });
+
+  it("publishes named first-party client kind constants", () => {
+    assert.equal(DEV_AGENT_CLIENT_KIND, "dev-agent");
+    assert.equal(INSPECTOR_CLIENT_KIND, "inspector");
+    assert.equal(CHROME_SIM_CLIENT_KIND, "chrome-sim");
+    assert.deepEqual(firstPartyClientKinds, [
+      DEV_AGENT_CLIENT_KIND,
+      INSPECTOR_CLIENT_KIND,
+      CHROME_SIM_CLIENT_KIND
+    ]);
   });
 
   it("keeps response-only message names out of negotiable capabilities", () => {
