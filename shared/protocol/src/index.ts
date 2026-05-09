@@ -12,6 +12,9 @@ export const CHROME_SIM_SOURCE_ROLE = "chrome-sim";
 export const INSPECTOR_SOURCE_ROLE = "inspector";
 export const HELLO_MESSAGE_NAME = "hello";
 export const HELLO_ACK_MESSAGE_NAME = "hello.ack";
+export const CHROME_API_CALL_MESSAGE_NAME = "chrome.api.call";
+export const CHROME_API_RESULT_MESSAGE_NAME = "chrome.api.result";
+export const CHROME_API_EVENT_MESSAGE_NAME = "chrome.api.event";
 
 export const envelopeTypes = ["lifecycle", "event", "command"] as const;
 export type EnvelopeType = (typeof envelopeTypes)[number];

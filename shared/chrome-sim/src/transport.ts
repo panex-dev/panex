@@ -1,5 +1,8 @@
 import { decode, encode } from "@msgpack/msgpack";
 import {
+  CHROME_API_CALL_MESSAGE_NAME,
+  CHROME_API_EVENT_MESSAGE_NAME,
+  CHROME_API_RESULT_MESSAGE_NAME,
   CHROME_SIM_CLIENT_KIND,
   DEFAULT_DAEMON_WEBSOCKET_URL,
   DEFAULT_FIRST_PARTY_CLIENT_VERSION,
@@ -62,7 +65,7 @@ const socketOpenState = 1;
 const defaultCallTimeoutMS = 5000;
 const defaultHandshakeTimeoutMS = 5000;
 const closeMessageTooBig = 1009;
-const callCapability = "chrome.api.call";
+const callCapability = CHROME_API_CALL_MESSAGE_NAME;
 const chromeSimClientKind = CHROME_SIM_CLIENT_KIND;
 const chromeSimSourceRole = firstPartySourceRolesByClientKind[chromeSimClientKind];
 const requestedCapabilities = firstPartyRequestedCapabilities[chromeSimClientKind];
@@ -173,7 +176,7 @@ export function createChromeSimTransport(options: ChromeSimTransportOptions = {}
       return;
     }
 
-    if (decoded.name === "chrome.api.result" && decoded.t === "event") {
+    if (decoded.name === CHROME_API_RESULT_MESSAGE_NAME && decoded.t === "event") {
       handleChromeAPIResult(decoded.data);
       return;
     }
@@ -184,7 +187,7 @@ export function createChromeSimTransport(options: ChromeSimTransportOptions = {}
       }
     }
 
-    if (decoded.name === "chrome.api.event" && decoded.t === "event") {
+    if (decoded.name === CHROME_API_EVENT_MESSAGE_NAME && decoded.t === "event") {
       for (const handler of eventHandlers) {
         handler(decoded as Envelope<ChromeAPIEvent>);
       }
@@ -362,7 +365,7 @@ export function createChromeSimTransport(options: ChromeSimTransportOptions = {}
       const envelope: Envelope<ChromeAPICall> = {
         v: PROTOCOL_VERSION,
         t: "command",
-        name: "chrome.api.call",
+        name: CHROME_API_CALL_MESSAGE_NAME,
         src: { role: chromeSimSourceRole, id: clientID },
         data: {
           call_id: callID,

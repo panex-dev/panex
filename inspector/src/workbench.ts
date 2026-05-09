@@ -1,6 +1,8 @@
-import type {
-  ChromeAPIResult,
-  StorageSnapshot
+import {
+  CHROME_API_EVENT_MESSAGE_NAME,
+  CHROME_API_RESULT_MESSAGE_NAME,
+  type ChromeAPIResult,
+  type StorageSnapshot
 } from "@panex/protocol";
 
 import type { BridgeSession, ConnectionStatus } from "./connection";
@@ -354,7 +356,7 @@ function findLatestRuntimeProbeEvent(
 
 function decodeRuntimeProbeResult(entry: TimelineEntry): ChromeAPIResult | null {
   const envelope = entry.envelope;
-  if (envelope.name !== "chrome.api.result" || envelope.t !== "event" || !isRecord(envelope.data)) {
+  if (envelope.name !== CHROME_API_RESULT_MESSAGE_NAME || envelope.t !== "event" || !isRecord(envelope.data)) {
     return null;
   }
 
@@ -377,7 +379,7 @@ function decodeRuntimeProbeResult(entry: TimelineEntry): ChromeAPIResult | null 
 
 function decodeRuntimeProbeEvent(entry: TimelineEntry): Record<string, unknown> | undefined {
   const envelope = entry.envelope;
-  if (envelope.name !== "chrome.api.event" || envelope.t !== "event" || !isRecord(envelope.data)) {
+  if (envelope.name !== CHROME_API_EVENT_MESSAGE_NAME || envelope.t !== "event" || !isRecord(envelope.data)) {
     return undefined;
   }
 

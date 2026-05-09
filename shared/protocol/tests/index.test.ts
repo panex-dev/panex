@@ -2,8 +2,11 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
 import {
+  CHROME_API_CALL_MESSAGE_NAME,
   CHROME_SIM_SOURCE_ROLE,
   CHROME_SIM_CLIENT_KIND,
+  CHROME_API_EVENT_MESSAGE_NAME,
+  CHROME_API_RESULT_MESSAGE_NAME,
   DAEMON_SOURCE_ROLE,
   DEFAULT_FIRST_PARTY_CLIENT_VERSION,
   DEV_AGENT_SOURCE_ROLE,
@@ -106,9 +109,9 @@ describe("message guards", () => {
   });
 
   it("maps chrome api simulator transport messages", () => {
-    assert.equal(messageTypeForName("chrome.api.call"), "command");
-    assert.equal(messageTypeForName("chrome.api.result"), "event");
-    assert.equal(messageTypeForName("chrome.api.event"), "event");
+    assert.equal(messageTypeForName(CHROME_API_CALL_MESSAGE_NAME), "command");
+    assert.equal(messageTypeForName(CHROME_API_RESULT_MESSAGE_NAME), "event");
+    assert.equal(messageTypeForName(CHROME_API_EVENT_MESSAGE_NAME), "event");
   });
 });
 
@@ -140,9 +143,15 @@ describe("capability contracts", () => {
     assert.equal(HELLO_ACK_MESSAGE_NAME, "hello.ack");
   });
 
+  it("publishes named chrome api transport message constants", () => {
+    assert.equal(CHROME_API_CALL_MESSAGE_NAME, "chrome.api.call");
+    assert.equal(CHROME_API_RESULT_MESSAGE_NAME, "chrome.api.result");
+    assert.equal(CHROME_API_EVENT_MESSAGE_NAME, "chrome.api.event");
+  });
+
   it("keeps response-only message names out of negotiable capabilities", () => {
     const capabilities = negotiableCapabilityNames as readonly string[];
-    assert.equal(capabilities.includes("chrome.api.result"), false);
+    assert.equal(capabilities.includes(CHROME_API_RESULT_MESSAGE_NAME), false);
     assert.equal(capabilities.includes("query.events.result"), false);
     assert.equal(capabilities.includes("query.storage.result"), false);
   });
@@ -150,8 +159,8 @@ describe("capability contracts", () => {
   it("publishes the scoped first-party request sets", () => {
     assert.deepEqual(firstPartyRequestedCapabilities["dev-agent"], ["command.reload"]);
     assert.deepEqual(firstPartyRequestedCapabilities["chrome-sim"], [
-      "chrome.api.call",
-      "chrome.api.event",
+      CHROME_API_CALL_MESSAGE_NAME,
+      CHROME_API_EVENT_MESSAGE_NAME,
       "storage.diff"
     ]);
     assert.deepEqual(firstPartyRequestedCapabilities.inspector, [
@@ -163,8 +172,8 @@ describe("capability contracts", () => {
       "storage.set",
       "storage.remove",
       "storage.clear",
-      "chrome.api.call",
-      "chrome.api.event"
+      CHROME_API_CALL_MESSAGE_NAME,
+      CHROME_API_EVENT_MESSAGE_NAME
     ]);
   });
 

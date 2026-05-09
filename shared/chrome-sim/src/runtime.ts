@@ -1,4 +1,4 @@
-import type { Envelope } from "@panex/protocol";
+import { CHROME_API_EVENT_MESSAGE_NAME, type Envelope } from "@panex/protocol";
 import type { ChromeSimTransport } from "./transport";
 
 export interface RuntimeOnMessageListener {
@@ -66,7 +66,7 @@ export function resolveDefaultExtensionID(): string {
 }
 
 function extractRuntimeOnMessageEvent(event: Envelope): { message: unknown } | null {
-  if (event.name !== "chrome.api.event" || event.t !== "event") {
+  if (event.name !== CHROME_API_EVENT_MESSAGE_NAME || event.t !== "event") {
     return null;
   }
 
