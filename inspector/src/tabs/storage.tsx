@@ -1,7 +1,14 @@
+import {
+  QUERY_STORAGE_MESSAGE_NAME,
+  STORAGE_CLEAR_MESSAGE_NAME,
+  STORAGE_REMOVE_MESSAGE_NAME,
+  STORAGE_SET_MESSAGE_NAME,
+  type QueryStorage,
+  type StorageSnapshot
+} from "@panex/protocol";
+
 import h from "solid-js/h";
 import { createEffect, createMemo, createSignal, type Accessor, type JSX } from "solid-js";
-
-import type { QueryStorage, StorageSnapshot } from "@panex/protocol";
 import type { BridgeSession, ConnectionStatus } from "../connection";
 import {
   flattenStorageSnapshots,
@@ -35,16 +42,16 @@ export function StorageTab(props: StorageTabProps): JSX.Element {
   const rows = createMemo(() => flattenStorageSnapshots(props.storage(), area()));
   const selectedAreaLabel = createMemo(() => (area() === "all" ? "all areas" : area()));
   const canQueryStorage = createMemo(() =>
-    props.bridgeSession()?.capabilitiesSupported.includes("query.storage") ?? false
+    props.bridgeSession()?.capabilitiesSupported.includes(QUERY_STORAGE_MESSAGE_NAME) ?? false
   );
   const canSetStorage = createMemo(() =>
-    props.bridgeSession()?.capabilitiesSupported.includes("storage.set") ?? false
+    props.bridgeSession()?.capabilitiesSupported.includes(STORAGE_SET_MESSAGE_NAME) ?? false
   );
   const canRemoveStorage = createMemo(() =>
-    props.bridgeSession()?.capabilitiesSupported.includes("storage.remove") ?? false
+    props.bridgeSession()?.capabilitiesSupported.includes(STORAGE_REMOVE_MESSAGE_NAME) ?? false
   );
   const canClearStorage = createMemo(() =>
-    props.bridgeSession()?.capabilitiesSupported.includes("storage.clear") ?? false
+    props.bridgeSession()?.capabilitiesSupported.includes(STORAGE_CLEAR_MESSAGE_NAME) ?? false
   );
 
   createEffect(() => {

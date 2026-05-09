@@ -1,8 +1,9 @@
-import type {
-  Envelope,
-  EnvelopeType,
-  EventSnapshot,
-  Source
+import {
+  QUERY_EVENTS_RESULT_MESSAGE_NAME,
+  type Envelope,
+  type EnvelopeType,
+  type EventSnapshot,
+  type Source
 } from "@panex/protocol";
 
 export interface TimelineEntry {
@@ -174,7 +175,7 @@ export function summarizeEnvelope(envelope: Envelope): string {
     }
     return summary;
   }
-  if (envelope.name === "query.events.result" && typeof envelope.data === "object" && envelope.data !== null) {
+  if (envelope.name === QUERY_EVENTS_RESULT_MESSAGE_NAME && typeof envelope.data === "object" && envelope.data !== null) {
     const payload = envelope.data as { events?: unknown[] };
     return `events=${Array.isArray(payload.events) ? payload.events.length : 0}`;
   }
