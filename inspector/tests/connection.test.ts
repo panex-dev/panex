@@ -1,7 +1,10 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
+  BUILD_COMPLETE_MESSAGE_NAME,
   CHROME_API_CALL_MESSAGE_NAME,
+  CHROME_API_EVENT_MESSAGE_NAME,
+  COMMAND_RELOAD_MESSAGE_NAME,
   INSPECTOR_SOURCE_ROLE,
   QUERY_EVENTS_MESSAGE_NAME,
   QUERY_STORAGE_MESSAGE_NAME,
@@ -175,11 +178,11 @@ describe("buildPostHelloAckMessages", () => {
 
 describe("inspectorRequestedCapabilities", () => {
   it("includes the live and command capabilities the inspector actually negotiates", () => {
-    assert.equal(inspectorRequestedCapabilities.includes("build.complete"), true);
-    assert.equal(inspectorRequestedCapabilities.includes("command.reload"), true);
+    assert.equal(inspectorRequestedCapabilities.includes(BUILD_COMPLETE_MESSAGE_NAME), true);
+    assert.equal(inspectorRequestedCapabilities.includes(COMMAND_RELOAD_MESSAGE_NAME), true);
     assert.equal(inspectorRequestedCapabilities.includes(STORAGE_DIFF_MESSAGE_NAME), true);
-    assert.equal(inspectorRequestedCapabilities.includes("chrome.api.call"), true);
-    assert.equal(inspectorRequestedCapabilities.includes("chrome.api.event"), true);
+    assert.equal(inspectorRequestedCapabilities.includes(CHROME_API_CALL_MESSAGE_NAME), true);
+    assert.equal(inspectorRequestedCapabilities.includes(CHROME_API_EVENT_MESSAGE_NAME), true);
   });
 
   it("omits response-only capability names from the handshake request set", () => {

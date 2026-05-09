@@ -2,9 +2,11 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
 import {
+  BUILD_COMPLETE_MESSAGE_NAME,
   CHROME_API_CALL_MESSAGE_NAME,
   CHROME_SIM_SOURCE_ROLE,
   CHROME_SIM_CLIENT_KIND,
+  COMMAND_RELOAD_MESSAGE_NAME,
   CHROME_API_EVENT_MESSAGE_NAME,
   CHROME_API_RESULT_MESSAGE_NAME,
   DAEMON_SOURCE_ROLE,
@@ -57,13 +59,13 @@ describe("isEnvelope", () => {
   });
 
   it("accepts known envelope shapes", () => {
-    const value = makeEnvelope("command.reload");
+    const value = makeEnvelope(COMMAND_RELOAD_MESSAGE_NAME);
     assert.equal(isEnvelope(value), true);
   });
 
   it("rejects unknown names", () => {
     const value = {
-      ...makeEnvelope("command.reload"),
+      ...makeEnvelope(COMMAND_RELOAD_MESSAGE_NAME),
       name: "unknown.message"
     };
 
@@ -72,7 +74,7 @@ describe("isEnvelope", () => {
 
   it("rejects mismatched type/name pairs", () => {
     const value = {
-      ...makeEnvelope("command.reload"),
+      ...makeEnvelope(COMMAND_RELOAD_MESSAGE_NAME),
       t: "event"
     };
 
@@ -81,7 +83,7 @@ describe("isEnvelope", () => {
 
   it("rejects missing source identifiers", () => {
     const value = {
-      ...makeEnvelope("build.complete"),
+      ...makeEnvelope(BUILD_COMPLETE_MESSAGE_NAME),
       src: { role: DAEMON_SOURCE_ROLE, id: " " }
     };
 
@@ -97,12 +99,12 @@ describe("message guards", () => {
 
   it("identifies query.events.result envelopes", () => {
     assert.equal(isQueryEventsResult(makeEnvelope(QUERY_EVENTS_RESULT_MESSAGE_NAME)), true);
-    assert.equal(isQueryEventsResult(makeEnvelope("build.complete")), false);
+    assert.equal(isQueryEventsResult(makeEnvelope(BUILD_COMPLETE_MESSAGE_NAME)), false);
   });
 
   it("identifies command.reload envelopes", () => {
-    assert.equal(isReloadCommand(makeEnvelope("command.reload")), true);
-    assert.equal(isReloadCommand(makeEnvelope("build.complete")), false);
+    assert.equal(isReloadCommand(makeEnvelope(COMMAND_RELOAD_MESSAGE_NAME)), true);
+    assert.equal(isReloadCommand(makeEnvelope(BUILD_COMPLETE_MESSAGE_NAME)), false);
   });
 
   it("identifies query.storage.result envelopes", () => {
@@ -151,6 +153,11 @@ describe("capability contracts", () => {
     assert.equal(HELLO_ACK_MESSAGE_NAME, "hello.ack");
   });
 
+  it("publishes named build and reload message constants", () => {
+    assert.equal(BUILD_COMPLETE_MESSAGE_NAME, "build.complete");
+    assert.equal(COMMAND_RELOAD_MESSAGE_NAME, "command.reload");
+  });
+
   it("publishes named chrome api transport message constants", () => {
     assert.equal(CHROME_API_CALL_MESSAGE_NAME, "chrome.api.call");
     assert.equal(CHROME_API_RESULT_MESSAGE_NAME, "chrome.api.result");
@@ -176,7 +183,7 @@ describe("capability contracts", () => {
   });
 
   it("publishes the scoped first-party request sets", () => {
-    assert.deepEqual(firstPartyRequestedCapabilities["dev-agent"], ["command.reload"]);
+    assert.deepEqual(firstPartyRequestedCapabilities["dev-agent"], [COMMAND_RELOAD_MESSAGE_NAME]);
     assert.deepEqual(firstPartyRequestedCapabilities["chrome-sim"], [
       CHROME_API_CALL_MESSAGE_NAME,
       CHROME_API_EVENT_MESSAGE_NAME,
@@ -184,8 +191,8 @@ describe("capability contracts", () => {
     ]);
     assert.deepEqual(firstPartyRequestedCapabilities.inspector, [
       QUERY_EVENTS_MESSAGE_NAME,
-      "build.complete",
-      "command.reload",
+      BUILD_COMPLETE_MESSAGE_NAME,
+      COMMAND_RELOAD_MESSAGE_NAME,
       QUERY_STORAGE_MESSAGE_NAME,
       STORAGE_DIFF_MESSAGE_NAME,
       STORAGE_SET_MESSAGE_NAME,

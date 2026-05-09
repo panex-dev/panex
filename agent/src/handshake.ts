@@ -1,4 +1,5 @@
 import {
+  COMMAND_RELOAD_MESSAGE_NAME,
   DEV_AGENT_CLIENT_KIND,
   DEFAULT_FIRST_PARTY_CLIENT_VERSION,
   firstPartyRequestedCapabilities,
@@ -94,7 +95,7 @@ export function handleDaemonEnvelope(
     state.complete = true;
     state.capabilitiesSupported = new Set(capabilitiesSupported);
 
-    if (!state.capabilitiesSupported.has("command.reload")) {
+    if (!state.capabilitiesSupported.has(COMMAND_RELOAD_MESSAGE_NAME)) {
       resetAgentHandshakeState(state);
       hooks.closeSocket(closeProtocolError, "daemon did not negotiate command.reload");
       return "closed";

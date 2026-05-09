@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
+  BUILD_COMPLETE_MESSAGE_NAME,
+  COMMAND_RELOAD_MESSAGE_NAME,
   DEFAULT_FIRST_PARTY_CLIENT_VERSION,
   DEV_AGENT_CLIENT_KIND,
   HELLO_ACK_MESSAGE_NAME,
@@ -78,7 +80,7 @@ describe("handleDaemonEnvelope", () => {
     assert.equal(result, "hello_ack");
     assert.equal(state.complete, true);
     assert.equal(state.extensionID, "popup");
-    assert.equal(state.capabilitiesSupported.has("command.reload"), true);
+    assert.equal(state.capabilitiesSupported.has(COMMAND_RELOAD_MESSAGE_NAME), true);
   });
 
   it("closes when the daemon reports a mismatched protocol version", () => {
@@ -235,7 +237,7 @@ function helloAckEnvelope(
       daemon_version: "dev",
       session_id: "session-1",
       auth_ok: true,
-      capabilities_supported: ["command.reload"],
+      capabilities_supported: [COMMAND_RELOAD_MESSAGE_NAME],
       ...overrides
     }
   };
@@ -245,7 +247,7 @@ function reloadEnvelope(extensionID?: string): Envelope {
   return {
     v: 1,
     t: "command",
-    name: "command.reload",
+    name: COMMAND_RELOAD_MESSAGE_NAME,
     src: { role: "daemon", id: "daemon-1" },
     data: extensionID ? { reason: "build complete", extension_id: extensionID } : { reason: "build complete" }
   };
@@ -255,7 +257,7 @@ function buildCompleteEnvelope(): Envelope {
   return {
     v: 1,
     t: "event",
-    name: "build.complete",
+    name: BUILD_COMPLETE_MESSAGE_NAME,
     src: { role: "daemon", id: "daemon-1" },
     data: { build_id: "b1", success: true, duration_ms: 10 }
   };

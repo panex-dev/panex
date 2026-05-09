@@ -30,6 +30,8 @@ var tsChromeSimSourceRoleRE = regexp.MustCompile(`(?m)^export const CHROME_SIM_S
 var tsInspectorSourceRoleRE = regexp.MustCompile(`(?m)^export const INSPECTOR_SOURCE_ROLE = "([^"]+)";$`)
 var tsHelloMessageNameRE = regexp.MustCompile(`(?m)^export const HELLO_MESSAGE_NAME = "([^"]+)";$`)
 var tsHelloAckMessageNameRE = regexp.MustCompile(`(?m)^export const HELLO_ACK_MESSAGE_NAME = "([^"]+)";$`)
+var tsBuildCompleteMessageNameRE = regexp.MustCompile(`(?m)^export const BUILD_COMPLETE_MESSAGE_NAME = "([^"]+)";$`)
+var tsCommandReloadMessageNameRE = regexp.MustCompile(`(?m)^export const COMMAND_RELOAD_MESSAGE_NAME = "([^"]+)";$`)
 var tsChromeAPICallMessageNameRE = regexp.MustCompile(`(?m)^export const CHROME_API_CALL_MESSAGE_NAME = "([^"]+)";$`)
 var tsChromeAPIResultMessageNameRE = regexp.MustCompile(`(?m)^export const CHROME_API_RESULT_MESSAGE_NAME = "([^"]+)";$`)
 var tsChromeAPIEventMessageNameRE = regexp.MustCompile(`(?m)^export const CHROME_API_EVENT_MESSAGE_NAME = "([^"]+)";$`)
@@ -99,6 +101,14 @@ func TestTypeScriptProtocolParity(t *testing.T) {
 
 	if got, want := parseTSStringConst(t, source, tsHelloAckMessageNameRE, "HELLO_ACK_MESSAGE_NAME"), string(MessageHelloAck); got != want {
 		t.Fatalf("hello.ack message name drift: ts=%q go=%q", got, want)
+	}
+
+	if got, want := parseTSStringConst(t, source, tsBuildCompleteMessageNameRE, "BUILD_COMPLETE_MESSAGE_NAME"), string(MessageBuildComplete); got != want {
+		t.Fatalf("build.complete message name drift: ts=%q go=%q", got, want)
+	}
+
+	if got, want := parseTSStringConst(t, source, tsCommandReloadMessageNameRE, "COMMAND_RELOAD_MESSAGE_NAME"), string(MessageCommandReload); got != want {
+		t.Fatalf("command.reload message name drift: ts=%q go=%q", got, want)
 	}
 
 	if got, want := parseTSStringConst(t, source, tsChromeAPICallMessageNameRE, "CHROME_API_CALL_MESSAGE_NAME"), string(MessageChromeAPICall); got != want {
