@@ -6,6 +6,13 @@ import {
   HELLO_MESSAGE_NAME,
   INSPECTOR_CLIENT_KIND,
   PROTOCOL_VERSION,
+  QUERY_EVENTS_MESSAGE_NAME,
+  QUERY_STORAGE_MESSAGE_NAME,
+  QUERY_STORAGE_RESULT_MESSAGE_NAME,
+  STORAGE_CLEAR_MESSAGE_NAME,
+  STORAGE_DIFF_MESSAGE_NAME,
+  STORAGE_REMOVE_MESSAGE_NAME,
+  STORAGE_SET_MESSAGE_NAME,
   buildDaemonURL,
   firstPartyRequestedCapabilities,
   firstPartySourceRolesByClientKind,
@@ -139,7 +146,7 @@ export function ConnectionProvider(props: ParentProps) {
 
   const loadOlderTimeline = (): boolean => {
     if (
-      !bridgeSessionSupportsCapability(bridgeSession(), "query.events") ||
+      !bridgeSessionSupportsCapability(bridgeSession(), QUERY_EVENTS_MESSAGE_NAME) ||
       !socket ||
       socket.readyState !== WebSocket.OPEN ||
       loadingOlderTimeline() ||
@@ -161,7 +168,7 @@ export function ConnectionProvider(props: ParentProps) {
 
   const jumpToLatestTimeline = (): boolean => {
     if (
-      !bridgeSessionSupportsCapability(bridgeSession(), "query.events") ||
+      !bridgeSessionSupportsCapability(bridgeSession(), QUERY_EVENTS_MESSAGE_NAME) ||
       !socket ||
       socket.readyState !== WebSocket.OPEN ||
       loadingOlderTimeline() ||
@@ -181,7 +188,7 @@ export function ConnectionProvider(props: ParentProps) {
 
   const refreshStorage = (area?: QueryStorage["area"]): boolean => {
     if (
-      !bridgeSessionSupportsCapability(bridgeSession(), "query.storage") ||
+      !bridgeSessionSupportsCapability(bridgeSession(), QUERY_STORAGE_MESSAGE_NAME) ||
       !socket ||
       socket.readyState !== WebSocket.OPEN
     ) {
@@ -194,7 +201,7 @@ export function ConnectionProvider(props: ParentProps) {
 
   const setStorageItem = (area: string, key: string, value: unknown): boolean => {
     if (
-      !bridgeSessionSupportsCapability(bridgeSession(), "storage.set") ||
+      !bridgeSessionSupportsCapability(bridgeSession(), STORAGE_SET_MESSAGE_NAME) ||
       !socket ||
       socket.readyState !== WebSocket.OPEN
     ) {
@@ -212,7 +219,7 @@ export function ConnectionProvider(props: ParentProps) {
 
   const removeStorageItem = (area: string, key: string): boolean => {
     if (
-      !bridgeSessionSupportsCapability(bridgeSession(), "storage.remove") ||
+      !bridgeSessionSupportsCapability(bridgeSession(), STORAGE_REMOVE_MESSAGE_NAME) ||
       !socket ||
       socket.readyState !== WebSocket.OPEN
     ) {
@@ -230,7 +237,7 @@ export function ConnectionProvider(props: ParentProps) {
 
   const clearStorageArea = (area: string): boolean => {
     if (
-      !bridgeSessionSupportsCapability(bridgeSession(), "storage.clear") ||
+      !bridgeSessionSupportsCapability(bridgeSession(), STORAGE_CLEAR_MESSAGE_NAME) ||
       !socket ||
       socket.readyState !== WebSocket.OPEN
     ) {
@@ -388,7 +395,7 @@ export function ConnectionProvider(props: ParentProps) {
         applyStorageDiffEnvelope(decoded.data, storage, setStorage, setStorageHighlights);
       }
 
-      if (decoded.name === "query.storage.result") {
+      if (decoded.name === QUERY_STORAGE_RESULT_MESSAGE_NAME) {
         return;
       }
 
@@ -517,10 +524,10 @@ export function bridgeSessionFromHelloAck(data: HelloAck): BridgeSession {
 
 export function buildPostHelloAckMessages(session: BridgeSession): Envelope[] {
   const messages: Envelope[] = [];
-  if (bridgeSessionSupportsCapability(session, "query.events")) {
+  if (bridgeSessionSupportsCapability(session, QUERY_EVENTS_MESSAGE_NAME)) {
     messages.push(buildTimelineQuery(defaultTimelineLimit));
   }
-  if (bridgeSessionSupportsCapability(session, "query.storage")) {
+  if (bridgeSessionSupportsCapability(session, QUERY_STORAGE_MESSAGE_NAME)) {
     messages.push(buildStorageQuery());
   }
   return messages;
@@ -594,7 +601,7 @@ export function buildTimelineQuery(limit = defaultTimelineLimit, beforeID?: numb
   return {
     v: PROTOCOL_VERSION,
     t: "command",
-    name: "query.events",
+    name: QUERY_EVENTS_MESSAGE_NAME,
     src: { role: inspectorSourceRole, id: inspectorID },
     data: typeof beforeID === "number" ? { limit, before_id: beforeID } : { limit }
   };
@@ -638,7 +645,7 @@ function buildStorageQuery(area?: QueryStorage["area"]): Envelope<QueryStorage> 
   return {
     v: PROTOCOL_VERSION,
     t: "command",
-    name: "query.storage",
+    name: QUERY_STORAGE_MESSAGE_NAME,
     src: { role: inspectorSourceRole, id: inspectorID },
     data: typeof normalizedArea === "string" ? { area: normalizedArea } : {}
   };
@@ -654,7 +661,7 @@ function buildStorageSet(area: string, key: string, value: unknown): Envelope<St
   return {
     v: PROTOCOL_VERSION,
     t: "command",
-    name: "storage.set",
+    name: STORAGE_SET_MESSAGE_NAME,
     src: { role: inspectorSourceRole, id: inspectorID },
     data: {
       area: normalizedArea,
@@ -674,7 +681,7 @@ function buildStorageRemove(area: string, key: string): Envelope<StorageRemove> 
   return {
     v: PROTOCOL_VERSION,
     t: "command",
-    name: "storage.remove",
+    name: STORAGE_REMOVE_MESSAGE_NAME,
     src: { role: inspectorSourceRole, id: inspectorID },
     data: {
       area: normalizedArea,
@@ -692,7 +699,7 @@ function buildStorageClear(area: string): Envelope<StorageClear> | null {
   return {
     v: PROTOCOL_VERSION,
     t: "command",
-    name: "storage.clear",
+    name: STORAGE_CLEAR_MESSAGE_NAME,
     src: { role: inspectorSourceRole, id: inspectorID },
     data: {
       area: normalizedArea
@@ -779,5 +786,5 @@ function normalizeStorageKey(key: string): string | undefined {
 }
 
 function isStorageDiffEnvelope(envelope: Envelope): envelope is Envelope<StorageDiff> {
-  return envelope.t === "event" && envelope.name === "storage.diff";
+  return envelope.t === "event" && envelope.name === STORAGE_DIFF_MESSAGE_NAME;
 }

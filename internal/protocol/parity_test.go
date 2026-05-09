@@ -33,6 +33,14 @@ var tsHelloAckMessageNameRE = regexp.MustCompile(`(?m)^export const HELLO_ACK_ME
 var tsChromeAPICallMessageNameRE = regexp.MustCompile(`(?m)^export const CHROME_API_CALL_MESSAGE_NAME = "([^"]+)";$`)
 var tsChromeAPIResultMessageNameRE = regexp.MustCompile(`(?m)^export const CHROME_API_RESULT_MESSAGE_NAME = "([^"]+)";$`)
 var tsChromeAPIEventMessageNameRE = regexp.MustCompile(`(?m)^export const CHROME_API_EVENT_MESSAGE_NAME = "([^"]+)";$`)
+var tsQueryEventsMessageNameRE = regexp.MustCompile(`(?m)^export const QUERY_EVENTS_MESSAGE_NAME = "([^"]+)";$`)
+var tsQueryEventsResultMessageNameRE = regexp.MustCompile(`(?m)^export const QUERY_EVENTS_RESULT_MESSAGE_NAME = "([^"]+)";$`)
+var tsQueryStorageMessageNameRE = regexp.MustCompile(`(?m)^export const QUERY_STORAGE_MESSAGE_NAME = "([^"]+)";$`)
+var tsQueryStorageResultMessageNameRE = regexp.MustCompile(`(?m)^export const QUERY_STORAGE_RESULT_MESSAGE_NAME = "([^"]+)";$`)
+var tsStorageDiffMessageNameRE = regexp.MustCompile(`(?m)^export const STORAGE_DIFF_MESSAGE_NAME = "([^"]+)";$`)
+var tsStorageSetMessageNameRE = regexp.MustCompile(`(?m)^export const STORAGE_SET_MESSAGE_NAME = "([^"]+)";$`)
+var tsStorageRemoveMessageNameRE = regexp.MustCompile(`(?m)^export const STORAGE_REMOVE_MESSAGE_NAME = "([^"]+)";$`)
+var tsStorageClearMessageNameRE = regexp.MustCompile(`(?m)^export const STORAGE_CLEAR_MESSAGE_NAME = "([^"]+)";$`)
 
 func TestTypeScriptProtocolParity(t *testing.T) {
 	source := loadSharedProtocolSource(t)
@@ -103,6 +111,38 @@ func TestTypeScriptProtocolParity(t *testing.T) {
 
 	if got, want := parseTSStringConst(t, source, tsChromeAPIEventMessageNameRE, "CHROME_API_EVENT_MESSAGE_NAME"), string(MessageChromeAPIEvent); got != want {
 		t.Fatalf("chrome.api.event message name drift: ts=%q go=%q", got, want)
+	}
+
+	if got, want := parseTSStringConst(t, source, tsQueryEventsMessageNameRE, "QUERY_EVENTS_MESSAGE_NAME"), string(MessageQueryEvents); got != want {
+		t.Fatalf("query.events message name drift: ts=%q go=%q", got, want)
+	}
+
+	if got, want := parseTSStringConst(t, source, tsQueryEventsResultMessageNameRE, "QUERY_EVENTS_RESULT_MESSAGE_NAME"), string(MessageQueryResult); got != want {
+		t.Fatalf("query.events.result message name drift: ts=%q go=%q", got, want)
+	}
+
+	if got, want := parseTSStringConst(t, source, tsQueryStorageMessageNameRE, "QUERY_STORAGE_MESSAGE_NAME"), string(MessageQueryStorage); got != want {
+		t.Fatalf("query.storage message name drift: ts=%q go=%q", got, want)
+	}
+
+	if got, want := parseTSStringConst(t, source, tsQueryStorageResultMessageNameRE, "QUERY_STORAGE_RESULT_MESSAGE_NAME"), string(MessageStorageResult); got != want {
+		t.Fatalf("query.storage.result message name drift: ts=%q go=%q", got, want)
+	}
+
+	if got, want := parseTSStringConst(t, source, tsStorageDiffMessageNameRE, "STORAGE_DIFF_MESSAGE_NAME"), string(MessageStorageDiff); got != want {
+		t.Fatalf("storage.diff message name drift: ts=%q go=%q", got, want)
+	}
+
+	if got, want := parseTSStringConst(t, source, tsStorageSetMessageNameRE, "STORAGE_SET_MESSAGE_NAME"), string(MessageStorageSet); got != want {
+		t.Fatalf("storage.set message name drift: ts=%q go=%q", got, want)
+	}
+
+	if got, want := parseTSStringConst(t, source, tsStorageRemoveMessageNameRE, "STORAGE_REMOVE_MESSAGE_NAME"), string(MessageStorageRemove); got != want {
+		t.Fatalf("storage.remove message name drift: ts=%q go=%q", got, want)
+	}
+
+	if got, want := parseTSStringConst(t, source, tsStorageClearMessageNameRE, "STORAGE_CLEAR_MESSAGE_NAME"), string(MessageStorageClear); got != want {
+		t.Fatalf("storage.clear message name drift: ts=%q go=%q", got, want)
 	}
 
 	if got, want := parseTSStringArray(t, source, "envelopeTypes"), []string{

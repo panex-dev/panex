@@ -1,6 +1,12 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { INSPECTOR_SOURCE_ROLE } from "@panex/protocol";
+import {
+  CHROME_API_CALL_MESSAGE_NAME,
+  INSPECTOR_SOURCE_ROLE,
+  QUERY_EVENTS_MESSAGE_NAME,
+  QUERY_STORAGE_MESSAGE_NAME,
+  STORAGE_DIFF_MESSAGE_NAME
+} from "@panex/protocol";
 
 import {
   bridgeSessionSupportsCapability,
@@ -63,7 +69,7 @@ describe("buildTimelineQuery", () => {
     assert.deepEqual(query, {
       v: 1,
       t: "command",
-      name: "query.events",
+      name: QUERY_EVENTS_MESSAGE_NAME,
       src: {
         role: INSPECTOR_SOURCE_ROLE,
         id: query.src.id
@@ -88,13 +94,13 @@ describe("bridgeSessionFromHelloAck", () => {
         session_id: "session-1",
         auth_ok: true,
         extension_id: "popup",
-        capabilities_supported: ["query.events", "storage.diff"]
+        capabilities_supported: [QUERY_EVENTS_MESSAGE_NAME, STORAGE_DIFF_MESSAGE_NAME]
       }),
       {
         daemonVersion: "dev",
         sessionID: "session-1",
         extensionID: "popup",
-        capabilitiesSupported: ["query.events", "storage.diff"]
+        capabilitiesSupported: [QUERY_EVENTS_MESSAGE_NAME, STORAGE_DIFF_MESSAGE_NAME]
       }
     );
   });
@@ -121,12 +127,12 @@ describe("bridgeSessionSupportsCapability", () => {
       daemon_version: "dev",
       session_id: "session-1",
       auth_ok: true,
-      capabilities_supported: ["query.events", "chrome.api.call"]
+      capabilities_supported: [QUERY_EVENTS_MESSAGE_NAME, CHROME_API_CALL_MESSAGE_NAME]
     });
 
-    assert.equal(bridgeSessionSupportsCapability(session, "query.events"), true);
-    assert.equal(bridgeSessionSupportsCapability(session, "query.storage"), false);
-    assert.equal(bridgeSessionSupportsCapability(null, "query.events"), false);
+    assert.equal(bridgeSessionSupportsCapability(session, QUERY_EVENTS_MESSAGE_NAME), true);
+    assert.equal(bridgeSessionSupportsCapability(session, QUERY_STORAGE_MESSAGE_NAME), false);
+    assert.equal(bridgeSessionSupportsCapability(null, QUERY_EVENTS_MESSAGE_NAME), false);
   });
 });
 
@@ -137,12 +143,12 @@ describe("buildPostHelloAckMessages", () => {
       daemon_version: "dev",
       session_id: "session-1",
       auth_ok: true,
-      capabilities_supported: ["query.storage"]
+      capabilities_supported: [QUERY_STORAGE_MESSAGE_NAME]
     });
 
     const messages = buildPostHelloAckMessages(session);
     assert.equal(messages.length, 1);
-    assert.equal(messages[0]?.name, "query.storage");
+    assert.equal(messages[0]?.name, QUERY_STORAGE_MESSAGE_NAME);
     assert.equal(messages[0]?.t, "command");
     assert.equal(messages[0]?.src.role, INSPECTOR_SOURCE_ROLE);
     assert.deepEqual(messages[0]?.data, {});
@@ -154,14 +160,14 @@ describe("buildPostHelloAckMessages", () => {
       daemon_version: "dev",
       session_id: "session-1",
       auth_ok: true,
-      capabilities_supported: ["query.events", "query.storage"]
+      capabilities_supported: [QUERY_EVENTS_MESSAGE_NAME, QUERY_STORAGE_MESSAGE_NAME]
     });
 
     const messages = buildPostHelloAckMessages(session);
-    assert.equal(messages[0]?.name, "query.events");
+    assert.equal(messages[0]?.name, QUERY_EVENTS_MESSAGE_NAME);
     assert.equal(messages[0]?.t, "command");
     assert.deepEqual(messages[0]?.data, { limit: 500 });
-    assert.equal(messages[1]?.name, "query.storage");
+    assert.equal(messages[1]?.name, QUERY_STORAGE_MESSAGE_NAME);
     assert.equal(messages[1]?.t, "command");
     assert.deepEqual(messages[1]?.data, {});
   });
@@ -171,7 +177,7 @@ describe("inspectorRequestedCapabilities", () => {
   it("includes the live and command capabilities the inspector actually negotiates", () => {
     assert.equal(inspectorRequestedCapabilities.includes("build.complete"), true);
     assert.equal(inspectorRequestedCapabilities.includes("command.reload"), true);
-    assert.equal(inspectorRequestedCapabilities.includes("storage.diff"), true);
+    assert.equal(inspectorRequestedCapabilities.includes(STORAGE_DIFF_MESSAGE_NAME), true);
     assert.equal(inspectorRequestedCapabilities.includes("chrome.api.call"), true);
     assert.equal(inspectorRequestedCapabilities.includes("chrome.api.event"), true);
   });

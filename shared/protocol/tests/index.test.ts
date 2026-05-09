@@ -15,6 +15,14 @@ import {
   HELLO_MESSAGE_NAME,
   INSPECTOR_SOURCE_ROLE,
   INSPECTOR_CLIENT_KIND,
+  QUERY_EVENTS_MESSAGE_NAME,
+  QUERY_EVENTS_RESULT_MESSAGE_NAME,
+  QUERY_STORAGE_MESSAGE_NAME,
+  QUERY_STORAGE_RESULT_MESSAGE_NAME,
+  STORAGE_CLEAR_MESSAGE_NAME,
+  STORAGE_DIFF_MESSAGE_NAME,
+  STORAGE_REMOVE_MESSAGE_NAME,
+  STORAGE_SET_MESSAGE_NAME,
   envelopeNames,
   firstPartyRequestedCapabilities,
   firstPartyClientKinds,
@@ -88,7 +96,7 @@ describe("message guards", () => {
   });
 
   it("identifies query.events.result envelopes", () => {
-    assert.equal(isQueryEventsResult(makeEnvelope("query.events.result")), true);
+    assert.equal(isQueryEventsResult(makeEnvelope(QUERY_EVENTS_RESULT_MESSAGE_NAME)), true);
     assert.equal(isQueryEventsResult(makeEnvelope("build.complete")), false);
   });
 
@@ -98,14 +106,14 @@ describe("message guards", () => {
   });
 
   it("identifies query.storage.result envelopes", () => {
-    assert.equal(isQueryStorageResult(makeEnvelope("query.storage.result")), true);
-    assert.equal(isQueryStorageResult(makeEnvelope("query.events.result")), false);
+    assert.equal(isQueryStorageResult(makeEnvelope(QUERY_STORAGE_RESULT_MESSAGE_NAME)), true);
+    assert.equal(isQueryStorageResult(makeEnvelope(QUERY_EVENTS_RESULT_MESSAGE_NAME)), false);
   });
 
   it("maps storage mutation messages as commands", () => {
-    assert.equal(messageTypeForName("storage.set"), "command");
-    assert.equal(messageTypeForName("storage.remove"), "command");
-    assert.equal(messageTypeForName("storage.clear"), "command");
+    assert.equal(messageTypeForName(STORAGE_SET_MESSAGE_NAME), "command");
+    assert.equal(messageTypeForName(STORAGE_REMOVE_MESSAGE_NAME), "command");
+    assert.equal(messageTypeForName(STORAGE_CLEAR_MESSAGE_NAME), "command");
   });
 
   it("maps chrome api simulator transport messages", () => {
@@ -149,11 +157,22 @@ describe("capability contracts", () => {
     assert.equal(CHROME_API_EVENT_MESSAGE_NAME, "chrome.api.event");
   });
 
+  it("publishes named query and storage message constants", () => {
+    assert.equal(QUERY_EVENTS_MESSAGE_NAME, "query.events");
+    assert.equal(QUERY_EVENTS_RESULT_MESSAGE_NAME, "query.events.result");
+    assert.equal(QUERY_STORAGE_MESSAGE_NAME, "query.storage");
+    assert.equal(QUERY_STORAGE_RESULT_MESSAGE_NAME, "query.storage.result");
+    assert.equal(STORAGE_DIFF_MESSAGE_NAME, "storage.diff");
+    assert.equal(STORAGE_SET_MESSAGE_NAME, "storage.set");
+    assert.equal(STORAGE_REMOVE_MESSAGE_NAME, "storage.remove");
+    assert.equal(STORAGE_CLEAR_MESSAGE_NAME, "storage.clear");
+  });
+
   it("keeps response-only message names out of negotiable capabilities", () => {
     const capabilities = negotiableCapabilityNames as readonly string[];
     assert.equal(capabilities.includes(CHROME_API_RESULT_MESSAGE_NAME), false);
-    assert.equal(capabilities.includes("query.events.result"), false);
-    assert.equal(capabilities.includes("query.storage.result"), false);
+    assert.equal(capabilities.includes(QUERY_EVENTS_RESULT_MESSAGE_NAME), false);
+    assert.equal(capabilities.includes(QUERY_STORAGE_RESULT_MESSAGE_NAME), false);
   });
 
   it("publishes the scoped first-party request sets", () => {
@@ -161,17 +180,17 @@ describe("capability contracts", () => {
     assert.deepEqual(firstPartyRequestedCapabilities["chrome-sim"], [
       CHROME_API_CALL_MESSAGE_NAME,
       CHROME_API_EVENT_MESSAGE_NAME,
-      "storage.diff"
+      STORAGE_DIFF_MESSAGE_NAME
     ]);
     assert.deepEqual(firstPartyRequestedCapabilities.inspector, [
-      "query.events",
+      QUERY_EVENTS_MESSAGE_NAME,
       "build.complete",
       "command.reload",
-      "query.storage",
-      "storage.diff",
-      "storage.set",
-      "storage.remove",
-      "storage.clear",
+      QUERY_STORAGE_MESSAGE_NAME,
+      STORAGE_DIFF_MESSAGE_NAME,
+      STORAGE_SET_MESSAGE_NAME,
+      STORAGE_REMOVE_MESSAGE_NAME,
+      STORAGE_CLEAR_MESSAGE_NAME,
       CHROME_API_CALL_MESSAGE_NAME,
       CHROME_API_EVENT_MESSAGE_NAME
     ]);

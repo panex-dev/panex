@@ -15,6 +15,14 @@ export const HELLO_ACK_MESSAGE_NAME = "hello.ack";
 export const CHROME_API_CALL_MESSAGE_NAME = "chrome.api.call";
 export const CHROME_API_RESULT_MESSAGE_NAME = "chrome.api.result";
 export const CHROME_API_EVENT_MESSAGE_NAME = "chrome.api.event";
+export const QUERY_EVENTS_MESSAGE_NAME = "query.events";
+export const QUERY_EVENTS_RESULT_MESSAGE_NAME = "query.events.result";
+export const QUERY_STORAGE_MESSAGE_NAME = "query.storage";
+export const QUERY_STORAGE_RESULT_MESSAGE_NAME = "query.storage.result";
+export const STORAGE_DIFF_MESSAGE_NAME = "storage.diff";
+export const STORAGE_SET_MESSAGE_NAME = "storage.set";
+export const STORAGE_REMOVE_MESSAGE_NAME = "storage.remove";
+export const STORAGE_CLEAR_MESSAGE_NAME = "storage.clear";
 
 export const envelopeTypes = ["lifecycle", "event", "command"] as const;
 export type EnvelopeType = (typeof envelopeTypes)[number];
@@ -274,11 +282,11 @@ export function isHelloAck(envelope: Envelope): envelope is Envelope<HelloAck> {
 }
 
 export function isQueryEventsResult(envelope: Envelope): envelope is Envelope<QueryEventsResult> {
-  return envelope.t === "event" && envelope.name === "query.events.result";
+  return envelope.t === "event" && envelope.name === QUERY_EVENTS_RESULT_MESSAGE_NAME;
 }
 
 export function isQueryStorageResult(envelope: Envelope): envelope is Envelope<QueryStorageResult> {
-  return envelope.t === "event" && envelope.name === "query.storage.result";
+  return envelope.t === "event" && envelope.name === QUERY_STORAGE_RESULT_MESSAGE_NAME;
 }
 
 export function isReloadCommand(envelope: Envelope): envelope is Envelope<CommandReload> {

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
-import type { Envelope, StorageDiff } from "@panex/protocol";
+import { STORAGE_DIFF_MESSAGE_NAME, type Envelope, type StorageDiff } from "@panex/protocol";
 import { createStorageArea, createStorageOnChanged } from "../src/storage";
 import type { ChromeSimTransport } from "../src/transport";
 
@@ -119,7 +119,7 @@ describe("storage onChanged", () => {
     diffHandler?.({
       v: 1,
       t: "event",
-      name: "storage.diff",
+      name: STORAGE_DIFF_MESSAGE_NAME,
       src: { role: "daemon", id: "daemon-1" },
       data: {
         area: "local",
@@ -169,7 +169,7 @@ describe("storage onChanged", () => {
     diffHandler?.({
       v: 1,
       t: "event",
-      name: "storage.diff",
+      name: STORAGE_DIFF_MESSAGE_NAME,
       src: { role: "daemon", id: "daemon-1" },
       data: {
         area: "local",

@@ -1,7 +1,11 @@
 import h from "solid-js/h";
 import { createMemo, createSignal, type Accessor, type JSX } from "solid-js";
 
-import type { StorageSnapshot } from "@panex/protocol";
+import {
+  STORAGE_REMOVE_MESSAGE_NAME,
+  STORAGE_SET_MESSAGE_NAME,
+  type StorageSnapshot
+} from "@panex/protocol";
 
 import { summarizeChromeAPIActivity } from "../activity-log";
 import { bridgeSessionSupportsCapability, type BridgeSession, type ConnectionStatus } from "../connection";
@@ -282,7 +286,7 @@ export function WorkbenchTab(props: WorkbenchTabProps): JSX.Element {
                       props.status() !== "open" ||
                       !bridgeSessionSupportsCapability(
                         props.bridgeSession(),
-                        preset.actionLabel === "remove" ? "storage.remove" : "storage.set"
+                        preset.actionLabel === "remove" ? STORAGE_REMOVE_MESSAGE_NAME : STORAGE_SET_MESSAGE_NAME
                       )
                     }
                     onClick={() => {

@@ -10,6 +10,7 @@ import {
   firstPartySourceRolesByClientKind,
   HELLO_MESSAGE_NAME,
   PROTOCOL_VERSION,
+  STORAGE_DIFF_MESSAGE_NAME,
   isEnvelope,
   isHelloAck,
   readWebSocketMessageData,
@@ -181,7 +182,7 @@ export function createChromeSimTransport(options: ChromeSimTransportOptions = {}
       return;
     }
 
-    if (decoded.name === "storage.diff" && decoded.t === "event") {
+    if (decoded.name === STORAGE_DIFF_MESSAGE_NAME && decoded.t === "event") {
       for (const handler of storageDiffHandlers) {
         handler(decoded as Envelope<StorageDiff>);
       }

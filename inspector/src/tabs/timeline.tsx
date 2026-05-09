@@ -4,7 +4,8 @@ import {
   CHROME_SIM_SOURCE_ROLE,
   DAEMON_SOURCE_ROLE,
   DEV_AGENT_SOURCE_ROLE,
-  INSPECTOR_SOURCE_ROLE
+  INSPECTOR_SOURCE_ROLE,
+  QUERY_EVENTS_MESSAGE_NAME
 } from "@panex/protocol";
 
 import type { BridgeSession } from "../connection";
@@ -64,7 +65,7 @@ export function TimelineTab(props: TimelineTabProps): JSX.Element {
     hiddenOlderTimelineCount(filteredTimeline(), visibleCount())
   );
   const canQueryTimeline = createMemo(() =>
-    props.bridgeSession()?.capabilitiesSupported.includes("query.events") ?? false
+    props.bridgeSession()?.capabilitiesSupported.includes(QUERY_EVENTS_MESSAGE_NAME) ?? false
   );
 
   createEffect(() => {
