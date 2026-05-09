@@ -1,4 +1,5 @@
 import {
+  DEFAULT_FIRST_PARTY_CLIENT_VERSION,
   firstPartyRequestedCapabilities,
   firstPartySourceRolesByClientKind,
   PROTOCOL_VERSION,
@@ -54,7 +55,7 @@ export function buildHelloEnvelope(config: AgentConfig): Envelope<Hello> {
       protocol_version: PROTOCOL_VERSION,
       auth_token: config.token,
       client_kind: agentClientKind,
-      client_version: "dev",
+      client_version: DEFAULT_FIRST_PARTY_CLIENT_VERSION,
       extension_id: config.extensionId,
       capabilities_requested: [...requestedCapabilities]
     }

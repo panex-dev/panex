@@ -1,6 +1,7 @@
 import { decode, encode } from "@msgpack/msgpack";
 import {
   DEFAULT_DAEMON_WEBSOCKET_URL,
+  DEFAULT_FIRST_PARTY_CLIENT_VERSION,
   PROTOCOL_VERSION,
   buildDaemonURL,
   firstPartyRequestedCapabilities,
@@ -293,7 +294,7 @@ export function ConnectionProvider(props: ParentProps) {
           protocol_version: PROTOCOL_VERSION,
           auth_token: token,
           client_kind: inspectorClientKind,
-          client_version: "dev",
+          client_version: DEFAULT_FIRST_PARTY_CLIENT_VERSION,
           capabilities_requested: [...inspectorRequestedCapabilities]
         }
       };

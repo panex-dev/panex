@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
 import {
+  DEFAULT_FIRST_PARTY_CLIENT_VERSION,
   envelopeNames,
   firstPartyRequestedCapabilities,
   firstPartySourceRolesByClientKind,
@@ -102,6 +103,10 @@ describe("message guards", () => {
 });
 
 describe("capability contracts", () => {
+  it("publishes the shared first-party client version contract", () => {
+    assert.equal(DEFAULT_FIRST_PARTY_CLIENT_VERSION, "dev");
+  });
+
   it("keeps response-only message names out of negotiable capabilities", () => {
     const capabilities = negotiableCapabilityNames as readonly string[];
     assert.equal(capabilities.includes("chrome.api.result"), false);

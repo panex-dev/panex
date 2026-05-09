@@ -1,6 +1,7 @@
 import { decode, encode } from "@msgpack/msgpack";
 import {
   DEFAULT_DAEMON_WEBSOCKET_URL,
+  DEFAULT_FIRST_PARTY_CLIENT_VERSION,
   firstPartyRequestedCapabilities,
   firstPartySourceRolesByClientKind,
   PROTOCOL_VERSION,
@@ -228,7 +229,7 @@ export function createChromeSimTransport(options: ChromeSimTransportOptions = {}
             protocol_version: PROTOCOL_VERSION,
             auth_token: authToken,
             client_kind: chromeSimClientKind,
-            client_version: "dev",
+            client_version: DEFAULT_FIRST_PARTY_CLIENT_VERSION,
             extension_id: extensionID,
             capabilities_requested: [...requestedCapabilities]
           }

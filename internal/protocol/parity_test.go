@@ -20,6 +20,7 @@ var tsProtocolVersionRE = regexp.MustCompile(`(?m)^export const PROTOCOL_VERSION
 var tsMaxWebSocketMessageBytesRE = regexp.MustCompile(`(?m)^export const MAX_WEBSOCKET_MESSAGE_BYTES = (\d+)\s*<<\s*(\d+);$`)
 var tsDefaultDaemonWebSocketPathRE = regexp.MustCompile(`(?m)^export const DEFAULT_DAEMON_WEBSOCKET_PATH = "([^"]+)";$`)
 var tsDefaultDaemonWebSocketURLRE = regexp.MustCompile(`(?m)^export const DEFAULT_DAEMON_WEBSOCKET_URL = "([^"]+)";$`)
+var tsDefaultFirstPartyClientVersionRE = regexp.MustCompile(`(?m)^export const DEFAULT_FIRST_PARTY_CLIENT_VERSION = "([^"]+)";$`)
 
 func TestTypeScriptProtocolParity(t *testing.T) {
 	source := loadSharedProtocolSource(t)
@@ -38,6 +39,10 @@ func TestTypeScriptProtocolParity(t *testing.T) {
 
 	if got, want := parseTSStringConst(t, source, tsDefaultDaemonWebSocketURLRE, "DEFAULT_DAEMON_WEBSOCKET_URL"), fmt.Sprintf("ws://%s:%d%s", config.DefaultBindAddress, config.DefaultPort, DefaultDaemonWebSocketPath); got != want {
 		t.Fatalf("default daemon websocket url drift: ts=%q go=%q", got, want)
+	}
+
+	if got, want := parseTSStringConst(t, source, tsDefaultFirstPartyClientVersionRE, "DEFAULT_FIRST_PARTY_CLIENT_VERSION"), DefaultFirstPartyClientVersion; got != want {
+		t.Fatalf("default first-party client version drift: ts=%q go=%q", got, want)
 	}
 
 	if got, want := parseTSStringArray(t, source, "envelopeTypes"), []string{

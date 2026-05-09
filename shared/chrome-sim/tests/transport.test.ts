@@ -2,7 +2,12 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { decode, encode } from "@msgpack/msgpack";
 
-import { MAX_WEBSOCKET_MESSAGE_BYTES, PROTOCOL_VERSION, type Envelope } from "@panex/protocol";
+import {
+  DEFAULT_FIRST_PARTY_CLIENT_VERSION,
+  MAX_WEBSOCKET_MESSAGE_BYTES,
+  PROTOCOL_VERSION,
+  type Envelope
+} from "@panex/protocol";
 import { createChromeSimTransport, type TransportSocket } from "../src/transport";
 
 describe("chrome-sim transport", () => {
@@ -47,11 +52,16 @@ describe("chrome-sim transport", () => {
 
     await waitFor(() => socket.sent.length >= 1);
     const hello = decodeEnvelope(socket.sent[0]);
-    const helloData = hello.data as { auth_token?: string; extension_id?: string };
+    const helloData = hello.data as {
+      auth_token?: string;
+      client_version?: string;
+      extension_id?: string;
+    };
     assert.equal(hello.name, "hello");
     assert.equal(hello.t, "lifecycle");
     assert.equal(hello.src.role, "chrome-sim");
     assert.equal(helloData.auth_token, "dev-token");
+    assert.equal(helloData.client_version, DEFAULT_FIRST_PARTY_CLIENT_VERSION);
     assert.equal(helloData.extension_id, "panex.simulated.extension");
     assert.deepEqual((hello.data as { capabilities_requested?: string[] }).capabilities_requested, [
       "chrome.api.call",
