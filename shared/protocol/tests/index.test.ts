@@ -2,9 +2,13 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
 import {
+  CHROME_SIM_SOURCE_ROLE,
   CHROME_SIM_CLIENT_KIND,
+  DAEMON_SOURCE_ROLE,
   DEFAULT_FIRST_PARTY_CLIENT_VERSION,
+  DEV_AGENT_SOURCE_ROLE,
   DEV_AGENT_CLIENT_KIND,
+  INSPECTOR_SOURCE_ROLE,
   INSPECTOR_CLIENT_KIND,
   envelopeNames,
   firstPartyRequestedCapabilities,
@@ -27,7 +31,7 @@ function makeEnvelope(name: EnvelopeName): Envelope {
     v: 1,
     t: messageTypeForName(name),
     name,
-    src: { role: "daemon", id: "daemon-1" },
+    src: { role: DAEMON_SOURCE_ROLE, id: "daemon-1" },
     data: {}
   };
 }
@@ -65,7 +69,7 @@ describe("isEnvelope", () => {
   it("rejects missing source identifiers", () => {
     const value = {
       ...makeEnvelope("build.complete"),
-      src: { role: "daemon", id: " " }
+      src: { role: DAEMON_SOURCE_ROLE, id: " " }
     };
 
     assert.equal(isEnvelope(value), false);
@@ -122,6 +126,13 @@ describe("capability contracts", () => {
     ]);
   });
 
+  it("publishes named source role constants", () => {
+    assert.equal(DAEMON_SOURCE_ROLE, "daemon");
+    assert.equal(DEV_AGENT_SOURCE_ROLE, "dev-agent");
+    assert.equal(CHROME_SIM_SOURCE_ROLE, "chrome-sim");
+    assert.equal(INSPECTOR_SOURCE_ROLE, "inspector");
+  });
+
   it("keeps response-only message names out of negotiable capabilities", () => {
     const capabilities = negotiableCapabilityNames as readonly string[];
     assert.equal(capabilities.includes("chrome.api.result"), false);
@@ -152,9 +163,9 @@ describe("capability contracts", () => {
 
   it("publishes the first-party source-role contract", () => {
     assert.deepEqual(firstPartySourceRolesByClientKind, {
-      "dev-agent": "dev-agent",
-      inspector: "inspector",
-      "chrome-sim": "chrome-sim"
+      "dev-agent": DEV_AGENT_SOURCE_ROLE,
+      inspector: INSPECTOR_SOURCE_ROLE,
+      "chrome-sim": CHROME_SIM_SOURCE_ROLE
     });
   });
 });

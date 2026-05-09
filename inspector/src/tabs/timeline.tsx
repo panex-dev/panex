@@ -1,5 +1,11 @@
 import h from "solid-js/h";
 import { createEffect, createMemo, createSignal, type Accessor, type JSX } from "solid-js";
+import {
+  CHROME_SIM_SOURCE_ROLE,
+  DAEMON_SOURCE_ROLE,
+  DEV_AGENT_SOURCE_ROLE,
+  INSPECTOR_SOURCE_ROLE
+} from "@panex/protocol";
 
 import type { BridgeSession } from "../connection";
 import {
@@ -27,6 +33,12 @@ interface TimelineTabProps {
 }
 
 const filterStorageKey = "panex.inspector.filters.v1";
+const sourceRoleOptions = [
+  DAEMON_SOURCE_ROLE,
+  DEV_AGENT_SOURCE_ROLE,
+  CHROME_SIM_SOURCE_ROLE,
+  INSPECTOR_SOURCE_ROLE
+] as const;
 
 export function TimelineTab(props: TimelineTabProps): JSX.Element {
   const initialFilter = loadFilterPreferences();
@@ -185,16 +197,13 @@ export function TimelineTab(props: TimelineTabProps): JSX.Element {
           <select
             value={sourceRole()}
             onChange={(event) => {
-              setSourceRole(
-                event.currentTarget.value as "all" | "daemon" | "dev-agent" | "chrome-sim" | "inspector"
-              );
+              setSourceRole(event.currentTarget.value as typeof defaultTimelineFilter.sourceRole);
             }}
           >
             <option value="all">all</option>
-            <option value="daemon">daemon</option>
-            <option value="dev-agent">dev-agent</option>
-            <option value="chrome-sim">chrome-sim</option>
-            <option value="inspector">inspector</option>
+            {sourceRoleOptions.map((role) => (
+              <option value={role}>{role}</option>
+            ))}
           </select>
         </label>
 
@@ -280,11 +289,5 @@ function isMessageType(value: unknown): value is typeof defaultTimelineFilter.me
 }
 
 function isSourceRole(value: unknown): value is typeof defaultTimelineFilter.sourceRole {
-  return (
-    value === "all" ||
-    value === "daemon" ||
-    value === "dev-agent" ||
-    value === "chrome-sim" ||
-    value === "inspector"
-  );
+  return value === "all" || sourceRoleOptions.includes(value as (typeof sourceRoleOptions)[number]);
 }

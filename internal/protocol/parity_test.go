@@ -24,6 +24,10 @@ var tsDefaultFirstPartyClientVersionRE = regexp.MustCompile(`(?m)^export const D
 var tsDevAgentClientKindRE = regexp.MustCompile(`(?m)^export const DEV_AGENT_CLIENT_KIND = "([^"]+)";$`)
 var tsInspectorClientKindRE = regexp.MustCompile(`(?m)^export const INSPECTOR_CLIENT_KIND = "([^"]+)";$`)
 var tsChromeSimClientKindRE = regexp.MustCompile(`(?m)^export const CHROME_SIM_CLIENT_KIND = "([^"]+)";$`)
+var tsDaemonSourceRoleRE = regexp.MustCompile(`(?m)^export const DAEMON_SOURCE_ROLE = "([^"]+)";$`)
+var tsDevAgentSourceRoleRE = regexp.MustCompile(`(?m)^export const DEV_AGENT_SOURCE_ROLE = "([^"]+)";$`)
+var tsChromeSimSourceRoleRE = regexp.MustCompile(`(?m)^export const CHROME_SIM_SOURCE_ROLE = "([^"]+)";$`)
+var tsInspectorSourceRoleRE = regexp.MustCompile(`(?m)^export const INSPECTOR_SOURCE_ROLE = "([^"]+)";$`)
 
 func TestTypeScriptProtocolParity(t *testing.T) {
 	source := loadSharedProtocolSource(t)
@@ -58,6 +62,22 @@ func TestTypeScriptProtocolParity(t *testing.T) {
 
 	if got, want := parseTSStringConst(t, source, tsChromeSimClientKindRE, "CHROME_SIM_CLIENT_KIND"), string(ClientKindChromeSim); got != want {
 		t.Fatalf("chrome-sim client kind drift: ts=%q go=%q", got, want)
+	}
+
+	if got, want := parseTSStringConst(t, source, tsDaemonSourceRoleRE, "DAEMON_SOURCE_ROLE"), string(SourceDaemon); got != want {
+		t.Fatalf("daemon source role drift: ts=%q go=%q", got, want)
+	}
+
+	if got, want := parseTSStringConst(t, source, tsDevAgentSourceRoleRE, "DEV_AGENT_SOURCE_ROLE"), string(SourceDevAgent); got != want {
+		t.Fatalf("dev-agent source role drift: ts=%q go=%q", got, want)
+	}
+
+	if got, want := parseTSStringConst(t, source, tsChromeSimSourceRoleRE, "CHROME_SIM_SOURCE_ROLE"), string(SourceChromeSim); got != want {
+		t.Fatalf("chrome-sim source role drift: ts=%q go=%q", got, want)
+	}
+
+	if got, want := parseTSStringConst(t, source, tsInspectorSourceRoleRE, "INSPECTOR_SOURCE_ROLE"), string(SourceInspector); got != want {
+		t.Fatalf("inspector source role drift: ts=%q go=%q", got, want)
 	}
 
 	if got, want := parseTSStringArray(t, source, "envelopeTypes"), []string{
