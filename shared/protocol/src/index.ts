@@ -12,6 +12,8 @@ export const CHROME_SIM_SOURCE_ROLE = "chrome-sim";
 export const INSPECTOR_SOURCE_ROLE = "inspector";
 export const HELLO_MESSAGE_NAME = "hello";
 export const HELLO_ACK_MESSAGE_NAME = "hello.ack";
+export const BUILD_COMPLETE_MESSAGE_NAME = "build.complete";
+export const COMMAND_RELOAD_MESSAGE_NAME = "command.reload";
 export const CHROME_API_CALL_MESSAGE_NAME = "chrome.api.call";
 export const CHROME_API_RESULT_MESSAGE_NAME = "chrome.api.result";
 export const CHROME_API_EVENT_MESSAGE_NAME = "chrome.api.event";
@@ -290,7 +292,7 @@ export function isQueryStorageResult(envelope: Envelope): envelope is Envelope<Q
 }
 
 export function isReloadCommand(envelope: Envelope): envelope is Envelope<CommandReload> {
-  return envelope.t === "command" && envelope.name === "command.reload";
+  return envelope.t === "command" && envelope.name === COMMAND_RELOAD_MESSAGE_NAME;
 }
 
 export type WebSocketMessageDataResult =

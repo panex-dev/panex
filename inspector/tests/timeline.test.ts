@@ -1,5 +1,11 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
+import {
+  BUILD_COMPLETE_MESSAGE_NAME,
+  COMMAND_RELOAD_MESSAGE_NAME,
+  type Envelope,
+  type EventSnapshot
+} from "@panex/protocol";
 
 import {
   defaultTimelineRenderWindow,
@@ -15,18 +21,17 @@ import {
   renderTimelineWindow,
   summarizeEnvelope
 } from "../src/timeline";
-import type { Envelope, EventSnapshot } from "@panex/protocol";
 
 function envelope(name: Envelope["name"]): Envelope {
   return {
     v: 1,
-    t: name === "command.reload" ? "command" : "event",
+    t: name === COMMAND_RELOAD_MESSAGE_NAME ? "command" : "event",
     name,
     src: { role: "daemon", id: "daemon-1" },
     data:
-      name === "build.complete"
+      name === BUILD_COMPLETE_MESSAGE_NAME
         ? { build_id: "build-1", success: true, duration_ms: 12 }
-        : { reason: "build.complete", build_id: "build-1" }
+        : { reason: BUILD_COMPLETE_MESSAGE_NAME, build_id: "build-1" }
   };
 }
 
@@ -35,7 +40,7 @@ describe("timeline snapshot conversion", () => {
     const snapshot: EventSnapshot = {
       id: 9,
       recorded_at_ms: 1234,
-      envelope: envelope("build.complete")
+      envelope: envelope(BUILD_COMPLETE_MESSAGE_NAME)
     };
 
     const entry = fromSnapshot(snapshot);
@@ -47,10 +52,10 @@ describe("timeline snapshot conversion", () => {
 
 describe("timeline merge behavior", () => {
   it("deduplicates incoming snapshots by id", () => {
-    const existing = [fromSnapshot({ id: 1, recorded_at_ms: 1, envelope: envelope("build.complete") })];
+    const existing = [fromSnapshot({ id: 1, recorded_at_ms: 1, envelope: envelope(BUILD_COMPLETE_MESSAGE_NAME) })];
     const incoming = [
-      fromSnapshot({ id: 1, recorded_at_ms: 1, envelope: envelope("build.complete") }),
-      fromSnapshot({ id: 2, recorded_at_ms: 2, envelope: envelope("command.reload") })
+      fromSnapshot({ id: 1, recorded_at_ms: 1, envelope: envelope(BUILD_COMPLETE_MESSAGE_NAME) }),
+      fromSnapshot({ id: 2, recorded_at_ms: 2, envelope: envelope(COMMAND_RELOAD_MESSAGE_NAME) })
     ];
 
     const merged = mergeEntries(existing, incoming, 10);
@@ -59,9 +64,9 @@ describe("timeline merge behavior", () => {
   });
 
   it("keeps only the newest entries when over limit", () => {
-    const one = fromLiveEnvelope(envelope("build.complete"), 1);
-    const two = fromLiveEnvelope(envelope("command.reload"), 2);
-    const three = fromLiveEnvelope(envelope("build.complete"), 3);
+    const one = fromLiveEnvelope(envelope(BUILD_COMPLETE_MESSAGE_NAME), 1);
+    const two = fromLiveEnvelope(envelope(COMMAND_RELOAD_MESSAGE_NAME), 2);
+    const three = fromLiveEnvelope(envelope(BUILD_COMPLETE_MESSAGE_NAME), 3);
 
     const merged = mergeEntries([one, two], [three], 2);
     assert.equal(merged.length, 2);
@@ -71,12 +76,12 @@ describe("timeline merge behavior", () => {
 
   it("prepends older snapshots ahead of existing history", () => {
     const existing = [
-      fromSnapshot({ id: 3, recorded_at_ms: 3, envelope: envelope("build.complete") }),
-      fromSnapshot({ id: 4, recorded_at_ms: 4, envelope: envelope("command.reload") })
+      fromSnapshot({ id: 3, recorded_at_ms: 3, envelope: envelope(BUILD_COMPLETE_MESSAGE_NAME) }),
+      fromSnapshot({ id: 4, recorded_at_ms: 4, envelope: envelope(COMMAND_RELOAD_MESSAGE_NAME) })
     ];
     const older = [
-      fromSnapshot({ id: 1, recorded_at_ms: 1, envelope: envelope("build.complete") }),
-      fromSnapshot({ id: 2, recorded_at_ms: 2, envelope: envelope("command.reload") })
+      fromSnapshot({ id: 1, recorded_at_ms: 1, envelope: envelope(BUILD_COMPLETE_MESSAGE_NAME) }),
+      fromSnapshot({ id: 2, recorded_at_ms: 2, envelope: envelope(COMMAND_RELOAD_MESSAGE_NAME) })
     ];
 
     const merged = mergeEntries(existing, older, 10, "prepend");
@@ -87,9 +92,9 @@ describe("timeline merge behavior", () => {
   });
 
   it("reports when appends trim the oldest retained entries", () => {
-    const one = fromSnapshot({ id: 1, recorded_at_ms: 1, envelope: envelope("build.complete") });
-    const two = fromSnapshot({ id: 2, recorded_at_ms: 2, envelope: envelope("command.reload") });
-    const three = fromSnapshot({ id: 3, recorded_at_ms: 3, envelope: envelope("build.complete") });
+    const one = fromSnapshot({ id: 1, recorded_at_ms: 1, envelope: envelope(BUILD_COMPLETE_MESSAGE_NAME) });
+    const two = fromSnapshot({ id: 2, recorded_at_ms: 2, envelope: envelope(COMMAND_RELOAD_MESSAGE_NAME) });
+    const three = fromSnapshot({ id: 3, recorded_at_ms: 3, envelope: envelope(BUILD_COMPLETE_MESSAGE_NAME) });
 
     const merged = mergeEntriesWithOverflow([one, two], [three], 2);
     assert.deepEqual(
@@ -102,12 +107,12 @@ describe("timeline merge behavior", () => {
 
   it("reports when older-page prepends trim newer retained entries", () => {
     const existing = [
-      fromSnapshot({ id: 3, recorded_at_ms: 3, envelope: envelope("build.complete") }),
-      fromSnapshot({ id: 4, recorded_at_ms: 4, envelope: envelope("command.reload") })
+      fromSnapshot({ id: 3, recorded_at_ms: 3, envelope: envelope(BUILD_COMPLETE_MESSAGE_NAME) }),
+      fromSnapshot({ id: 4, recorded_at_ms: 4, envelope: envelope(COMMAND_RELOAD_MESSAGE_NAME) })
     ];
     const older = [
-      fromSnapshot({ id: 1, recorded_at_ms: 1, envelope: envelope("build.complete") }),
-      fromSnapshot({ id: 2, recorded_at_ms: 2, envelope: envelope("command.reload") })
+      fromSnapshot({ id: 1, recorded_at_ms: 1, envelope: envelope(BUILD_COMPLETE_MESSAGE_NAME) }),
+      fromSnapshot({ id: 2, recorded_at_ms: 2, envelope: envelope(COMMAND_RELOAD_MESSAGE_NAME) })
     ];
 
     const merged = mergeEntriesWithOverflow(existing, older, 3, "prepend");
@@ -123,9 +128,9 @@ describe("timeline merge behavior", () => {
 describe("timeline render window", () => {
   it("renders only the newest bounded slice of loaded history", () => {
     const entries = [
-      fromSnapshot({ id: 1, recorded_at_ms: 1, envelope: envelope("build.complete") }),
-      fromSnapshot({ id: 2, recorded_at_ms: 2, envelope: envelope("command.reload") }),
-      fromSnapshot({ id: 3, recorded_at_ms: 3, envelope: envelope("build.complete") })
+      fromSnapshot({ id: 1, recorded_at_ms: 1, envelope: envelope(BUILD_COMPLETE_MESSAGE_NAME) }),
+      fromSnapshot({ id: 2, recorded_at_ms: 2, envelope: envelope(COMMAND_RELOAD_MESSAGE_NAME) }),
+      fromSnapshot({ id: 3, recorded_at_ms: 3, envelope: envelope(BUILD_COMPLETE_MESSAGE_NAME) })
     ];
 
     const rendered = renderTimelineWindow(entries, 2);
@@ -140,7 +145,7 @@ describe("timeline render window", () => {
       fromSnapshot({
         id: index + 1,
         recorded_at_ms: index + 1,
-        envelope: envelope("build.complete")
+        envelope: envelope(BUILD_COMPLETE_MESSAGE_NAME)
       })
     );
 
@@ -151,9 +156,9 @@ describe("timeline render window", () => {
 
   it("reports how many older loaded entries remain hidden", () => {
     const entries = [
-      fromSnapshot({ id: 1, recorded_at_ms: 1, envelope: envelope("build.complete") }),
-      fromSnapshot({ id: 2, recorded_at_ms: 2, envelope: envelope("command.reload") }),
-      fromSnapshot({ id: 3, recorded_at_ms: 3, envelope: envelope("build.complete") })
+      fromSnapshot({ id: 1, recorded_at_ms: 1, envelope: envelope(BUILD_COMPLETE_MESSAGE_NAME) }),
+      fromSnapshot({ id: 2, recorded_at_ms: 2, envelope: envelope(COMMAND_RELOAD_MESSAGE_NAME) }),
+      fromSnapshot({ id: 3, recorded_at_ms: 3, envelope: envelope(BUILD_COMPLETE_MESSAGE_NAME) })
     ];
 
     assert.equal(hiddenOlderTimelineCount(entries, 2), 1);
@@ -163,8 +168,8 @@ describe("timeline render window", () => {
 
 describe("timeline summaries", () => {
   it("summarizes known payloads", () => {
-    assert.match(summarizeEnvelope(envelope("build.complete")), /build=build-1/);
-    assert.match(summarizeEnvelope(envelope("command.reload")), /reason=build.complete/);
+    assert.match(summarizeEnvelope(envelope(BUILD_COMPLETE_MESSAGE_NAME)), /build=build-1/);
+    assert.match(summarizeEnvelope(envelope(COMMAND_RELOAD_MESSAGE_NAME)), /reason=build.complete/);
   });
 
   it("formats timestamps as non-empty local time strings", () => {
@@ -180,7 +185,7 @@ describe("timeline filters", () => {
       id: 1,
       recorded_at_ms: 1,
       envelope: {
-        ...envelope("build.complete"),
+        ...envelope(BUILD_COMPLETE_MESSAGE_NAME),
         t: "event",
         src: { role: "daemon", id: "daemon-1" }
       }
@@ -189,7 +194,7 @@ describe("timeline filters", () => {
       id: 2,
       recorded_at_ms: 2,
       envelope: {
-        ...envelope("command.reload"),
+        ...envelope(COMMAND_RELOAD_MESSAGE_NAME),
         t: "command",
         src: { role: "dev-agent", id: "agent-1" }
       }
@@ -209,16 +214,16 @@ describe("timeline filters", () => {
     const build = fromSnapshot({
       id: 1,
       recorded_at_ms: 1,
-      envelope: envelope("build.complete")
+      envelope: envelope(BUILD_COMPLETE_MESSAGE_NAME)
     });
     const reload = fromSnapshot({
       id: 2,
       recorded_at_ms: 2,
-      envelope: envelope("command.reload")
+      envelope: envelope(COMMAND_RELOAD_MESSAGE_NAME)
     });
 
     const byName = filterEntries([build, reload], {
-      search: "command.reload",
+      search: COMMAND_RELOAD_MESSAGE_NAME,
       messageType: "all",
       sourceRole: "all"
     });
@@ -238,7 +243,7 @@ describe("timeline filters", () => {
       id: 1,
       recorded_at_ms: 1,
       envelope: {
-        ...envelope("build.complete"),
+        ...envelope(BUILD_COMPLETE_MESSAGE_NAME),
         src: { role: "daemon", id: "daemon-1" }
       }
     });
@@ -246,7 +251,7 @@ describe("timeline filters", () => {
       id: 2,
       recorded_at_ms: 2,
       envelope: {
-        ...envelope("command.reload"),
+        ...envelope(COMMAND_RELOAD_MESSAGE_NAME),
         t: "command",
         src: { role: "dev-agent", id: "agent-1" }
       }
@@ -267,7 +272,7 @@ describe("search parser", () => {
   it("parses known operators and preserves plain text tokens", () => {
     const clauses = parseSearchQuery("name:build.complete src:daemon type:event build-1");
     assert.deepEqual(clauses, [
-      { key: "name", value: "build.complete" },
+      { key: "name", value: BUILD_COMPLETE_MESSAGE_NAME },
       { key: "src", value: "daemon" },
       { key: "type", value: "event" },
       { key: "text", value: "build-1" }
@@ -283,15 +288,15 @@ describe("search parser", () => {
 describe("timeline cursor helpers", () => {
   it("finds the oldest persisted id in mixed history", () => {
     const entries = [
-      fromSnapshot({ id: 8, recorded_at_ms: 8, envelope: envelope("build.complete") }),
-      fromSnapshot({ id: 9, recorded_at_ms: 9, envelope: envelope("command.reload") }),
-      fromLiveEnvelope(envelope("build.complete"), 10)
+      fromSnapshot({ id: 8, recorded_at_ms: 8, envelope: envelope(BUILD_COMPLETE_MESSAGE_NAME) }),
+      fromSnapshot({ id: 9, recorded_at_ms: 9, envelope: envelope(COMMAND_RELOAD_MESSAGE_NAME) }),
+      fromLiveEnvelope(envelope(BUILD_COMPLETE_MESSAGE_NAME), 10)
     ];
 
     assert.equal(oldestPersistedTimelineID(entries), 8);
   });
 
   it("returns null when only live entries exist", () => {
-    assert.equal(oldestPersistedTimelineID([fromLiveEnvelope(envelope("build.complete"), 10)]), null);
+    assert.equal(oldestPersistedTimelineID([fromLiveEnvelope(envelope(BUILD_COMPLETE_MESSAGE_NAME), 10)]), null);
   });
 });

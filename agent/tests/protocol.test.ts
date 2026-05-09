@@ -1,14 +1,14 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
-import { isEnvelope } from "@panex/protocol";
+import { COMMAND_RELOAD_MESSAGE_NAME, isEnvelope } from "@panex/protocol";
 
 describe("isEnvelope", () => {
   it("accepts protocol-shaped envelopes", () => {
     const value = {
       v: 1,
       t: "command",
-      name: "command.reload",
+      name: COMMAND_RELOAD_MESSAGE_NAME,
       src: { role: "daemon", id: "daemon-1" },
       data: { reason: "build complete" }
     };
@@ -22,7 +22,7 @@ describe("isEnvelope", () => {
       isEnvelope({
         v: 1,
         t: "command",
-        name: "command.reload",
+        name: COMMAND_RELOAD_MESSAGE_NAME,
         src: { role: "daemon" },
         data: {}
       }),

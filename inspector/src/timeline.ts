@@ -1,4 +1,6 @@
 import {
+  BUILD_COMPLETE_MESSAGE_NAME,
+  COMMAND_RELOAD_MESSAGE_NAME,
   QUERY_EVENTS_RESULT_MESSAGE_NAME,
   type Envelope,
   type EnvelopeType,
@@ -159,7 +161,7 @@ export function hiddenOlderTimelineCount(
 }
 
 export function summarizeEnvelope(envelope: Envelope): string {
-  if (envelope.name === "build.complete" && typeof envelope.data === "object" && envelope.data !== null) {
+  if (envelope.name === BUILD_COMPLETE_MESSAGE_NAME && typeof envelope.data === "object" && envelope.data !== null) {
     const payload = envelope.data as { build_id?: string; success?: boolean; extension_id?: string };
     const summary = `build=${payload.build_id ?? "unknown"} success=${String(payload.success ?? false)}`;
     if (typeof payload.extension_id === "string" && payload.extension_id.trim().length > 0) {
@@ -167,7 +169,7 @@ export function summarizeEnvelope(envelope: Envelope): string {
     }
     return summary;
   }
-  if (envelope.name === "command.reload" && typeof envelope.data === "object" && envelope.data !== null) {
+  if (envelope.name === COMMAND_RELOAD_MESSAGE_NAME && typeof envelope.data === "object" && envelope.data !== null) {
     const payload = envelope.data as { reason?: string; build_id?: string; extension_id?: string };
     const summary = `reason=${payload.reason ?? "unknown"} build=${payload.build_id ?? "n/a"}`;
     if (typeof payload.extension_id === "string" && payload.extension_id.trim().length > 0) {
