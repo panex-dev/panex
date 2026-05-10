@@ -8,6 +8,7 @@ import {
   DEV_AGENT_CLIENT_KIND,
   HELLO_ACK_MESSAGE_NAME,
   HELLO_MESSAGE_NAME,
+  QUERY_EVENTS_MESSAGE_NAME,
   type Envelope,
   type HelloAck
 } from "@panex/protocol";
@@ -127,7 +128,7 @@ describe("handleDaemonEnvelope", () => {
     const closed: Array<{ code?: number; reason?: string }> = [];
 
     const result = handleDaemonEnvelope(
-      helloAckEnvelope({ capabilities_supported: ["query.events"] }),
+      helloAckEnvelope({ capabilities_supported: [QUERY_EVENTS_MESSAGE_NAME] }),
       state,
       {
         runtimeReload: () => {
