@@ -4,7 +4,9 @@ import {
   BUILD_COMPLETE_MESSAGE_NAME,
   CHROME_API_CALL_MESSAGE_NAME,
   CHROME_API_EVENT_MESSAGE_NAME,
+  CHROME_API_RESULT_MESSAGE_NAME,
   COMMAND_RELOAD_MESSAGE_NAME,
+  DEFAULT_DAEMON_WEBSOCKET_URL,
   INSPECTOR_SOURCE_ROLE,
   QUERY_EVENTS_MESSAGE_NAME,
   QUERY_STORAGE_MESSAGE_NAME,
@@ -23,7 +25,7 @@ import {
 describe("resolveConnectionParamsFromSearch", () => {
   it("uses loopback defaults when no overrides are present", () => {
     assert.deepEqual(resolveConnectionParamsFromSearch(""), {
-      wsURL: "ws://127.0.0.1:4317/ws",
+      wsURL: DEFAULT_DAEMON_WEBSOCKET_URL,
       token: ""
     });
   });
@@ -46,7 +48,7 @@ describe("resolveConnectionParamsFromSearch", () => {
         "?ws=ws%3A%2F%2Fevil.example%3A4317%2Fnot-ws%3Ftoken%3Dleak&token=secret"
       ),
       {
-        wsURL: "ws://127.0.0.1:4317/ws",
+        wsURL: DEFAULT_DAEMON_WEBSOCKET_URL,
         token: "secret"
       }
     );
@@ -59,7 +61,7 @@ describe("resolveConnectionParamsFromSearch", () => {
         true
       ),
       {
-        wsURL: "ws://127.0.0.1:4317/ws",
+        wsURL: DEFAULT_DAEMON_WEBSOCKET_URL,
         token: ""
       }
     );
@@ -187,7 +189,7 @@ describe("inspectorRequestedCapabilities", () => {
 
   it("omits response-only capability names from the handshake request set", () => {
     assert.equal(
-      (inspectorRequestedCapabilities as readonly string[]).includes("chrome.api.result"),
+      (inspectorRequestedCapabilities as readonly string[]).includes(CHROME_API_RESULT_MESSAGE_NAME),
       false,
     );
   });
