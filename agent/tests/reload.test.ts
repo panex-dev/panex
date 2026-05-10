@@ -1,6 +1,10 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import type { Envelope } from "@panex/protocol";
+import {
+  BUILD_COMPLETE_MESSAGE_NAME,
+  COMMAND_RELOAD_MESSAGE_NAME,
+  type Envelope
+} from "@panex/protocol";
 
 import { handleReloadCommand, isReloadCommand } from "../src/reload";
 
@@ -16,12 +20,12 @@ function baseEnvelope(name: Envelope["name"], type: Envelope["t"]): Envelope {
 
 describe("reload command detection", () => {
   it("identifies command.reload envelopes", () => {
-    const envelope = baseEnvelope("command.reload", "command");
+    const envelope = baseEnvelope(COMMAND_RELOAD_MESSAGE_NAME, "command");
     assert.equal(isReloadCommand(envelope), true);
   });
 
   it("rejects non-command envelopes", () => {
-    const envelope = baseEnvelope("build.complete", "event");
+    const envelope = baseEnvelope(BUILD_COMPLETE_MESSAGE_NAME, "event");
     assert.equal(isReloadCommand(envelope), false);
   });
 });
@@ -29,7 +33,7 @@ describe("reload command detection", () => {
 describe("reload command handler", () => {
   it("calls runtime reload for command.reload", () => {
     const envelope = {
-      ...baseEnvelope("command.reload", "command"),
+      ...baseEnvelope(COMMAND_RELOAD_MESSAGE_NAME, "command"),
       data: { extension_id: "default" }
     };
 
@@ -43,7 +47,7 @@ describe("reload command handler", () => {
   });
 
   it("does not call runtime reload for unrelated messages", () => {
-    const envelope = baseEnvelope("build.complete", "event");
+    const envelope = baseEnvelope(BUILD_COMPLETE_MESSAGE_NAME, "event");
 
     let called = 0;
     const handled = handleReloadCommand(envelope, "default", () => {
@@ -56,7 +60,7 @@ describe("reload command handler", () => {
 
   it("ignores reloads targeted at a different extension id", () => {
     const envelope = {
-      ...baseEnvelope("command.reload", "command"),
+      ...baseEnvelope(COMMAND_RELOAD_MESSAGE_NAME, "command"),
       data: { extension_id: "other" }
     };
 
