@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { afterEach, describe, it } from "node:test";
+import { DEFAULT_DAEMON_WEBSOCKET_URL } from "@panex/protocol";
 
 import { buildDaemonURL, defaultConfig, loadConfig } from "../src/config";
 
@@ -26,7 +27,7 @@ function setChromeStorage(value: unknown): void {
 
 describe("config loading", () => {
   it("uses 127.0.0.1 for the default daemon websocket URL", () => {
-    assert.equal(defaultConfig.wsUrl, "ws://127.0.0.1:4317/ws");
+    assert.equal(defaultConfig.wsUrl, DEFAULT_DAEMON_WEBSOCKET_URL);
   });
 
   it("falls back to defaults when storage is empty or invalid", async () => {
@@ -119,7 +120,7 @@ describe("config loading", () => {
 
 describe("daemon URL construction", () => {
   it("strips token query parameters and preserves unrelated params", () => {
-    const url = buildDaemonURL("ws://127.0.0.1:4317/ws?foo=1&token=old");
+    const url = buildDaemonURL(`${DEFAULT_DAEMON_WEBSOCKET_URL}?foo=1&token=old`);
     const parsed = new URL(url);
 
     assert.equal(parsed.searchParams.get("foo"), "1");

@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
+import { DEFAULT_DAEMON_WEBSOCKET_URL } from "@panex/protocol";
 
 import { chromeSimScriptTag, injectChromeSimIntoHTML } from "../scripts/preview_injection";
 
@@ -8,7 +9,7 @@ describe("preview html chrome-sim injection", () => {
     const html = "<html><head><title>X</title></head><body></body></html>";
 
     const injected = injectChromeSimIntoHTML(html, {
-      daemonURL: "ws://127.0.0.1:4317/ws",
+      daemonURL: DEFAULT_DAEMON_WEBSOCKET_URL,
       authToken: "dev-token",
       extensionID: "ext-1",
       moduleURL: "./chrome-sim.js"
@@ -26,7 +27,7 @@ describe("preview html chrome-sim injection", () => {
     const html = "<html><head><script data-panex-chrome-sim=\"1\"></script></head><body></body></html>";
 
     const injected = injectChromeSimIntoHTML(html, {
-      daemonURL: "ws://127.0.0.1:4317/ws",
+      daemonURL: DEFAULT_DAEMON_WEBSOCKET_URL,
       moduleURL: "./chrome-sim.js"
     });
 
@@ -37,7 +38,7 @@ describe("preview html chrome-sim injection", () => {
     assert.throws(
       () =>
         injectChromeSimIntoHTML("<html><body></body></html>", {
-          daemonURL: "ws://127.0.0.1:4317/ws",
+          daemonURL: DEFAULT_DAEMON_WEBSOCKET_URL,
           moduleURL: "./chrome-sim.js"
         }),
       /missing a <\/head>/i
