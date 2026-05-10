@@ -164,6 +164,7 @@ func TestRunInitForceOverwritesScaffoldFiles(t *testing.T) {
 
 func TestRunInitThenDevUsesScaffoldedConfig(t *testing.T) {
 	tempDir := t.TempDir()
+	resolvedRoot := resolveSymlinks(t, tempDir)
 	var captured panexconfig.Config
 	withStubbedStartDev(t, func(cfg panexconfig.Config, stdout io.Writer) error {
 		captured = cfg
@@ -191,10 +192,10 @@ func TestRunInitThenDevUsesScaffoldedConfig(t *testing.T) {
 		t.Fatalf("init->dev flow returned error: %v", err)
 	}
 
-	if captured.Extension.SourceDir != filepath.Join(tempDir, "panex-extension") {
+	if captured.Extension.SourceDir != filepath.Join(resolvedRoot, "panex-extension") {
 		t.Fatalf("unexpected scaffold source dir: got %q", captured.Extension.SourceDir)
 	}
-	if captured.Extension.OutDir != filepath.Join(tempDir, ".panex", "dist") {
+	if captured.Extension.OutDir != filepath.Join(resolvedRoot, ".panex", "dist") {
 		t.Fatalf("unexpected scaffold out dir: got %q", captured.Extension.OutDir)
 	}
 	if len(captured.Server.AuthToken) != 32 {
@@ -241,6 +242,7 @@ func TestRunUnknownCommandReturnsUsageError(t *testing.T) {
 
 func TestRunDevDefaultConfig(t *testing.T) {
 	tempDir := t.TempDir()
+	resolvedRoot := resolveSymlinks(t, tempDir)
 	writePanexConfig(t, filepath.Join(tempDir, "panex.toml"), `
 [extension]
 source_dir = "./src"
@@ -277,13 +279,13 @@ auth_token = "token-123"
 	if captured.Server.AuthToken != "token-123" {
 		t.Fatalf("unexpected auth token: got %q", captured.Server.AuthToken)
 	}
-	if captured.Extension.SourceDir != filepath.Join(tempDir, "src") {
+	if captured.Extension.SourceDir != filepath.Join(resolvedRoot, "src") {
 		t.Fatalf("unexpected source dir: got %q", captured.Extension.SourceDir)
 	}
-	if captured.Extension.OutDir != filepath.Join(tempDir, "dist") {
+	if captured.Extension.OutDir != filepath.Join(resolvedRoot, "dist") {
 		t.Fatalf("unexpected out dir: got %q", captured.Extension.OutDir)
 	}
-	if captured.Server.EventStorePath != filepath.Join(tempDir, ".panex", "events.db") {
+	if captured.Server.EventStorePath != filepath.Join(resolvedRoot, ".panex", "events.db") {
 		t.Fatalf("unexpected event store path: got %q", captured.Server.EventStorePath)
 	}
 }
@@ -458,6 +460,7 @@ func TestRunDevMissingConfig(t *testing.T) {
 
 func TestRunDevInfersConfigFromManifestJSON(t *testing.T) {
 	tempDir := t.TempDir()
+	resolvedRoot := resolveSymlinks(t, tempDir)
 	if err := os.WriteFile(filepath.Join(tempDir, "manifest.json"), []byte(`{"manifest_version": 3}`), 0o600); err != nil {
 		t.Fatalf("write manifest.json: %v", err)
 	}
@@ -480,10 +483,10 @@ func TestRunDevInfersConfigFromManifestJSON(t *testing.T) {
 	if !strings.Contains(out.String(), "manifest.json") {
 		t.Fatalf("expected inference notice mentioning manifest.json, got %q", out.String())
 	}
-	if captured.Extension.SourceDir != tempDir {
+	if captured.Extension.SourceDir != resolvedRoot {
 		t.Fatalf("unexpected inferred source dir: got %q", captured.Extension.SourceDir)
 	}
-	if captured.Extension.OutDir != filepath.Join(tempDir, filepath.FromSlash(panexconfig.DefaultOutDir)) {
+	if captured.Extension.OutDir != filepath.Join(resolvedRoot, filepath.FromSlash(panexconfig.DefaultOutDir)) {
 		t.Fatalf("unexpected inferred out dir: got %q", captured.Extension.OutDir)
 	}
 	if captured.Server.Port != panexconfig.DefaultPort {
@@ -492,7 +495,7 @@ func TestRunDevInfersConfigFromManifestJSON(t *testing.T) {
 	if captured.Server.AuthToken != panexconfig.DefaultAuthToken {
 		t.Fatalf("unexpected inferred auth token: got %q", captured.Server.AuthToken)
 	}
-	if captured.Server.EventStorePath != filepath.Join(tempDir, ".panex", "events.db") {
+	if captured.Server.EventStorePath != filepath.Join(resolvedRoot, ".panex", "events.db") {
 		t.Fatalf("unexpected inferred event store path: got %q", captured.Server.EventStorePath)
 	}
 }
