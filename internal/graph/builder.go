@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"sort"
 
 	"github.com/panex-dev/panex/internal/configloader"
 	"github.com/panex-dev/panex/internal/inspector"
@@ -215,11 +216,14 @@ func ProjectConfigFromLoaded(loaded *configloader.Loaded) *ProjectConfig {
 		Hash:         loaded.ConfigHash,
 	}
 
+	enabledTargets := make([]string, 0, len(cfg.Targets))
 	for t, tc := range cfg.Targets {
 		if tc.Enabled {
-			gc.Targets = append(gc.Targets, t)
+			enabledTargets = append(enabledTargets, t)
 		}
 	}
+	sort.Strings(enabledTargets)
+	gc.Targets = append(gc.Targets, enabledTargets...)
 	for name, e := range cfg.Entries {
 		gc.Entries[name] = EntryConfig{Path: e.Path, Type: e.ModuleType}
 	}
