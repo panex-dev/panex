@@ -2,8 +2,14 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
 import {
+  BUILD_COMPLETE_MESSAGE_NAME,
   CHROME_API_EVENT_MESSAGE_NAME,
   CHROME_API_RESULT_MESSAGE_NAME,
+  DEFAULT_DAEMON_WEBSOCKET_URL,
+  QUERY_EVENTS_MESSAGE_NAME,
+  QUERY_EVENTS_RESULT_MESSAGE_NAME,
+  QUERY_STORAGE_RESULT_MESSAGE_NAME,
+  STORAGE_DIFF_MESSAGE_NAME,
   type StorageSnapshot
 } from "@panex/protocol";
 
@@ -37,16 +43,16 @@ describe("summarizeStorageAreas", () => {
 describe("summarizeTimeline", () => {
   it("counts persisted/live events and picks the latest event by timestamp", () => {
     const timeline: TimelineEntry[] = [
-      entry("build.complete", 100, 11),
-      entry("storage.diff", 140),
-      entry("query.storage.result", 120, 18)
+      entry(BUILD_COMPLETE_MESSAGE_NAME, 100, 11),
+      entry(STORAGE_DIFF_MESSAGE_NAME, 140),
+      entry(QUERY_STORAGE_RESULT_MESSAGE_NAME, 120, 18)
     ];
 
     assert.deepEqual(summarizeTimeline(timeline), {
       totalEvents: 3,
       liveEvents: 1,
       persistedEvents: 2,
-      latestEventName: "storage.diff",
+      latestEventName: STORAGE_DIFF_MESSAGE_NAME,
       latestEventSource: "daemon:daemon-1"
     });
   });
@@ -70,9 +76,9 @@ describe("buildWorkbenchModel", () => {
         daemonVersion: "dev",
         sessionID: "session-1",
         extensionID: "popup",
-        capabilitiesSupported: ["query.events", "storage.diff"]
+        capabilitiesSupported: [QUERY_EVENTS_MESSAGE_NAME, STORAGE_DIFF_MESSAGE_NAME]
       },
-      socketURL: "ws://127.0.0.1:4317/ws",
+      socketURL: DEFAULT_DAEMON_WEBSOCKET_URL,
       lastError: null,
       storage: [
         {
@@ -87,13 +93,13 @@ describe("buildWorkbenchModel", () => {
         },
         { area: "sync", items: {} }
       ],
-      timeline: [entry("query.events.result", 99, 5)]
+      timeline: [entry(QUERY_EVENTS_RESULT_MESSAGE_NAME, 99, 5)]
     });
 
     assert.equal(model.status, "open");
     assert.equal(model.bridgeSession?.daemonVersion, "dev");
     assert.equal(model.bridgeSession?.extensionID, "popup");
-    assert.equal(model.socketURL, "ws://127.0.0.1:4317/ws");
+    assert.equal(model.socketURL, DEFAULT_DAEMON_WEBSOCKET_URL);
     assert.equal(model.totalStorageKeys, 1);
     assert.deepEqual(model.storageAreas, [
       { area: "local", keys: 1 },
@@ -103,7 +109,7 @@ describe("buildWorkbenchModel", () => {
     assert.equal(model.storagePresets[0]?.actionLabel, "update");
     assert.equal(model.runtimeProbe.lastResultText, null);
     assert.equal(model.runtimeProbe.replayPayload, null);
-    assert.equal(model.timeline.latestEventName, "query.events.result");
+    assert.equal(model.timeline.latestEventName, QUERY_EVENTS_RESULT_MESSAGE_NAME);
   });
 });
 

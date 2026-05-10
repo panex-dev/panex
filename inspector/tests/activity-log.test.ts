@@ -1,9 +1,11 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
+  BUILD_COMPLETE_MESSAGE_NAME,
   CHROME_API_CALL_MESSAGE_NAME,
   CHROME_API_EVENT_MESSAGE_NAME,
-  CHROME_API_RESULT_MESSAGE_NAME
+  CHROME_API_RESULT_MESSAGE_NAME,
+  QUERY_EVENTS_RESULT_MESSAGE_NAME
 } from "@panex/protocol";
 
 import { summarizeChromeAPIActivity } from "../src/activity-log";
@@ -89,8 +91,8 @@ describe("summarizeChromeAPIActivity", () => {
 
   it("ignores unrelated timeline traffic", () => {
     const activity = summarizeChromeAPIActivity([
-      eventEntry("build.complete", 100, { build_id: "1", success: true }),
-      eventEntry("query.events.result", 120, { events: [] })
+      eventEntry(BUILD_COMPLETE_MESSAGE_NAME, 100, { build_id: "1", success: true }),
+      eventEntry(QUERY_EVENTS_RESULT_MESSAGE_NAME, 120, { events: [] })
     ]);
 
     assert.deepEqual(activity, []);

@@ -1,5 +1,9 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
+import {
+  CHROME_API_EVENT_MESSAGE_NAME,
+  CHROME_API_RESULT_MESSAGE_NAME
+} from "@panex/protocol";
 
 import { summarizeReplayHistory } from "../src/replay";
 import type { TimelineEntry } from "../src/timeline";
@@ -7,17 +11,17 @@ import type { TimelineEntry } from "../src/timeline";
 describe("summarizeReplayHistory", () => {
   it("returns runtime probe event/result entries in newest-first order", () => {
     const history = summarizeReplayHistory([
-      eventEntry("chrome.api.result", 100, {
+      eventEntry(CHROME_API_RESULT_MESSAGE_NAME, 100, {
         call_id: "runtime-send-1",
         success: true,
         data: runtimeProbePayload("result")
       }),
-      eventEntry("chrome.api.event", 120, {
+      eventEntry(CHROME_API_EVENT_MESSAGE_NAME, 120, {
         namespace: "runtime",
         event: "onMessage",
         args: [runtimeProbePayload("event")]
       }),
-      eventEntry("chrome.api.result", 90, {
+      eventEntry(CHROME_API_RESULT_MESSAGE_NAME, 90, {
         call_id: "tabs-query-1",
         success: true,
         data: [{ id: 7 }]
@@ -36,12 +40,12 @@ describe("summarizeReplayHistory", () => {
 
   it("ignores unrelated chrome api traffic", () => {
     const history = summarizeReplayHistory([
-      eventEntry("chrome.api.event", 200, {
+      eventEntry(CHROME_API_EVENT_MESSAGE_NAME, 200, {
         namespace: "runtime",
         event: "onMessage",
         args: [{ topic: "other" }]
       }),
-      eventEntry("chrome.api.result", 220, {
+      eventEntry(CHROME_API_RESULT_MESSAGE_NAME, 220, {
         call_id: "tabs-query-1",
         success: true,
         data: [{ id: 7 }]
