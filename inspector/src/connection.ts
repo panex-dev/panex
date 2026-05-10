@@ -255,7 +255,7 @@ export function ConnectionProvider(props: ParentProps) {
 
   const sendRuntimeMessage = (message: unknown): boolean => {
     if (
-      !bridgeSessionSupportsCapability(bridgeSession(), "chrome.api.call") ||
+      !bridgeSessionSupportsCapability(bridgeSession(), CHROME_API_CALL_MESSAGE_NAME) ||
       !socket ||
       socket.readyState !== WebSocket.OPEN
     ) {

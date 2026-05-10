@@ -141,6 +141,7 @@ As of 2026-05-09.
 | — | Phase 2 Dev Bridge daemon: centralize named Chrome API transport message constants in shared protocol contracts | `docs/build-log/2026-05-09-phase2-dev-bridge-ts-chrome-api-message-constants.md` |
 | — | Phase 2 Dev Bridge daemon: centralize named query and storage message constants in shared protocol contracts | `docs/build-log/2026-05-09-phase2-dev-bridge-ts-query-storage-message-constants.md` |
 | — | Phase 2 Dev Bridge daemon: centralize named build and reload message constants in shared protocol contracts | `docs/build-log/2026-05-09-phase2-dev-bridge-ts-build-reload-message-constants.md` |
+| — | Phase 2 Dev Bridge daemon: centralize remaining inspector runtime Chrome API capability constants | `docs/build-log/2026-05-10-phase2-dev-bridge-inspector-runtime-capability-constants.md` |
 
 ## In progress
 - None.

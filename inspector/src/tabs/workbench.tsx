@@ -2,6 +2,7 @@ import h from "solid-js/h";
 import { createMemo, createSignal, type Accessor, type JSX } from "solid-js";
 
 import {
+  CHROME_API_CALL_MESSAGE_NAME,
   STORAGE_REMOVE_MESSAGE_NAME,
   STORAGE_SET_MESSAGE_NAME,
   type StorageSnapshot
@@ -45,7 +46,7 @@ export function WorkbenchTab(props: WorkbenchTabProps): JSX.Element {
   const runtimeProbe = () => model().runtimeProbe;
   const activity = createMemo(() => summarizeChromeAPIActivity(props.timeline()));
   const canSendRuntimeProbe = createMemo(() =>
-    bridgeSessionSupportsCapability(props.bridgeSession(), "chrome.api.call")
+    bridgeSessionSupportsCapability(props.bridgeSession(), CHROME_API_CALL_MESSAGE_NAME)
   );
 
   return (
@@ -198,7 +199,7 @@ export function WorkbenchTab(props: WorkbenchTabProps): JSX.Element {
           ) : null}
           {props.bridgeSession() && !canSendRuntimeProbe() ? (
             <p class="subtle" role="status" aria-live="polite">
-              Runtime probes require negotiated <code>chrome.api.call</code>.
+              Runtime probes require negotiated <code>{CHROME_API_CALL_MESSAGE_NAME}</code>.
             </p>
           ) : null}
         </article>

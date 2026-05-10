@@ -1,5 +1,6 @@
 import h from "solid-js/h";
 import { createMemo, createSignal, type Accessor, type JSX } from "solid-js";
+import { CHROME_API_CALL_MESSAGE_NAME } from "@panex/protocol";
 
 import type { BridgeSession, ConnectionStatus } from "../connection";
 import { summarizeReplayHistory } from "../replay";
@@ -20,7 +21,7 @@ export function ProbeHistoryTab(props: ReplayTabProps): JSX.Element {
   const entries = createMemo(() => summarizeReplayHistory(props.timeline()));
   const replayFamily = replayFamilies[0];
   const canReplayRuntime = createMemo(() =>
-    props.bridgeSession()?.capabilitiesSupported.includes("chrome.api.call") ?? false
+    props.bridgeSession()?.capabilitiesSupported.includes(CHROME_API_CALL_MESSAGE_NAME) ?? false
   );
 
   return (
@@ -53,7 +54,7 @@ export function ProbeHistoryTab(props: ReplayTabProps): JSX.Element {
         ) : null}
         {props.bridgeSession() && !canReplayRuntime() ? (
           <p class="subtle" role="status" aria-live="polite">
-            Runtime replay requires negotiated <code>chrome.api.call</code>.
+            Runtime replay requires negotiated <code>{CHROME_API_CALL_MESSAGE_NAME}</code>.
           </p>
         ) : null}
       </div>
