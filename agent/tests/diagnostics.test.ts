@@ -1,6 +1,10 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import type { Envelope, HelloAck } from "@panex/protocol";
+import {
+  COMMAND_RELOAD_MESSAGE_NAME,
+  type Envelope,
+  type HelloAck
+} from "@panex/protocol";
 
 import {
   createAgentDiagnostics,
@@ -27,11 +31,11 @@ describe("createAgentDiagnostics", () => {
       entries.push(entry);
     });
 
-    diagnostics.log("command.reload", { sourceId: "daemon-1", reason: "build complete" });
+    diagnostics.log(COMMAND_RELOAD_MESSAGE_NAME, { sourceId: "daemon-1", reason: "build complete" });
 
     assert.deepEqual(entries, [
       {
-        event: "command.reload",
+        event: COMMAND_RELOAD_MESSAGE_NAME,
         detail: {
           sourceId: "daemon-1",
           reason: "build complete"
@@ -46,13 +50,13 @@ describe("diagnostic summaries", () => {
     const envelope: Envelope = {
       v: 1,
       t: "command",
-      name: "command.reload",
+      name: COMMAND_RELOAD_MESSAGE_NAME,
       src: { role: "daemon", id: "daemon-1" },
       data: { reason: "build complete", auth_token: "should-not-log" }
     };
 
     assert.deepEqual(summarizeEnvelope(envelope), {
-      name: "command.reload",
+      name: COMMAND_RELOAD_MESSAGE_NAME,
       type: "command",
       sourceRole: "daemon",
       sourceId: "daemon-1"
@@ -66,14 +70,14 @@ describe("diagnostic summaries", () => {
       session_id: "session-1",
       auth_ok: true,
       extension_id: "popup",
-      capabilities_supported: ["command.reload"]
+      capabilities_supported: [COMMAND_RELOAD_MESSAGE_NAME]
     };
 
     assert.deepEqual(summarizeHelloAck(ack), {
       authOK: true,
       sessionID: "session-1",
       extensionID: "popup",
-      capabilitiesSupported: ["command.reload"]
+      capabilitiesSupported: [COMMAND_RELOAD_MESSAGE_NAME]
     });
   });
 });

@@ -1,5 +1,6 @@
 import { decode, encode } from "@msgpack/msgpack";
 import {
+  COMMAND_RELOAD_MESSAGE_NAME,
   type Envelope,
   readWebSocketMessageData,
   isHelloAck,
@@ -105,7 +106,7 @@ async function connect(): Promise<void> {
         }
         break;
       case "reload":
-        diagnostics.log("command.reload", {
+        diagnostics.log(COMMAND_RELOAD_MESSAGE_NAME, {
           ...summarizeEnvelope(decoded),
           reason: readReloadReason(decoded)
         });
