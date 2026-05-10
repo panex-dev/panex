@@ -1,6 +1,6 @@
 # Build Status Tracker
 
-As of 2026-05-09.
+As of 2026-05-10.
 
 ## Completed
 | PR | Scope | Evidence |
@@ -147,12 +147,13 @@ As of 2026-05-09.
 | — | Phase 2 Dev Bridge daemon: centralize remaining default websocket URL test fixtures | `docs/build-log/2026-05-10-phase2-default-websocket-url-test-fixtures.md` |
 | — | Phase 2 Dev Bridge daemon: centralize remaining chrome-sim storage diff fixtures | `docs/build-log/2026-05-10-phase2-chrome-sim-storage-diff-fixtures.md` |
 | — | Phase 2 Dev Bridge daemon: centralize remaining agent query-events fixture | `docs/build-log/2026-05-10-phase2-agent-query-events-fixture.md` |
+| — | Phase 2 CLI surface: add global `--cwd` project resolution override | `docs/build-log/2026-05-10-phase2-cli-cwd-flag.md` |
 
 ## In progress
 - None.
 
 ## Next
-- Phase 2: Dev Bridge daemon.
+- Phase 2: remaining deferred feature inventory.
 - See `docs/build-log/2026-04-16-phase1-spec-gaps.md` for the remaining deferred-feature inventory.
 
 ## Queued Follow-Ons

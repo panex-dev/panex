@@ -23,7 +23,7 @@ type scaffoldFile struct {
 	perm         os.FileMode
 }
 
-func runInit(args []string, stdout io.Writer) error {
+func runInitInProject(projectRoot string, args []string, stdout io.Writer) error {
 	fs := flag.NewFlagSet("init", flag.ContinueOnError)
 	fs.SetOutput(io.Discard)
 
@@ -41,7 +41,7 @@ func runInit(args []string, stdout io.Writer) error {
 		}
 	}
 
-	result, err := scaffoldStarterProject(".", *force)
+	result, err := scaffoldStarterProject(projectRoot, *force)
 	if err != nil {
 		return &cliError{
 			code: 2,

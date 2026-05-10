@@ -6,11 +6,15 @@ import (
 )
 
 func runPaths(stdout io.Writer) error {
-	cfg, _, err := detectConfig()
+	return runPathsInProject(projectDir(), stdout)
+}
+
+func runPathsInProject(projectDir string, stdout io.Writer) error {
+	cfg, _, err := detectConfig(projectDir)
 	if err != nil {
 		return &cliError{
 			code: 2,
-			msg:  "no panex.toml or manifest.json found\n\nRun `panex init` to create a starter project, or run from a directory with manifest.json.",
+			msg:  "no panex.toml or manifest.json found\n\nRun `panex init` in the project directory, or pass `--cwd` to a directory with manifest.json.",
 		}
 	}
 

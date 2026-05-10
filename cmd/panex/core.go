@@ -19,23 +19,23 @@ func projectDir() string {
 	return dir
 }
 
-func runCoreInspect() error {
-	code := cli.CmdInspect(projectDir())
+func runCoreInspectInProject(rootDir string) error {
+	code := cli.CmdInspect(rootDir)
 	if code != 0 {
 		return &cliError{code: code, msg: ""}
 	}
 	return nil
 }
 
-func runCorePlan() error {
-	code := cli.CmdPlan(projectDir())
+func runCorePlanInProject(rootDir string) error {
+	code := cli.CmdPlan(rootDir)
 	if code != 0 {
 		return &cliError{code: code, msg: ""}
 	}
 	return nil
 }
 
-func runCoreApply(args []string) error {
+func runCoreApplyInProject(rootDir string, args []string) error {
 	fs := flag.NewFlagSet("apply", flag.ContinueOnError)
 	fs.SetOutput(io.Discard)
 	force := fs.Bool("force", false, "Skip drift check")
@@ -43,30 +43,30 @@ func runCoreApply(args []string) error {
 		return &cliError{code: 2, msg: fmt.Sprintf("invalid apply flags: %v", err)}
 	}
 
-	code := cli.CmdApply(projectDir(), cli.ApplyOptions{Force: *force})
+	code := cli.CmdApply(rootDir, cli.ApplyOptions{Force: *force})
 	if code != 0 {
 		return &cliError{code: code, msg: ""}
 	}
 	return nil
 }
 
-func runCoreTest() error {
-	code := cli.CmdTest(projectDir())
+func runCoreTestInProject(rootDir string) error {
+	code := cli.CmdTest(rootDir)
 	if code != 0 {
 		return &cliError{code: code, msg: ""}
 	}
 	return nil
 }
 
-func runCoreVerify() error {
-	code := cli.CmdVerify(projectDir())
+func runCoreVerifyInProject(rootDir string) error {
+	code := cli.CmdVerify(rootDir)
 	if code != 0 {
 		return &cliError{code: code, msg: ""}
 	}
 	return nil
 }
 
-func runCorePackage(args []string) error {
+func runCorePackageInProject(rootDir string, args []string) error {
 	fs := flag.NewFlagSet("package", flag.ContinueOnError)
 	fs.SetOutput(io.Discard)
 	ver := fs.String("version", "", "Package version (defaults to project version)")
@@ -75,7 +75,7 @@ func runCorePackage(args []string) error {
 		return &cliError{code: 2, msg: fmt.Sprintf("invalid package flags: %v", err)}
 	}
 
-	code := cli.CmdPackage(projectDir(), cli.PackageOptions{
+	code := cli.CmdPackage(rootDir, cli.PackageOptions{
 		Version:   *ver,
 		SourceDir: *sourceDir,
 	})
@@ -85,7 +85,7 @@ func runCorePackage(args []string) error {
 	return nil
 }
 
-func runCoreReport(args []string) error {
+func runCoreReportInProject(rootDir string, args []string) error {
 	fs := flag.NewFlagSet("report", flag.ContinueOnError)
 	fs.SetOutput(io.Discard)
 	runID := fs.String("run-id", "", "Specific run ID")
@@ -93,14 +93,14 @@ func runCoreReport(args []string) error {
 		return &cliError{code: 2, msg: fmt.Sprintf("invalid report flags: %v", err)}
 	}
 
-	code := cli.CmdReport(projectDir(), *runID)
+	code := cli.CmdReport(rootDir, *runID)
 	if code != 0 {
 		return &cliError{code: code, msg: ""}
 	}
 	return nil
 }
 
-func runCoreResume(args []string) error {
+func runCoreResumeInProject(rootDir string, args []string) error {
 	fs := flag.NewFlagSet("resume", flag.ContinueOnError)
 	fs.SetOutput(io.Discard)
 	runID := fs.String("run-id", "", "Run ID to resume")
@@ -108,14 +108,14 @@ func runCoreResume(args []string) error {
 		return &cliError{code: 2, msg: fmt.Sprintf("invalid resume flags: %v", err)}
 	}
 
-	code := cli.CmdResume(projectDir(), *runID)
+	code := cli.CmdResume(rootDir, *runID)
 	if code != 0 {
 		return &cliError{code: code, msg: ""}
 	}
 	return nil
 }
 
-func runMCP() error {
-	srv := mcp.NewServer(projectDir())
+func runMCPInProject(rootDir string) error {
+	srv := mcp.NewServer(rootDir)
 	return srv.Run(context.Background())
 }

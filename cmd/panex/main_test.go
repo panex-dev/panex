@@ -164,6 +164,7 @@ func TestRunInitForceOverwritesScaffoldFiles(t *testing.T) {
 
 func TestRunInitThenDevUsesScaffoldedConfig(t *testing.T) {
 	tempDir := t.TempDir()
+	resolvedRoot := workingDirPath(t, tempDir)
 	var captured panexconfig.Config
 	withStubbedStartDev(t, func(cfg panexconfig.Config, stdout io.Writer) error {
 		captured = cfg
@@ -191,10 +192,10 @@ func TestRunInitThenDevUsesScaffoldedConfig(t *testing.T) {
 		t.Fatalf("init->dev flow returned error: %v", err)
 	}
 
-	if captured.Extension.SourceDir != "panex-extension" {
+	if captured.Extension.SourceDir != filepath.Join(resolvedRoot, "panex-extension") {
 		t.Fatalf("unexpected scaffold source dir: got %q", captured.Extension.SourceDir)
 	}
-	if captured.Extension.OutDir != ".panex/dist" {
+	if captured.Extension.OutDir != filepath.Join(resolvedRoot, ".panex", "dist") {
 		t.Fatalf("unexpected scaffold out dir: got %q", captured.Extension.OutDir)
 	}
 	if len(captured.Server.AuthToken) != 32 {
@@ -241,6 +242,7 @@ func TestRunUnknownCommandReturnsUsageError(t *testing.T) {
 
 func TestRunDevDefaultConfig(t *testing.T) {
 	tempDir := t.TempDir()
+	resolvedRoot := workingDirPath(t, tempDir)
 	writePanexConfig(t, filepath.Join(tempDir, "panex.toml"), `
 [extension]
 source_dir = "./src"
@@ -277,10 +279,20 @@ auth_token = "token-123"
 	if captured.Server.AuthToken != "token-123" {
 		t.Fatalf("unexpected auth token: got %q", captured.Server.AuthToken)
 	}
+	if captured.Extension.SourceDir != filepath.Join(resolvedRoot, "src") {
+		t.Fatalf("unexpected source dir: got %q", captured.Extension.SourceDir)
+	}
+	if captured.Extension.OutDir != filepath.Join(resolvedRoot, "dist") {
+		t.Fatalf("unexpected out dir: got %q", captured.Extension.OutDir)
+	}
+	if captured.Server.EventStorePath != filepath.Join(resolvedRoot, ".panex", "events.db") {
+		t.Fatalf("unexpected event store path: got %q", captured.Server.EventStorePath)
+	}
 }
 
 func TestRunDevCustomConfig(t *testing.T) {
-	configPath := filepath.Join(t.TempDir(), "custom.toml")
+	configDir := t.TempDir()
+	configPath := filepath.Join(configDir, "custom.toml")
 	writePanexConfig(t, configPath, `
 [extension]
 source_dir = "./extension-src"
@@ -309,10 +321,10 @@ auth_token = "custom-token"
 	if out.String() != want {
 		t.Fatalf("unexpected dev output: got %q, want %q", out.String(), want)
 	}
-	if captured.Extension.SourceDir != "./extension-src" {
+	if captured.Extension.SourceDir != filepath.Join(configDir, "extension-src") {
 		t.Fatalf("unexpected source_dir: got %q", captured.Extension.SourceDir)
 	}
-	if captured.Extension.OutDir != "./build" {
+	if captured.Extension.OutDir != filepath.Join(configDir, "build") {
 		t.Fatalf("unexpected out_dir: got %q", captured.Extension.OutDir)
 	}
 	if captured.Server.Port != 4317 {
@@ -320,6 +332,9 @@ auth_token = "custom-token"
 	}
 	if captured.Server.AuthToken != "custom-token" {
 		t.Fatalf("unexpected auth token: got %q", captured.Server.AuthToken)
+	}
+	if captured.Server.EventStorePath != filepath.Join(configDir, ".panex", "events.db") {
+		t.Fatalf("unexpected event_store_path: got %q", captured.Server.EventStorePath)
 	}
 }
 
@@ -445,6 +460,7 @@ func TestRunDevMissingConfig(t *testing.T) {
 
 func TestRunDevInfersConfigFromManifestJSON(t *testing.T) {
 	tempDir := t.TempDir()
+	resolvedRoot := workingDirPath(t, tempDir)
 	if err := os.WriteFile(filepath.Join(tempDir, "manifest.json"), []byte(`{"manifest_version": 3}`), 0o600); err != nil {
 		t.Fatalf("write manifest.json: %v", err)
 	}
@@ -467,10 +483,10 @@ func TestRunDevInfersConfigFromManifestJSON(t *testing.T) {
 	if !strings.Contains(out.String(), "manifest.json") {
 		t.Fatalf("expected inference notice mentioning manifest.json, got %q", out.String())
 	}
-	if captured.Extension.SourceDir != "." {
+	if captured.Extension.SourceDir != resolvedRoot {
 		t.Fatalf("unexpected inferred source dir: got %q", captured.Extension.SourceDir)
 	}
-	if captured.Extension.OutDir != filepath.FromSlash(panexconfig.DefaultOutDir) {
+	if captured.Extension.OutDir != filepath.Join(resolvedRoot, filepath.FromSlash(panexconfig.DefaultOutDir)) {
 		t.Fatalf("unexpected inferred out dir: got %q", captured.Extension.OutDir)
 	}
 	if captured.Server.Port != panexconfig.DefaultPort {
@@ -478,6 +494,9 @@ func TestRunDevInfersConfigFromManifestJSON(t *testing.T) {
 	}
 	if captured.Server.AuthToken != panexconfig.DefaultAuthToken {
 		t.Fatalf("unexpected inferred auth token: got %q", captured.Server.AuthToken)
+	}
+	if captured.Server.EventStorePath != filepath.Join(resolvedRoot, ".panex", "events.db") {
+		t.Fatalf("unexpected inferred event store path: got %q", captured.Server.EventStorePath)
 	}
 }
 
@@ -528,6 +547,126 @@ func TestRunDevMissingDefaultConfigSuggestsInit(t *testing.T) {
 	}
 	if !strings.Contains(cliErr.msg, "Run `panex init`") {
 		t.Fatalf("missing init guidance for default config path: %q", cliErr.msg)
+	}
+	if !strings.Contains(cliErr.msg, "project directory") {
+		t.Fatalf("expected project-directory guidance, got %q", cliErr.msg)
+	}
+}
+
+func TestRunInitWithGlobalCWDScaffoldsTargetProject(t *testing.T) {
+	targetDir := t.TempDir()
+	var out bytes.Buffer
+
+	err := withWorkingDir(t.TempDir(), func() error {
+		return run([]string{"--cwd", targetDir, "init"}, &out)
+	})
+	if err != nil {
+		t.Fatalf("run(--cwd init) returned error: %v", err)
+	}
+
+	if _, err := os.Stat(filepath.Join(targetDir, "panex.toml")); err != nil {
+		t.Fatalf("expected scaffolded config in target dir: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(targetDir, "panex-extension", "manifest.json")); err != nil {
+		t.Fatalf("expected scaffolded manifest in target dir: %v", err)
+	}
+}
+
+func TestRunDevWithGlobalCWDResolvesConfigRelativePaths(t *testing.T) {
+	projectRoot := t.TempDir()
+	writePanexConfig(t, filepath.Join(projectRoot, "panex.toml"), `
+[extension]
+source_dir = "./src"
+out_dir = "./dist"
+
+[server]
+port = 3000
+auth_token = "token-123"
+`)
+
+	var out bytes.Buffer
+	var captured panexconfig.Config
+	withStubbedStartDev(t, func(cfg panexconfig.Config, stdout io.Writer) error {
+		captured = cfg
+		_, err := io.WriteString(stdout, "dev started\n")
+		return err
+	})
+	withStubbedReadProcVersion(t, nil)
+
+	err := withWorkingDir(t.TempDir(), func() error {
+		return run([]string{"--cwd", projectRoot, "dev"}, &out)
+	})
+	if err != nil {
+		t.Fatalf("run(--cwd dev) returned error: %v", err)
+	}
+
+	if captured.Extension.SourceDir != filepath.Join(projectRoot, "src") {
+		t.Fatalf("unexpected resolved source dir: got %q", captured.Extension.SourceDir)
+	}
+	if captured.Extension.OutDir != filepath.Join(projectRoot, "dist") {
+		t.Fatalf("unexpected resolved out dir: got %q", captured.Extension.OutDir)
+	}
+	if captured.Server.EventStorePath != filepath.Join(projectRoot, ".panex", "events.db") {
+		t.Fatalf("unexpected resolved event store path: got %q", captured.Server.EventStorePath)
+	}
+}
+
+func TestRunPathsWithGlobalCWDUsesTargetProject(t *testing.T) {
+	projectRoot := t.TempDir()
+	writePanexConfig(t, filepath.Join(projectRoot, "panex.toml"), `
+[extension]
+source_dir = "./src"
+out_dir = "./dist"
+
+[server]
+port = 4317
+auth_token = "test-token"
+`)
+
+	var out bytes.Buffer
+	err := withWorkingDir(t.TempDir(), func() error {
+		return run([]string{"--cwd", projectRoot, "paths"}, &out)
+	})
+	if err != nil {
+		t.Fatalf("run(--cwd paths) returned error: %v", err)
+	}
+
+	if !strings.Contains(out.String(), "source_dir="+filepath.Join(projectRoot, "src")) {
+		t.Fatalf("expected source_dir rooted at --cwd target, got %q", out.String())
+	}
+	if !strings.Contains(out.String(), "out_dir="+filepath.Join(projectRoot, "dist")) {
+		t.Fatalf("expected out_dir rooted at --cwd target, got %q", out.String())
+	}
+}
+
+func TestRunInvalidGlobalFlag(t *testing.T) {
+	var out bytes.Buffer
+
+	err := run([]string{"--bad-flag"}, &out)
+	cliErr := requireCLIError(t, err)
+
+	if cliErr.code != 2 {
+		t.Fatalf("unexpected error code: got %d, want 2", cliErr.code)
+	}
+	if !strings.Contains(cliErr.msg, "invalid global flags") {
+		t.Fatalf("missing invalid-global-flags message: %q", cliErr.msg)
+	}
+}
+
+func TestRunInvalidGlobalCWD(t *testing.T) {
+	var out bytes.Buffer
+
+	err := run([]string{"--cwd", filepath.Join(t.TempDir(), "missing"), "paths"}, &out)
+	cliErr := requireCLIError(t, err)
+
+	if cliErr.code != 2 {
+		t.Fatalf("unexpected error code: got %d, want 2", cliErr.code)
+	}
+	if !strings.Contains(cliErr.msg, "invalid global flags") {
+		t.Fatalf("missing invalid-global-flags message: %q", cliErr.msg)
+	}
+	if !strings.Contains(cliErr.msg, "stat --cwd") {
+		t.Fatalf("missing --cwd detail: %q", cliErr.msg)
 	}
 }
 
@@ -1486,6 +1625,25 @@ func withWorkingDir(dir string, fn func() error) error {
 	}()
 
 	return fn()
+}
+
+func workingDirPath(t *testing.T, dir string) string {
+	t.Helper()
+
+	var resolved string
+	err := withWorkingDir(dir, func() error {
+		wd, err := os.Getwd()
+		if err != nil {
+			return err
+		}
+		resolved = wd
+		return nil
+	})
+	if err != nil {
+		t.Fatalf("resolve working dir %q: %v", dir, err)
+	}
+
+	return resolved
 }
 
 func withStubbedStartDev(t *testing.T, stub func(cfg panexconfig.Config, stdout io.Writer) error) {
