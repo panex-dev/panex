@@ -145,6 +145,7 @@ As of 2026-05-09.
 | — | Phase 2 Dev Bridge daemon: centralize remaining dev-agent reload runtime constants | `docs/build-log/2026-05-10-phase2-dev-agent-reload-constant-followup.md` |
 | — | Phase 2 Dev Bridge daemon: centralize remaining inspector fixture message constants | `docs/build-log/2026-05-10-phase2-inspector-fixture-message-constants.md` |
 | — | Phase 2 Dev Bridge daemon: centralize remaining default websocket URL test fixtures | `docs/build-log/2026-05-10-phase2-default-websocket-url-test-fixtures.md` |
+| — | Phase 2 Dev Bridge daemon: centralize remaining chrome-sim storage diff fixtures | `docs/build-log/2026-05-10-phase2-chrome-sim-storage-diff-fixtures.md` |
 
 ## In progress
 - None.

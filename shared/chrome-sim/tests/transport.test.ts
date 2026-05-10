@@ -15,6 +15,7 @@ import {
   HELLO_MESSAGE_NAME,
   MAX_WEBSOCKET_MESSAGE_BYTES,
   PROTOCOL_VERSION,
+  STORAGE_DIFF_MESSAGE_NAME,
   type Envelope
 } from "@panex/protocol";
 import { createChromeSimTransport, type TransportSocket } from "../src/transport";
@@ -77,7 +78,7 @@ describe("chrome-sim transport", () => {
     assert.deepEqual((hello.data as { capabilities_requested?: string[] }).capabilities_requested, [
       CHROME_API_CALL_MESSAGE_NAME,
       CHROME_API_EVENT_MESSAGE_NAME,
-      "storage.diff"
+      STORAGE_DIFF_MESSAGE_NAME
     ]);
 
     socket.messageEnvelope(buildHelloAckEnvelope("sess-1"));
@@ -161,7 +162,7 @@ describe("chrome-sim transport", () => {
     sockets[0].open();
     sockets[0].messageEnvelope(
       buildHelloAckEnvelope("sess-no-call", {
-        capabilities_supported: [CHROME_API_EVENT_MESSAGE_NAME, "storage.diff"]
+        capabilities_supported: [CHROME_API_EVENT_MESSAGE_NAME, STORAGE_DIFF_MESSAGE_NAME]
       })
     );
 
@@ -433,7 +434,11 @@ function buildHelloAckEnvelope(
       daemon_version: "test",
       session_id: sessionID,
       auth_ok: true,
-      capabilities_supported: [CHROME_API_CALL_MESSAGE_NAME, CHROME_API_EVENT_MESSAGE_NAME, "storage.diff"],
+      capabilities_supported: [
+        CHROME_API_CALL_MESSAGE_NAME,
+        CHROME_API_EVENT_MESSAGE_NAME,
+        STORAGE_DIFF_MESSAGE_NAME
+      ],
       ...overrides
     }
   };
