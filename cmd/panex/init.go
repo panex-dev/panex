@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/panex-dev/panex/internal/cli"
 	panexconfig "github.com/panex-dev/panex/internal/config"
 )
 
@@ -23,18 +24,24 @@ type scaffoldFile struct {
 	perm         os.FileMode
 }
 
-func runInitInProject(projectRoot string, args []string, stdout io.Writer) error {
+func runInitInProject(projectRoot string, args []string, stdout io.Writer, jsonOutput bool) error {
 	fs := flag.NewFlagSet("init", flag.ContinueOnError)
 	fs.SetOutput(io.Discard)
 
 	force := fs.Bool("force", false, "Overwrite scaffolded Panex starter files if they already exist")
 	if err := fs.Parse(args); err != nil {
+		if jsonOutput {
+			return writeJSONCommandError(stdout, 2, "init", fmt.Sprintf("invalid init flags: %v", err), nil, nil)
+		}
 		return &cliError{
 			code: 2,
 			msg:  fmt.Sprintf("invalid init flags: %v", err),
 		}
 	}
 	if fs.NArg() > 0 {
+		if jsonOutput {
+			return writeJSONCommandError(stdout, 2, "init", fmt.Sprintf("unexpected arguments for init: %v", fs.Args()), nil, nil)
+		}
 		return &cliError{
 			code: 2,
 			msg:  fmt.Sprintf("unexpected arguments for init: %v", fs.Args()),
@@ -43,10 +50,27 @@ func runInitInProject(projectRoot string, args []string, stdout io.Writer) error
 
 	result, err := scaffoldStarterProject(projectRoot, *force)
 	if err != nil {
+		if jsonOutput {
+			return writeJSONCommandError(stdout, 2, "init", err.Error(), nil, nil)
+		}
 		return &cliError{
 			code: 2,
 			msg:  err.Error(),
 		}
+	}
+
+	if jsonOutput {
+		return writeJSONEnvelope(stdout, cli.Output{
+			Status:  "ok",
+			Command: "init",
+			Summary: "initialized starter project",
+			Data: map[string]any{
+				"config":     result.configPath,
+				"source_dir": result.sourceDir,
+				"out_dir":    result.outDir,
+			},
+			Next: []string{"panex dev", fmt.Sprintf("Load unpacked from %s in chrome://extensions", result.outDir)},
+		})
 	}
 
 	return writef(

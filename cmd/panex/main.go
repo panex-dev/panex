@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/panex-dev/panex/internal/build"
+	"github.com/panex-dev/panex/internal/cli"
 	panexconfig "github.com/panex-dev/panex/internal/config"
 	"github.com/panex-dev/panex/internal/daemon"
 	"github.com/panex-dev/panex/internal/protocol"
@@ -23,24 +24,25 @@ import (
 const usageText = `panex - development runtime for Chrome extensions
 
 Usage:
-  panex [--cwd path] version
-  panex [--cwd path] init [--force]
-  panex [--cwd path] add-target <target>
-  panex [--cwd path] inspect
-  panex [--cwd path] plan
-  panex [--cwd path] apply [--force]
-  panex [--cwd path] dev [--config path/to/panex.toml] [--open]
-  panex [--cwd path] test
-  panex [--cwd path] verify
-  panex [--cwd path] package [--version v0.1.0]
-  panex [--cwd path] report [--run-id id]
-  panex [--cwd path] resume [--run-id id]
-  panex [--cwd path] doctor [--fix]
-  panex [--cwd path] paths
-  panex [--cwd path] mcp
+  panex [--cwd path] [--json] version
+  panex [--cwd path] [--json] init [--force]
+  panex [--cwd path] [--json] add-target <target>
+  panex [--cwd path] [--json] inspect
+  panex [--cwd path] [--json] plan
+  panex [--cwd path] [--json] apply [--force]
+  panex [--cwd path] [--json] dev [--config path/to/panex.toml] [--open]
+  panex [--cwd path] [--json] test
+  panex [--cwd path] [--json] verify
+  panex [--cwd path] [--json] package [--version v0.1.0]
+  panex [--cwd path] [--json] report [--run-id id]
+  panex [--cwd path] [--json] resume [--run-id id]
+  panex [--cwd path] [--json] doctor [--fix]
+  panex [--cwd path] [--json] paths
+  panex [--cwd path] [--json] mcp
 
 Global flags:
   --cwd path  Override working directory for project resolution
+  --json      Force JSON output mode for CLI command surfaces
 `
 
 // This is overridden in release builds via -ldflags "-X main.version=<semver>".
@@ -48,6 +50,8 @@ var version = "dev"
 var lookupEnv = os.LookupEnv
 
 var startDev = startDevServer
+var devStartupJSON bool
+var devStartupWarnings []string
 var buildFailureSeq uint64
 var newWebSocketServer = func(cfg daemon.WebSocketConfig) (devRuntimeServer, error) {
 	return daemon.NewWebSocketServer(cfg)
@@ -93,7 +97,9 @@ func main() {
 	if err := run(os.Args[1:], os.Stdout); err != nil {
 		var cliErr *cliError
 		if errors.As(err, &cliErr) {
-			_, _ = fmt.Fprintln(os.Stderr, cliErr.msg)
+			if cliErr.msg != "" {
+				_, _ = fmt.Fprintln(os.Stderr, cliErr.msg)
+			}
 			os.Exit(cliErr.code)
 		}
 
@@ -109,6 +115,7 @@ type cliError struct {
 
 type globalOptions struct {
 	projectDir string
+	json       bool
 }
 
 func (e *cliError) Error() string {
@@ -119,7 +126,18 @@ func run(args []string, stdout io.Writer) error {
 	opts, args, err := parseGlobalOptions(args)
 	if err != nil {
 		if errors.Is(err, flag.ErrHelp) {
+			if opts.json {
+				return writeJSONEnvelope(stdout, cli.Output{
+					Status:  "ok",
+					Command: "help",
+					Summary: "panex CLI usage",
+					Data:    map[string]any{"usage": usageText},
+				})
+			}
 			return writeString(stdout, usageText)
+		}
+		if opts.json {
+			return writeJSONCommandError(stdout, 2, "panex", fmt.Sprintf("invalid global flags: %v", err), nil, map[string]any{"usage": usageText})
 		}
 		return &cliError{
 			code: 2,
@@ -128,6 +146,9 @@ func run(args []string, stdout io.Writer) error {
 	}
 
 	if len(args) == 0 {
+		if opts.json {
+			return writeJSONCommandError(stdout, 2, "help", "no command provided", nil, map[string]any{"usage": usageText})
+		}
 		return &cliError{
 			code: 2,
 			msg:  usageText,
@@ -136,38 +157,57 @@ func run(args []string, stdout io.Writer) error {
 
 	switch args[0] {
 	case "version":
+		if opts.json {
+			return writeJSONEnvelope(stdout, cli.Output{
+				Status:  "ok",
+				Command: "version",
+				Summary: fmt.Sprintf("panex %s", version),
+				Data:    map[string]any{"version": version},
+			})
+		}
 		return writef(stdout, "panex %s\n", version)
 	case "init":
-		return runInitInProject(opts.projectDir, args[1:], stdout)
+		return runInitInProject(opts.projectDir, args[1:], stdout, opts.json)
 	case "add-target":
-		return runCoreAddTargetInProject(opts.projectDir, args[1:])
+		return runCoreAddTargetInProject(opts.projectDir, args[1:], stdout, opts.json)
 	case "inspect":
 		return runCoreInspectInProject(opts.projectDir)
 	case "plan":
 		return runCorePlanInProject(opts.projectDir)
 	case "apply":
-		return runCoreApplyInProject(opts.projectDir, args[1:])
+		return runCoreApplyInProject(opts.projectDir, args[1:], stdout, opts.json)
 	case "dev":
-		return runDevInProject(opts.projectDir, args[1:], stdout)
+		return runDevInProject(opts.projectDir, args[1:], stdout, opts.json)
 	case "test":
 		return runCoreTestInProject(opts.projectDir)
 	case "verify":
 		return runCoreVerifyInProject(opts.projectDir)
 	case "package":
-		return runCorePackageInProject(opts.projectDir, args[1:])
+		return runCorePackageInProject(opts.projectDir, args[1:], stdout, opts.json)
 	case "report":
-		return runCoreReportInProject(opts.projectDir, args[1:])
+		return runCoreReportInProject(opts.projectDir, args[1:], stdout, opts.json)
 	case "resume":
-		return runCoreResumeInProject(opts.projectDir, args[1:])
+		return runCoreResumeInProject(opts.projectDir, args[1:], stdout, opts.json)
 	case "doctor":
-		return runDoctorInProject(opts.projectDir, stdout)
+		return runDoctorInProject(opts.projectDir, stdout, opts.json)
 	case "paths":
-		return runPathsInProject(opts.projectDir, stdout)
+		return runPathsInProject(opts.projectDir, stdout, opts.json)
 	case "mcp":
 		return runMCPInProject(opts.projectDir)
 	case "help", "-h", "--help":
+		if opts.json {
+			return writeJSONEnvelope(stdout, cli.Output{
+				Status:  "ok",
+				Command: "help",
+				Summary: "panex CLI usage",
+				Data:    map[string]any{"usage": usageText},
+			})
+		}
 		return writeString(stdout, usageText)
 	default:
+		if opts.json {
+			return writeJSONCommandError(stdout, 2, "panex", fmt.Sprintf("unknown command %q", args[0]), nil, map[string]any{"usage": usageText})
+		}
 		return &cliError{
 			code: 2,
 			msg:  fmt.Sprintf("unknown command %q\n\n%s", args[0], usageText),
@@ -175,7 +215,7 @@ func run(args []string, stdout io.Writer) error {
 	}
 }
 
-func runDevInProject(projectDir string, args []string, stdout io.Writer) error {
+func runDevInProject(projectDir string, args []string, stdout io.Writer, jsonOutput bool) error {
 	fs := flag.NewFlagSet("dev", flag.ContinueOnError)
 	// Suppress default flag package output so all user-facing errors stay in our format.
 	fs.SetOutput(io.Discard)
@@ -183,6 +223,9 @@ func runDevInProject(projectDir string, args []string, stdout io.Writer) error {
 	configPath := fs.String("config", panexconfig.DefaultPath, "Path to panex configuration file")
 	openFlag := fs.Bool("open", false, "Open chrome://extensions in the default browser")
 	if err := fs.Parse(args); err != nil {
+		if jsonOutput {
+			return writeJSONCommandError(stdout, 2, "dev", fmt.Sprintf("invalid dev flags: %v", err), nil, nil)
+		}
 		return &cliError{
 			code: 2,
 			msg:  fmt.Sprintf("invalid dev flags: %v", err),
@@ -190,6 +233,9 @@ func runDevInProject(projectDir string, args []string, stdout io.Writer) error {
 	}
 
 	if fs.NArg() > 0 {
+		if jsonOutput {
+			return writeJSONCommandError(stdout, 2, "dev", fmt.Sprintf("unexpected arguments for dev: %v", fs.Args()), nil, nil)
+		}
 		return &cliError{
 			code: 2,
 			msg:  fmt.Sprintf("unexpected arguments for dev: %v", fs.Args()),
@@ -203,9 +249,15 @@ func runDevInProject(projectDir string, args []string, stdout io.Writer) error {
 			msg:  err.Error(),
 		}
 	}
+	warnings := []string{}
 	if inferred {
-		if writeErr := writef(stdout, "no panex.toml found, using manifest.json in project directory\n"); writeErr != nil {
-			return writeErr
+		message := "no panex.toml found, using manifest.json in project directory"
+		if jsonOutput {
+			warnings = append(warnings, message)
+		} else {
+			if writeErr := writef(stdout, "%s\n", message); writeErr != nil {
+				return writeErr
+			}
 		}
 	}
 
@@ -221,7 +273,12 @@ func runDevInProject(projectDir string, args []string, stdout io.Writer) error {
 		for _, ext := range cfg.Extensions {
 			absOut, _ := filepath.Abs(ext.OutDir)
 			if !strings.HasPrefix(absOut, "/mnt/") {
-				_ = writef(stdout, "warning: WSL detected — output directory %s is not on a Windows-mounted path.\nChrome cannot load extensions from Linux filesystem paths.\nRun 'panex doctor' for details, or set out_dir to a path under /mnt/.\n", absOut)
+				message := fmt.Sprintf("WSL detected — output directory %s is not on a Windows-mounted path. Chrome cannot load extensions from Linux filesystem paths. Run 'panex doctor' for details, or set out_dir to a path under /mnt/.", absOut)
+				if jsonOutput {
+					warnings = append(warnings, message)
+				} else {
+					_ = writef(stdout, "warning: WSL detected — output directory %s is not on a Windows-mounted path.\nChrome cannot load extensions from Linux filesystem paths.\nRun 'panex doctor' for details, or set out_dir to a path under /mnt/.\n", absOut)
+				}
 				break
 			}
 		}
@@ -229,9 +286,20 @@ func runDevInProject(projectDir string, args []string, stdout io.Writer) error {
 
 	if *openFlag {
 		if openErr := openBrowser("chrome://extensions"); openErr != nil {
-			_ = writef(stdout, "note: could not open browser: %v\n", openErr)
+			if jsonOutput {
+				warnings = append(warnings, fmt.Sprintf("could not open browser: %v", openErr))
+			} else {
+				_ = writef(stdout, "note: could not open browser: %v\n", openErr)
+			}
 		}
 	}
+
+	devStartupJSON = jsonOutput
+	devStartupWarnings = append([]string(nil), warnings...)
+	defer func() {
+		devStartupJSON = false
+		devStartupWarnings = nil
+	}()
 
 	return startDev(cfg, stdout)
 }
@@ -240,17 +308,27 @@ func parseGlobalOptions(args []string) (globalOptions, []string, error) {
 	fs := flag.NewFlagSet("panex", flag.ContinueOnError)
 	fs.SetOutput(io.Discard)
 
+	jsonOutput := fs.Bool("json", hasJSONFlag(args), "Force JSON output mode")
 	cwd := fs.String("cwd", "", "Override working directory for project resolution")
 	if err := fs.Parse(args); err != nil {
-		return globalOptions{}, nil, err
+		return globalOptions{json: *jsonOutput}, fs.Args(), err
 	}
 
 	projectDir, err := resolveProjectDir(*cwd)
 	if err != nil {
-		return globalOptions{}, nil, err
+		return globalOptions{json: *jsonOutput}, fs.Args(), err
 	}
 
-	return globalOptions{projectDir: projectDir}, fs.Args(), nil
+	return globalOptions{projectDir: projectDir, json: *jsonOutput}, fs.Args(), nil
+}
+
+func hasJSONFlag(args []string) bool {
+	for _, arg := range args {
+		if arg == "--json" {
+			return true
+		}
+	}
+	return false
 }
 
 func resolveProjectDir(cwd string) (string, error) {
@@ -385,17 +463,6 @@ func startDevServer(cfg panexconfig.Config, stdout io.Writer) error {
 		return err
 	}
 
-	if err := writef(stdout, "panex dev\nws_url=ws://%s:%d/ws\n", cfg.Server.BindAddress, cfg.Server.Port); err != nil {
-		return err
-	}
-	if err := writeStartupGuide(stdout, cfg.Extensions); err != nil {
-		return err
-	}
-
-	if len(cfg.Extensions) > 1 {
-		_ = writef(os.Stderr, "warning: multi-extension mode is experimental — storage and event isolation between extensions is not complete yet\n")
-	}
-
 	ctx, stop := newSignalContext()
 	defer stop()
 
@@ -459,6 +526,28 @@ func startDevServer(cfg panexconfig.Config, stdout io.Writer) error {
 			changeEvents: changeEvents,
 			dirty:        &dirtyFlag,
 		})
+	}
+
+	startupWarnings := append([]string(nil), devStartupWarnings...)
+	if len(cfg.Extensions) > 1 {
+		if devStartupJSON {
+			startupWarnings = append(startupWarnings, "multi-extension mode is experimental — storage and event isolation between extensions is not complete yet")
+		} else {
+			_ = writef(os.Stderr, "warning: multi-extension mode is experimental — storage and event isolation between extensions is not complete yet\n")
+		}
+	}
+
+	if devStartupJSON {
+		if err := writeJSONEnvelope(stdout, devStartupEnvelope(cfg, startupWarnings)); err != nil {
+			return err
+		}
+	} else {
+		if err := writef(stdout, "panex dev\nws_url=ws://%s:%d/ws\n", cfg.Server.BindAddress, cfg.Server.Port); err != nil {
+			return err
+		}
+		if err := writeStartupGuide(stdout, cfg.Extensions); err != nil {
+			return err
+		}
 	}
 
 	runErrCh := make(chan error, 1+(len(runtimes)*2))
