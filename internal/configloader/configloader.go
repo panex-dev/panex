@@ -9,6 +9,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -95,8 +96,9 @@ const (
 )
 
 var (
-	execLookPath = exec.LookPath
-	commandExec  = exec.CommandContext
+	execLookPath                = exec.LookPath
+	commandExec                 = exec.CommandContext
+	typeScriptConfigEvalTimeout = 15 * time.Second
 )
 
 // Load searches for and loads a Panex config from the project directory.
@@ -244,7 +246,7 @@ func transpileTypeScriptConfig(path string) ([]byte, error) {
 }
 
 func evaluateBundledConfig(nodePath string, bundlePath string) ([]byte, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), typeScriptConfigEvalTimeout)
 	defer cancel()
 
 	script := strings.Join([]string{
@@ -268,6 +270,9 @@ func evaluateBundledConfig(nodePath string, bundlePath string) ([]byte, error) {
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
 	if err := cmd.Run(); err != nil {
+		if errors.Is(ctx.Err(), context.DeadlineExceeded) {
+			return nil, fmt.Errorf("evaluate config: timed out after %s", typeScriptConfigEvalTimeout)
+		}
 		message := strings.TrimSpace(stderr.String())
 		if message == "" {
 			message = err.Error()

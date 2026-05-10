@@ -1,12 +1,14 @@
 package configloader
 
 import (
+	"context"
 	"encoding/json"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestLoad_NoConfig(t *testing.T) {
@@ -204,6 +206,26 @@ func TestLoad_TypeScriptConfigWithoutNode(t *testing.T) {
 	}
 }
 
+func TestEvaluateBundledConfigTimeout(t *testing.T) {
+	restoreExec := stubCommandExec(func(ctx context.Context, name string, args ...string) *exec.Cmd {
+		cmd := exec.CommandContext(ctx, os.Args[0], "-test.run=TestEvaluateBundledConfigTimeoutHelperProcess", "--")
+		cmd.Env = append(os.Environ(), "GO_WANT_HELPER_PROCESS=1")
+		return cmd
+	})
+	defer restoreExec()
+
+	restoreTimeout := stubTypeScriptConfigEvalTimeout(10 * time.Millisecond)
+	defer restoreTimeout()
+
+	_, err := evaluateBundledConfig("node", "ignored")
+	if err == nil {
+		t.Fatal("expected timeout error")
+	}
+	if !strings.Contains(err.Error(), "timed out after 10ms") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
 func TestLoadFromFile(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "custom.json")
@@ -353,10 +375,34 @@ func requireNode(t *testing.T) {
 	}
 }
 
+func TestEvaluateBundledConfigTimeoutHelperProcess(t *testing.T) {
+	if os.Getenv("GO_WANT_HELPER_PROCESS") != "1" {
+		return
+	}
+	time.Sleep(time.Second)
+	os.Exit(0)
+}
+
 func stubExecLookPath(fn func(string) (string, error)) func() {
 	original := execLookPath
 	execLookPath = fn
 	return func() {
 		execLookPath = original
+	}
+}
+
+func stubCommandExec(fn func(context.Context, string, ...string) *exec.Cmd) func() {
+	original := commandExec
+	commandExec = fn
+	return func() {
+		commandExec = original
+	}
+}
+
+func stubTypeScriptConfigEvalTimeout(timeout time.Duration) func() {
+	original := typeScriptConfigEvalTimeout
+	typeScriptConfigEvalTimeout = timeout
+	return func() {
+		typeScriptConfigEvalTimeout = original
 	}
 }
