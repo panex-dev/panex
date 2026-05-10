@@ -149,6 +149,7 @@ As of 2026-05-10.
 | — | Phase 2 Dev Bridge daemon: centralize remaining agent query-events fixture | `docs/build-log/2026-05-10-phase2-agent-query-events-fixture.md` |
 | — | Phase 2 CLI surface: add global `--cwd` project resolution override | `docs/build-log/2026-05-10-phase2-cli-cwd-flag.md` |
 | — | Phase 2 CLI + MCP surface: add `add-target` / `add_target` with config bootstrap, graph refresh, and policy sync | `docs/build-log/2026-05-10-phase2-add-target-command.md` |
+| — | Phase 2 config loader: evaluate `panex.config.ts` via esbuild + Node, and guard JSON-only config mutations | `docs/build-log/2026-05-10-phase2-typescript-config-evaluation.md` |
 
 ## In progress
 - None.

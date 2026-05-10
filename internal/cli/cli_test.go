@@ -3,7 +3,9 @@ package cli
 import (
 	"encoding/json"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/panex-dev/panex/internal/configloader"
@@ -181,6 +183,28 @@ func TestAddTarget_UnknownTargetFails(t *testing.T) {
 
 	if _, err := os.Stat(filepath.Join(dir, "panex.config.json")); !os.IsNotExist(err) {
 		t.Fatalf("panex.config.json should not be written on validation error: %v", err)
+	}
+}
+
+func TestAddTarget_RefusesTypeScriptConfig(t *testing.T) {
+	if _, err := exec.LookPath("node"); err != nil {
+		t.Skip("node not found in PATH")
+	}
+
+	dir := t.TempDir()
+	writeFile(t, filepath.Join(dir, configloader.TypeScriptConfigFileName), `
+export default {
+  project: { name: "ts-ext", id: "ts-ext" },
+  targets: { chrome: { enabled: true } },
+};
+`)
+
+	_, err := AddTarget(dir, "firefox")
+	if err == nil {
+		t.Fatal("expected add-target to reject TypeScript-authored config")
+	}
+	if !strings.Contains(err.Error(), configloader.TypeScriptConfigFileName) {
+		t.Fatalf("unexpected error: %v", err)
 	}
 }
 
