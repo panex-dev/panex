@@ -15,17 +15,21 @@ var readProcVersion = defaultReadProcVersion
 var currentGOOS = runtime.GOOS
 
 func runDoctor(stdout io.Writer) error {
+	return runDoctorInProject(projectDir(), stdout)
+}
+
+func runDoctorInProject(projectDir string, stdout io.Writer) error {
 	if err := writeString(stdout, "panex doctor\n\n"); err != nil {
 		return err
 	}
 
 	issues := 0
 
-	cfg, configSource, configErr := detectConfig()
+	cfg, configSource, configErr := detectConfig(projectDir)
 	if configErr != nil {
 		issues++
 		if errors.Is(configErr, panexconfig.ErrConfigFileNotFound) || errors.Is(configErr, panexconfig.ErrManifestNotFound) {
-			if err := writeString(stdout, "config: not found\n  Run `panex init` to create a starter project, or run from a directory with manifest.json.\n"); err != nil {
+			if err := writeString(stdout, "config: not found\n  Run `panex init` in the project directory, or pass `--cwd` to a directory with manifest.json.\n"); err != nil {
 				return err
 			}
 		} else {
@@ -99,19 +103,21 @@ func runDoctor(stdout io.Writer) error {
 	return writeDoctorSummary(stdout, issues)
 }
 
-func detectConfig() (panexconfig.Config, string, error) {
-	cfg, loadErr := panexconfig.Load(panexconfig.DefaultPath)
+func detectConfig(projectDir string) (panexconfig.Config, string, error) {
+	configPath := filepath.Join(projectDir, panexconfig.DefaultPath)
+
+	cfg, loadErr := panexconfig.Load(configPath)
 	if loadErr == nil {
-		return cfg, panexconfig.DefaultPath, nil
+		return resolveConfigPaths(cfg, projectDir), panexconfig.DefaultPath, nil
 	}
 
 	if !errors.Is(loadErr, panexconfig.ErrConfigFileNotFound) {
 		return panexconfig.Config{}, "", loadErr
 	}
 
-	cfg, inferErr := panexconfig.Infer(".")
+	cfg, inferErr := panexconfig.Infer(projectDir)
 	if inferErr == nil {
-		return cfg, "manifest.json (inferred)", nil
+		return resolveConfigPaths(cfg, projectDir), "manifest.json (inferred)", nil
 	}
 
 	return panexconfig.Config{}, "", inferErr

@@ -23,20 +23,23 @@ import (
 const usageText = `panex - development runtime for Chrome extensions
 
 Usage:
-  panex version
-  panex init [--name name] [--target target]
-  panex inspect
-  panex plan
-  panex apply [--force]
-  panex dev [--config path/to/panex.toml] [--open]
-  panex test
-  panex verify
-  panex package [--version v0.1.0]
-  panex report [--run-id id]
-  panex resume [--run-id id]
-  panex doctor [--fix]
-  panex paths
-  panex mcp
+  panex [--cwd path] version
+  panex [--cwd path] init [--force]
+  panex [--cwd path] inspect
+  panex [--cwd path] plan
+  panex [--cwd path] apply [--force]
+  panex [--cwd path] dev [--config path/to/panex.toml] [--open]
+  panex [--cwd path] test
+  panex [--cwd path] verify
+  panex [--cwd path] package [--version v0.1.0]
+  panex [--cwd path] report [--run-id id]
+  panex [--cwd path] resume [--run-id id]
+  panex [--cwd path] doctor [--fix]
+  panex [--cwd path] paths
+  panex [--cwd path] mcp
+
+Global flags:
+  --cwd path  Override working directory for project resolution
 `
 
 // This is overridden in release builds via -ldflags "-X main.version=<semver>".
@@ -103,11 +106,26 @@ type cliError struct {
 	msg  string
 }
 
+type globalOptions struct {
+	projectDir string
+}
+
 func (e *cliError) Error() string {
 	return e.msg
 }
 
 func run(args []string, stdout io.Writer) error {
+	opts, args, err := parseGlobalOptions(args)
+	if err != nil {
+		if errors.Is(err, flag.ErrHelp) {
+			return writeString(stdout, usageText)
+		}
+		return &cliError{
+			code: 2,
+			msg:  fmt.Sprintf("invalid global flags: %v", err),
+		}
+	}
+
 	if len(args) == 0 {
 		return &cliError{
 			code: 2,
@@ -119,31 +137,31 @@ func run(args []string, stdout io.Writer) error {
 	case "version":
 		return writef(stdout, "panex %s\n", version)
 	case "init":
-		return runInit(args[1:], stdout)
+		return runInitInProject(opts.projectDir, args[1:], stdout)
 	case "inspect":
-		return runCoreInspect()
+		return runCoreInspectInProject(opts.projectDir)
 	case "plan":
-		return runCorePlan()
+		return runCorePlanInProject(opts.projectDir)
 	case "apply":
-		return runCoreApply(args[1:])
+		return runCoreApplyInProject(opts.projectDir, args[1:])
 	case "dev":
-		return runDev(args[1:], stdout)
+		return runDevInProject(opts.projectDir, args[1:], stdout)
 	case "test":
-		return runCoreTest()
+		return runCoreTestInProject(opts.projectDir)
 	case "verify":
-		return runCoreVerify()
+		return runCoreVerifyInProject(opts.projectDir)
 	case "package":
-		return runCorePackage(args[1:])
+		return runCorePackageInProject(opts.projectDir, args[1:])
 	case "report":
-		return runCoreReport(args[1:])
+		return runCoreReportInProject(opts.projectDir, args[1:])
 	case "resume":
-		return runCoreResume(args[1:])
+		return runCoreResumeInProject(opts.projectDir, args[1:])
 	case "doctor":
-		return runDoctor(stdout)
+		return runDoctorInProject(opts.projectDir, stdout)
 	case "paths":
-		return runPaths(stdout)
+		return runPathsInProject(opts.projectDir, stdout)
 	case "mcp":
-		return runMCP()
+		return runMCPInProject(opts.projectDir)
 	case "help", "-h", "--help":
 		return writeString(stdout, usageText)
 	default:
@@ -154,7 +172,7 @@ func run(args []string, stdout io.Writer) error {
 	}
 }
 
-func runDev(args []string, stdout io.Writer) error {
+func runDevInProject(projectDir string, args []string, stdout io.Writer) error {
 	fs := flag.NewFlagSet("dev", flag.ContinueOnError)
 	// Suppress default flag package output so all user-facing errors stay in our format.
 	fs.SetOutput(io.Discard)
@@ -175,27 +193,19 @@ func runDev(args []string, stdout io.Writer) error {
 		}
 	}
 
-	cfg, err := panexconfig.Load(*configPath)
+	cfg, inferred, err := loadDevConfig(projectDir, *configPath)
 	if err != nil {
-		if errors.Is(err, panexconfig.ErrConfigFileNotFound) && *configPath == panexconfig.DefaultPath {
-			inferred, inferErr := panexconfig.Infer(".")
-			if inferErr != nil {
-				return &cliError{
-					code: 2,
-					msg:  fmt.Sprintf("failed to load config %q: %v\n\nRun `panex init` in the current directory to scaffold a starter config and extension.", *configPath, err),
-				}
-			}
-			cfg = inferred
-			if writeErr := writef(stdout, "no panex.toml found, using manifest.json in current directory\n"); writeErr != nil {
-				return writeErr
-			}
-		} else {
-			return &cliError{
-				code: 2,
-				msg:  fmt.Sprintf("failed to load config %q: %v", *configPath, err),
-			}
+		return &cliError{
+			code: 2,
+			msg:  err.Error(),
 		}
 	}
+	if inferred {
+		if writeErr := writef(stdout, "no panex.toml found, using manifest.json in project directory\n"); writeErr != nil {
+			return writeErr
+		}
+	}
+
 	cfg, err = applyEnvironmentOverrides(cfg)
 	if err != nil {
 		return &cliError{
@@ -221,6 +231,93 @@ func runDev(args []string, stdout io.Writer) error {
 	}
 
 	return startDev(cfg, stdout)
+}
+
+func parseGlobalOptions(args []string) (globalOptions, []string, error) {
+	fs := flag.NewFlagSet("panex", flag.ContinueOnError)
+	fs.SetOutput(io.Discard)
+
+	cwd := fs.String("cwd", "", "Override working directory for project resolution")
+	if err := fs.Parse(args); err != nil {
+		return globalOptions{}, nil, err
+	}
+
+	projectDir, err := resolveProjectDir(*cwd)
+	if err != nil {
+		return globalOptions{}, nil, err
+	}
+
+	return globalOptions{projectDir: projectDir}, fs.Args(), nil
+}
+
+func resolveProjectDir(cwd string) (string, error) {
+	if strings.TrimSpace(cwd) == "" {
+		return projectDir(), nil
+	}
+
+	absDir, err := filepath.Abs(cwd)
+	if err != nil {
+		return "", fmt.Errorf("resolve --cwd %q: %w", cwd, err)
+	}
+
+	info, err := os.Stat(absDir)
+	if err != nil {
+		return "", fmt.Errorf("stat --cwd %q: %w", cwd, err)
+	}
+	if !info.IsDir() {
+		return "", fmt.Errorf("--cwd %q is not a directory", cwd)
+	}
+
+	return absDir, nil
+}
+
+func loadDevConfig(projectDir string, configPath string) (panexconfig.Config, bool, error) {
+	resolvedConfigPath := configPath
+	if !filepath.IsAbs(resolvedConfigPath) {
+		resolvedConfigPath = filepath.Join(projectDir, configPath)
+	}
+
+	cfg, err := panexconfig.Load(resolvedConfigPath)
+	if err != nil {
+		if errors.Is(err, panexconfig.ErrConfigFileNotFound) && configPath == panexconfig.DefaultPath {
+			inferred, inferErr := panexconfig.Infer(projectDir)
+			if inferErr != nil {
+				return panexconfig.Config{}, false, fmt.Errorf(
+					"failed to load config %q: %v\n\nRun `panex init` in the project directory to scaffold a starter config and extension.",
+					configPath,
+					err,
+				)
+			}
+			return resolveConfigPaths(inferred, projectDir), true, nil
+		}
+		return panexconfig.Config{}, false, fmt.Errorf("failed to load config %q: %v", configPath, err)
+	}
+
+	return resolveConfigPaths(cfg, filepath.Dir(resolvedConfigPath)), false, nil
+}
+
+func resolveConfigPaths(cfg panexconfig.Config, root string) panexconfig.Config {
+	resolved := cfg
+	resolved.Extensions = make([]panexconfig.Extension, 0, len(cfg.Extensions))
+	for _, ext := range cfg.Extensions {
+		resolved.Extensions = append(resolved.Extensions, panexconfig.Extension{
+			ID:        ext.ID,
+			SourceDir: resolveConfigPath(root, ext.SourceDir),
+			OutDir:    resolveConfigPath(root, ext.OutDir),
+		})
+	}
+	if len(resolved.Extensions) > 0 {
+		resolved.Extension = resolved.Extensions[0]
+	}
+	resolved.Server.EventStorePath = resolveConfigPath(root, cfg.Server.EventStorePath)
+	return resolved
+}
+
+func resolveConfigPath(root string, path string) string {
+	if strings.TrimSpace(path) == "" || filepath.IsAbs(path) {
+		return path
+	}
+	return filepath.Join(root, path)
 }
 
 func applyEnvironmentOverrides(cfg panexconfig.Config) (panexconfig.Config, error) {
