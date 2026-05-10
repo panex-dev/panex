@@ -27,8 +27,11 @@ func runCoreInspectInProject(rootDir string) error {
 	return nil
 }
 
-func runCoreAddTargetInProject(rootDir string, args []string) error {
+func runCoreAddTargetInProject(rootDir string, args []string, stdout io.Writer, jsonOutput bool) error {
 	if len(args) != 1 {
+		if jsonOutput {
+			return writeJSONCommandError(stdout, 2, "add-target", "add-target requires exactly one target argument", nil, nil)
+		}
 		return &cliError{code: 2, msg: "add-target requires exactly one target argument"}
 	}
 
@@ -47,11 +50,14 @@ func runCorePlanInProject(rootDir string) error {
 	return nil
 }
 
-func runCoreApplyInProject(rootDir string, args []string) error {
+func runCoreApplyInProject(rootDir string, args []string, stdout io.Writer, jsonOutput bool) error {
 	fs := flag.NewFlagSet("apply", flag.ContinueOnError)
 	fs.SetOutput(io.Discard)
 	force := fs.Bool("force", false, "Skip drift check")
 	if err := fs.Parse(args); err != nil {
+		if jsonOutput {
+			return writeJSONCommandError(stdout, 2, "apply", fmt.Sprintf("invalid apply flags: %v", err), nil, nil)
+		}
 		return &cliError{code: 2, msg: fmt.Sprintf("invalid apply flags: %v", err)}
 	}
 
@@ -78,12 +84,15 @@ func runCoreVerifyInProject(rootDir string) error {
 	return nil
 }
 
-func runCorePackageInProject(rootDir string, args []string) error {
+func runCorePackageInProject(rootDir string, args []string, stdout io.Writer, jsonOutput bool) error {
 	fs := flag.NewFlagSet("package", flag.ContinueOnError)
 	fs.SetOutput(io.Discard)
 	ver := fs.String("version", "", "Package version (defaults to project version)")
 	sourceDir := fs.String("source-dir", "", "Extension source directory")
 	if err := fs.Parse(args); err != nil {
+		if jsonOutput {
+			return writeJSONCommandError(stdout, 2, "package", fmt.Sprintf("invalid package flags: %v", err), nil, nil)
+		}
 		return &cliError{code: 2, msg: fmt.Sprintf("invalid package flags: %v", err)}
 	}
 
@@ -97,11 +106,14 @@ func runCorePackageInProject(rootDir string, args []string) error {
 	return nil
 }
 
-func runCoreReportInProject(rootDir string, args []string) error {
+func runCoreReportInProject(rootDir string, args []string, stdout io.Writer, jsonOutput bool) error {
 	fs := flag.NewFlagSet("report", flag.ContinueOnError)
 	fs.SetOutput(io.Discard)
 	runID := fs.String("run-id", "", "Specific run ID")
 	if err := fs.Parse(args); err != nil {
+		if jsonOutput {
+			return writeJSONCommandError(stdout, 2, "report", fmt.Sprintf("invalid report flags: %v", err), nil, nil)
+		}
 		return &cliError{code: 2, msg: fmt.Sprintf("invalid report flags: %v", err)}
 	}
 
@@ -112,11 +124,14 @@ func runCoreReportInProject(rootDir string, args []string) error {
 	return nil
 }
 
-func runCoreResumeInProject(rootDir string, args []string) error {
+func runCoreResumeInProject(rootDir string, args []string, stdout io.Writer, jsonOutput bool) error {
 	fs := flag.NewFlagSet("resume", flag.ContinueOnError)
 	fs.SetOutput(io.Discard)
 	runID := fs.String("run-id", "", "Run ID to resume")
 	if err := fs.Parse(args); err != nil {
+		if jsonOutput {
+			return writeJSONCommandError(stdout, 2, "resume", fmt.Sprintf("invalid resume flags: %v", err), nil, nil)
+		}
 		return &cliError{code: 2, msg: fmt.Sprintf("invalid resume flags: %v", err)}
 	}
 

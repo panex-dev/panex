@@ -2,23 +2,52 @@ package main
 
 import (
 	"errors"
+	"fmt"
 	"io"
 	"os"
 	"path/filepath"
 	"runtime"
 	"strings"
 
+	"github.com/panex-dev/panex/internal/cli"
 	panexconfig "github.com/panex-dev/panex/internal/config"
+	"github.com/panex-dev/panex/internal/doctor"
 )
 
 var readProcVersion = defaultReadProcVersion
 var currentGOOS = runtime.GOOS
 
 func runDoctor(stdout io.Writer) error {
-	return runDoctorInProject(projectDir(), stdout)
+	return runDoctorInProject(projectDir(), stdout, false)
 }
 
-func runDoctorInProject(projectDir string, stdout io.Writer) error {
+func runDoctorInProject(projectDir string, stdout io.Writer, jsonOutput bool) error {
+	if jsonOutput {
+		report := doctor.Run(doctor.Options{ProjectDir: projectDir})
+		out := cli.Output{
+			Status:  report.Status,
+			Command: "doctor",
+			Data:    report,
+		}
+		switch report.Status {
+		case "healthy":
+			out.Summary = "no issues found"
+		case "issues_found":
+			out.Summary = fmt.Sprintf("%d issues found", len(report.Diagnoses))
+			out.Next = []string{"panex doctor --fix"}
+		case "repaired":
+			out.Summary = fmt.Sprintf("%d issues repaired", len(report.Repaired))
+		}
+		for _, d := range report.Diagnoses {
+			if d.Severity == "error" {
+				out.Errors = append(out.Errors, d.Message)
+			} else if d.Severity == "warning" {
+				out.Warnings = append(out.Warnings, d.Message)
+			}
+		}
+		return writeJSONEnvelope(stdout, out)
+	}
+
 	if err := writeString(stdout, "panex doctor\n\n"); err != nil {
 		return err
 	}

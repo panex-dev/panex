@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"strings"
@@ -236,6 +237,29 @@ func TestDoctorViaRunCommand(t *testing.T) {
 
 	if !strings.Contains(out.String(), "panex doctor") {
 		t.Fatalf("expected doctor output: %q", out.String())
+	}
+}
+
+func TestDoctorJSONViaRunCommand(t *testing.T) {
+	tempDir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(tempDir, "manifest.json"), []byte(`{"manifest_version": 3}`), 0o600); err != nil {
+		t.Fatalf("write manifest: %v", err)
+	}
+
+	var out bytes.Buffer
+	err := withWorkingDir(tempDir, func() error {
+		return run([]string{"--json", "doctor"}, &out)
+	})
+	if err != nil {
+		t.Fatalf("run(--json doctor) returned error: %v", err)
+	}
+
+	var parsed map[string]any
+	if err := json.Unmarshal(out.Bytes(), &parsed); err != nil {
+		t.Fatalf("unmarshal json output: %v", err)
+	}
+	if parsed["command"] != "doctor" {
+		t.Fatalf("command: got %v", parsed["command"])
 	}
 }
 

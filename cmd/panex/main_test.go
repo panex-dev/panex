@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -35,6 +36,27 @@ func TestRunVersion(t *testing.T) {
 	}
 }
 
+func TestRunVersionJSON(t *testing.T) {
+	var out bytes.Buffer
+
+	err := run([]string{"--json", "version"}, &out)
+	if err != nil {
+		t.Fatalf("run(--json version) returned error: %v", err)
+	}
+
+	parsed := parseJSONOutput(t, out.String())
+	if parsed["command"] != "version" {
+		t.Fatalf("command: got %v", parsed["command"])
+	}
+	if parsed["status"] != "ok" {
+		t.Fatalf("status: got %v", parsed["status"])
+	}
+	data := parsed["data"].(map[string]any)
+	if data["version"] != "dev" {
+		t.Fatalf("version: got %v", data["version"])
+	}
+}
+
 func TestRunHelpAliases(t *testing.T) {
 	testCases := []struct {
 		name string
@@ -58,6 +80,24 @@ func TestRunHelpAliases(t *testing.T) {
 				t.Fatalf("unexpected help output: got %q, want %q", out.String(), usageText)
 			}
 		})
+	}
+}
+
+func TestRunHelpJSON(t *testing.T) {
+	var out bytes.Buffer
+
+	err := run([]string{"--json", "help"}, &out)
+	if err != nil {
+		t.Fatalf("run(--json help) returned error: %v", err)
+	}
+
+	parsed := parseJSONOutput(t, out.String())
+	if parsed["command"] != "help" {
+		t.Fatalf("command: got %v", parsed["command"])
+	}
+	data := parsed["data"].(map[string]any)
+	if data["usage"] != usageText {
+		t.Fatalf("usage: got %v", data["usage"])
 	}
 }
 
@@ -104,6 +144,30 @@ func TestRunInitScaffoldsStarterProject(t *testing.T) {
 	}
 	if !strings.Contains(string(popupHTMLValue), `src="./popup.js"`) {
 		t.Fatalf("unexpected popup html contents: %q", string(popupHTMLValue))
+	}
+}
+
+func TestRunInitJSON(t *testing.T) {
+	tempDir := t.TempDir()
+	var out bytes.Buffer
+
+	err := withWorkingDir(tempDir, func() error {
+		return run([]string{"--json", "init"}, &out)
+	})
+	if err != nil {
+		t.Fatalf("run(--json init) returned error: %v", err)
+	}
+
+	parsed := parseJSONOutput(t, out.String())
+	if parsed["command"] != "init" {
+		t.Fatalf("command: got %v", parsed["command"])
+	}
+	data := parsed["data"].(map[string]any)
+	if data["config"] != "panex.toml" {
+		t.Fatalf("config: got %v", data["config"])
+	}
+	if data["out_dir"] != ".panex/dist" {
+		t.Fatalf("out_dir: got %v", data["out_dir"])
 	}
 }
 
@@ -220,6 +284,28 @@ func TestRunNoArgsReturnsUsageError(t *testing.T) {
 	}
 }
 
+func TestRunNoArgsJSONReturnsUsageError(t *testing.T) {
+	var out bytes.Buffer
+
+	err := run([]string{"--json"}, &out)
+	cliErr := requireCLIError(t, err)
+
+	if cliErr.code != 2 {
+		t.Fatalf("unexpected error code: got %d, want 2", cliErr.code)
+	}
+	if cliErr.msg != "" {
+		t.Fatalf("expected empty stderr message for json mode, got %q", cliErr.msg)
+	}
+	parsed := parseJSONOutput(t, out.String())
+	if parsed["command"] != "help" {
+		t.Fatalf("command: got %v", parsed["command"])
+	}
+	errorsValue := parsed["errors"].([]any)
+	if len(errorsValue) != 1 || errorsValue[0] != "no command provided" {
+		t.Fatalf("errors: got %v", errorsValue)
+	}
+}
+
 func TestRunUnknownCommandReturnsUsageError(t *testing.T) {
 	var out bytes.Buffer
 
@@ -237,6 +323,22 @@ func TestRunUnknownCommandReturnsUsageError(t *testing.T) {
 	}
 	if out.Len() != 0 {
 		t.Fatalf("expected no stdout output, got %q", out.String())
+	}
+}
+
+func TestRunUnknownCommandJSONReturnsUsageError(t *testing.T) {
+	var out bytes.Buffer
+
+	err := run([]string{"--json", "nope"}, &out)
+	cliErr := requireCLIError(t, err)
+
+	if cliErr.code != 2 {
+		t.Fatalf("unexpected error code: got %d, want 2", cliErr.code)
+	}
+	parsed := parseJSONOutput(t, out.String())
+	errorsValue := parsed["errors"].([]any)
+	if len(errorsValue) != 1 || errorsValue[0] != `unknown command "nope"` {
+		t.Fatalf("errors: got %v", errorsValue)
 	}
 }
 
@@ -287,6 +389,44 @@ auth_token = "token-123"
 	}
 	if captured.Server.EventStorePath != filepath.Join(resolvedRoot, ".panex", "events.db") {
 		t.Fatalf("unexpected event store path: got %q", captured.Server.EventStorePath)
+	}
+}
+
+func TestRunDevJSON(t *testing.T) {
+	tempDir := t.TempDir()
+	writePanexConfig(t, filepath.Join(tempDir, "panex.toml"), `
+[extension]
+source_dir = "./src"
+out_dir = "./dist"
+
+[server]
+port = 3000
+auth_token = "token-123"
+`)
+
+	var out bytes.Buffer
+	withStubbedStartDev(t, func(cfg panexconfig.Config, stdout io.Writer) error {
+		if !devStartupJSON {
+			t.Fatal("expected json startup mode to be enabled")
+		}
+		return writeJSONEnvelope(stdout, devStartupEnvelope(cfg, devStartupWarnings))
+	})
+	withStubbedReadProcVersion(t, nil)
+
+	err := withWorkingDir(tempDir, func() error {
+		return run([]string{"--json", "dev"}, &out)
+	})
+	if err != nil {
+		t.Fatalf("run(--json dev) returned error: %v", err)
+	}
+
+	parsed := parseJSONOutput(t, out.String())
+	if parsed["command"] != "dev" {
+		t.Fatalf("command: got %v", parsed["command"])
+	}
+	data := parsed["data"].(map[string]any)
+	if data["ws_url"] != "ws://127.0.0.1:3000/ws" {
+		t.Fatalf("ws_url: got %v", data["ws_url"])
 	}
 }
 
@@ -664,6 +804,35 @@ func TestRunInvalidGlobalFlag(t *testing.T) {
 	}
 	if !strings.Contains(cliErr.msg, "invalid global flags") {
 		t.Fatalf("missing invalid-global-flags message: %q", cliErr.msg)
+	}
+}
+
+func TestRunInvalidGlobalFlagJSON(t *testing.T) {
+	var out bytes.Buffer
+
+	err := run([]string{"--json", "--bad-flag"}, &out)
+	cliErr := requireCLIError(t, err)
+	if cliErr.code != 2 {
+		t.Fatalf("unexpected error code: got %d, want 2", cliErr.code)
+	}
+	parsed := parseJSONOutput(t, out.String())
+	errorsValue := parsed["errors"].([]any)
+	if len(errorsValue) != 1 || !strings.Contains(errorsValue[0].(string), "invalid global flags") {
+		t.Fatalf("errors: got %v", errorsValue)
+	}
+}
+
+func TestRunInvalidApplyFlagJSON(t *testing.T) {
+	var out bytes.Buffer
+
+	err := run([]string{"--json", "apply", "--bad-flag"}, &out)
+	cliErr := requireCLIError(t, err)
+	if cliErr.code != 2 {
+		t.Fatalf("unexpected error code: got %d, want 2", cliErr.code)
+	}
+	parsed := parseJSONOutput(t, out.String())
+	if parsed["command"] != "apply" {
+		t.Fatalf("command: got %v", parsed["command"])
 	}
 }
 
@@ -1604,6 +1773,16 @@ func requireCLIError(t *testing.T, err error) *cliError {
 	}
 
 	return cliErr
+}
+
+func parseJSONOutput(t *testing.T, raw string) map[string]any {
+	t.Helper()
+
+	var parsed map[string]any
+	if err := json.Unmarshal([]byte(raw), &parsed); err != nil {
+		t.Fatalf("unmarshal json output %q: %v", raw, err)
+	}
+	return parsed
 }
 
 func writeManifestJSON(t *testing.T, dir string) {
