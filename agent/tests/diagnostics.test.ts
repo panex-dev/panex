@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
   COMMAND_RELOAD_MESSAGE_NAME,
+  DEFAULT_DAEMON_WEBSOCKET_URL,
   type Envelope,
   type HelloAck
 } from "@panex/protocol";
@@ -20,7 +21,7 @@ describe("createAgentDiagnostics", () => {
       entries.push(entry);
     });
 
-    diagnostics.log("websocket.open", { url: "ws://127.0.0.1:4317/ws" });
+    diagnostics.log("websocket.open", { url: DEFAULT_DAEMON_WEBSOCKET_URL });
 
     assert.deepEqual(entries, []);
   });

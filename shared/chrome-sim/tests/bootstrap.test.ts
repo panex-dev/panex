@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
+import { DEFAULT_DAEMON_WEBSOCKET_URL } from "@panex/protocol";
 
 import { injectChromeSimEntrypoint, resolveChromeSimBootstrapValues } from "../src/bootstrap";
 
@@ -76,7 +77,7 @@ describe("chrome-sim bootstrap helpers", () => {
 
     const script = injectChromeSimEntrypoint(fakeDocument, {
       moduleURL: "/chrome-sim-entry.js",
-      daemonURL: "ws://127.0.0.1:4317/ws",
+      daemonURL: DEFAULT_DAEMON_WEBSOCKET_URL,
       authToken: "dev-token",
       extensionID: "ext-123"
     });
@@ -84,7 +85,7 @@ describe("chrome-sim bootstrap helpers", () => {
     assert.equal(script?.type, "module");
     assert.equal(script?.src, "/chrome-sim-entry.js");
     assert.equal(script?.dataset.panexChromeSim, "1");
-    assert.equal(script?.dataset.panexWs, "ws://127.0.0.1:4317/ws");
+    assert.equal(script?.dataset.panexWs, DEFAULT_DAEMON_WEBSOCKET_URL);
     assert.equal(script?.dataset.panexToken, undefined);
     assert.equal(script?.dataset.panexExtensionId, "ext-123");
     assert.equal(appended.length, 1);

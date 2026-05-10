@@ -3,6 +3,7 @@ import { describe, it } from "node:test";
 import {
   BUILD_COMPLETE_MESSAGE_NAME,
   COMMAND_RELOAD_MESSAGE_NAME,
+  DEFAULT_DAEMON_WEBSOCKET_URL,
   DEFAULT_FIRST_PARTY_CLIENT_VERSION,
   DEV_AGENT_CLIENT_KIND,
   HELLO_ACK_MESSAGE_NAME,
@@ -21,7 +22,7 @@ import {
 } from "../src/handshake";
 
 const config: AgentConfig = {
-  wsUrl: "ws://127.0.0.1:4317/ws",
+  wsUrl: DEFAULT_DAEMON_WEBSOCKET_URL,
   token: "dev-token",
   agentId: "agent-1",
   extensionId: "default",

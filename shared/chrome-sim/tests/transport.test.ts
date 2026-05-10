@@ -9,6 +9,7 @@ import {
   CHROME_SIM_CLIENT_KIND,
   CHROME_SIM_SOURCE_ROLE,
   DAEMON_SOURCE_ROLE,
+  DEFAULT_DAEMON_WEBSOCKET_URL,
   DEFAULT_FIRST_PARTY_CLIENT_VERSION,
   HELLO_ACK_MESSAGE_NAME,
   HELLO_MESSAGE_NAME,
@@ -31,7 +32,7 @@ describe("chrome-sim transport", () => {
 
     const pending = transport.call("storage.local", "get");
     assert.equal(sockets.length, 1);
-    assert.equal(sockets[0]?.url, "ws://127.0.0.1:4317/ws");
+    assert.equal(sockets[0]?.url, DEFAULT_DAEMON_WEBSOCKET_URL);
     sockets[0]?.open();
     sockets[0]?.messageEnvelope(buildHelloAckEnvelope("sess-default"));
     await waitFor(() => sockets[0]!.sent.length >= 2);
@@ -43,7 +44,7 @@ describe("chrome-sim transport", () => {
   it("handshakes and resolves calls using correlated chrome.api.result envelopes", async () => {
     const sockets: FakeSocket[] = [];
     const transport = createChromeSimTransport({
-      daemonURL: "ws://127.0.0.1:4317/ws",
+      daemonURL: DEFAULT_DAEMON_WEBSOCKET_URL,
       authToken: "dev-token",
       callIDFactory: () => "call-1",
       webSocketFactory: (url) => {
@@ -103,7 +104,7 @@ describe("chrome-sim transport", () => {
   it("rejects pending calls on timeout", async () => {
     const sockets: FakeSocket[] = [];
     const transport = createChromeSimTransport({
-      daemonURL: "ws://127.0.0.1:4317/ws",
+      daemonURL: DEFAULT_DAEMON_WEBSOCKET_URL,
       callTimeoutMS: 15,
       callIDFactory: () => "timeout-call",
       webSocketFactory: (url) => {
@@ -124,7 +125,7 @@ describe("chrome-sim transport", () => {
   it("rejects calls when chrome.api.result reports success=false", async () => {
     const sockets: FakeSocket[] = [];
     const transport = createChromeSimTransport({
-      daemonURL: "ws://127.0.0.1:4317/ws",
+      daemonURL: DEFAULT_DAEMON_WEBSOCKET_URL,
       callIDFactory: () => "call-err",
       webSocketFactory: (url) => {
         const socket = new FakeSocket(url);
@@ -148,7 +149,7 @@ describe("chrome-sim transport", () => {
   it("rejects calls when hello.ack does not negotiate chrome.api.call", async () => {
     const sockets: FakeSocket[] = [];
     const transport = createChromeSimTransport({
-      daemonURL: "ws://127.0.0.1:4317/ws",
+      daemonURL: DEFAULT_DAEMON_WEBSOCKET_URL,
       webSocketFactory: (url) => {
         const socket = new FakeSocket(url);
         sockets.push(socket);
@@ -173,7 +174,7 @@ describe("chrome-sim transport", () => {
     const sockets: FakeSocket[] = [];
     let seq = 0;
     const transport = createChromeSimTransport({
-      daemonURL: "ws://127.0.0.1:4317/ws",
+      daemonURL: DEFAULT_DAEMON_WEBSOCKET_URL,
       callIDFactory: () => `call-${++seq}`,
       reconnectFloorMS: 1,
       reconnectCeilingMS: 2,
@@ -206,7 +207,7 @@ describe("chrome-sim transport", () => {
   it("emits chrome.api.event envelopes to subscribers", async () => {
     const sockets: FakeSocket[] = [];
     const transport = createChromeSimTransport({
-      daemonURL: "ws://127.0.0.1:4317/ws",
+      daemonURL: DEFAULT_DAEMON_WEBSOCKET_URL,
       webSocketFactory: (url) => {
         const socket = new FakeSocket(url);
         sockets.push(socket);
@@ -236,7 +237,7 @@ describe("chrome-sim transport", () => {
   it("rejects when daemon reports a mismatched protocol version", async () => {
     const sockets: FakeSocket[] = [];
     const transport = createChromeSimTransport({
-      daemonURL: "ws://127.0.0.1:4317/ws",
+      daemonURL: DEFAULT_DAEMON_WEBSOCKET_URL,
       handshakeTimeoutMS: 100,
       webSocketFactory: (url) => {
         const socket = new FakeSocket(url);
@@ -272,7 +273,7 @@ describe("chrome-sim transport", () => {
   it("closes the socket when an inbound websocket frame exceeds the browser-side limit", async () => {
     const sockets: FakeSocket[] = [];
     const transport = createChromeSimTransport({
-      daemonURL: "ws://127.0.0.1:4317/ws",
+      daemonURL: DEFAULT_DAEMON_WEBSOCKET_URL,
       handshakeTimeoutMS: 25,
       webSocketFactory: (url) => {
         const socket = new FakeSocket(url);
@@ -324,7 +325,7 @@ describe("chrome-sim transport", () => {
   it("includes the configured extension id in the hello payload", async () => {
     const sockets: FakeSocket[] = [];
     const transport = createChromeSimTransport({
-      daemonURL: "ws://127.0.0.1:4317/ws",
+      daemonURL: DEFAULT_DAEMON_WEBSOCKET_URL,
       extensionID: "popup",
       webSocketFactory: (url) => {
         const socket = new FakeSocket(url);
