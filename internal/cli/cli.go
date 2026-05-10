@@ -214,10 +214,14 @@ func AddTarget(projectDir string, targetName string) (Output, error) {
 		return Output{}, fmt.Errorf("init state: %w", err)
 	}
 
-	cfg, bootstrapped, err := loadOrBootstrapProjectConfig(projectDir)
+	loaded, bootstrapped, err := loadOrBootstrapProjectConfig(projectDir)
 	if err != nil {
 		return Output{}, err
 	}
+	if !bootstrapped && strings.HasSuffix(loaded.SourcePath, configloader.TypeScriptConfigFileName) {
+		return Output{}, fmt.Errorf("add-target cannot rewrite %s; update the TypeScript config manually", configloader.TypeScriptConfigFileName)
+	}
+	cfg := loaded.Config
 	if cfg.Targets == nil {
 		cfg.Targets = make(configloader.TargetConfigMap)
 	}
@@ -227,7 +231,7 @@ func AddTarget(projectDir string, targetName string) (Output, error) {
 	targetCfg.Enabled = true
 	cfg.Targets[targetName] = targetCfg
 
-	configPath := filepath.Join(projectDir, configloader.ConfigFileNames[0])
+	configPath := filepath.Join(projectDir, configloader.JSONConfigFileName)
 	if err := configloader.WriteToFile(cfg, configPath); err != nil {
 		return Output{}, fmt.Errorf("write config: %w", err)
 	}
@@ -892,13 +896,13 @@ func loadProjectGraph(projectDir, command string) (*graph.Graph, int) {
 	return g, 0
 }
 
-func loadOrBootstrapProjectConfig(projectDir string) (*configloader.Config, bool, error) {
+func loadOrBootstrapProjectConfig(projectDir string) (*configloader.Loaded, bool, error) {
 	loaded, err := configloader.Load(projectDir)
 	if err != nil {
 		return nil, false, err
 	}
 	if loaded != nil && loaded.Config != nil {
-		return loaded.Config, false, nil
+		return loaded, false, nil
 	}
 
 	g, err := LoadProjectGraph(projectDir)
@@ -906,7 +910,9 @@ func loadOrBootstrapProjectConfig(projectDir string) (*configloader.Config, bool
 		return nil, false, fmt.Errorf("cannot bootstrap panex.config.json: %w", err)
 	}
 
-	return bootstrapConfigFromGraph(projectDir, g), true, nil
+	return &configloader.Loaded{
+		Config: bootstrapConfigFromGraph(projectDir, g),
+	}, true, nil
 }
 
 func bootstrapConfigFromGraph(projectDir string, g *graph.Graph) *configloader.Config {

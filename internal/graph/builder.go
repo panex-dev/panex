@@ -27,7 +27,7 @@ func NewBuilder(sourceRoot string) *Builder {
 }
 
 // BuildFromInspection creates a graph solely from inspector findings.
-// Used when no panex.config.ts exists yet (e.g., during init).
+// Used when no authored Panex config exists yet (e.g., during init).
 func (b *Builder) BuildFromInspection(report *inspector.Report) (*Graph, error) {
 	g := &Graph{
 		SchemaVersion: 1,
@@ -175,8 +175,7 @@ func ReadFromFile(path string) (*Graph, error) {
 
 // --- Config types (simplified for Phase 1) ---
 
-// ProjectConfig is the parsed representation of panex.config.ts.
-// In Phase 1 this is loaded from JSON; TS evaluation comes later.
+// ProjectConfig is the parsed representation of authored Panex config.
 type ProjectConfig struct {
 	Project      ProjectConfigBlock     `json:"project"`
 	Entries      map[string]EntryConfig `json:"entries"`
@@ -231,8 +230,8 @@ func ProjectConfigFromLoaded(loaded *configloader.Loaded) *ProjectConfig {
 	return gc
 }
 
-// LoadProjectConfig reads a panex config from a JSON file.
-// Phase 1: loads JSON directly. Later: evaluates panex.config.ts.
+// LoadProjectConfig reads a Panex config file and unmarshals the graph-facing
+// shape from its JSON representation.
 func LoadProjectConfig(path string) (*ProjectConfig, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {

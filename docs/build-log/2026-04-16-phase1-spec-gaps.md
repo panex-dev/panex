@@ -24,7 +24,6 @@ Phase 1 intentionally deferred several spec features to keep scope manageable. L
 
 | Gap | Spec Reference | Description | Target Phase |
 |---|---|---|---|
-| Plan rollback | §21.3 | Automatic rollback of partially-applied plans when a step fails | Phase 2 |
 | Resume step replay | §22.4 | Replay failed/incomplete steps on `panex resume` instead of marking the run as succeeded | Phase 2 |
 
 ### Runtime (spec §23–24)
@@ -46,7 +45,7 @@ Phase 1 intentionally deferred several spec features to keep scope manageable. L
 
 | Gap | Spec Reference | Description | Target Phase |
 |---|---|---|---|
-| TypeScript config evaluation | §11 | Evaluate `panex.config.ts` via Node subprocess (Phase 1 loads JSON only) | Phase 2 |
+| — | — | All previously deferred config gaps in this section have been completed. | — |
 
 ## Impact
 

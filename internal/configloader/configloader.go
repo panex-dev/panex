@@ -1,15 +1,23 @@
 // Package configloader loads Panex project configuration.
-// Phase 1 supports JSON only (panex.config.json).
-// Future phases will add TypeScript evaluation (panex.config.ts).
+// It supports TypeScript-authored panex.config.ts evaluation via
+// esbuild + a Node subprocess, and JSON fallback via panex.config.json.
 // Spec section 11.
 package configloader
 
 import (
+	"bytes"
+	"context"
 	"crypto/sha256"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"strings"
+	"time"
+
+	"github.com/evanw/esbuild/pkg/api"
 )
 
 // Config is the resolved project configuration.
@@ -78,34 +86,36 @@ type Loaded struct {
 
 // ConfigFileNames in search order.
 var ConfigFileNames = []string{
-	"panex.config.json",
+	TypeScriptConfigFileName,
+	JSONConfigFileName,
 }
+
+const (
+	TypeScriptConfigFileName = "panex.config.ts"
+	JSONConfigFileName       = "panex.config.json"
+)
+
+var (
+	execLookPath                = exec.LookPath
+	commandExec                 = exec.CommandContext
+	typeScriptConfigEvalTimeout = 15 * time.Second
+)
 
 // Load searches for and loads a Panex config from the project directory.
 // Returns nil Loaded (not an error) if no config file exists.
 func Load(projectDir string) (*Loaded, error) {
 	for _, name := range ConfigFileNames {
 		path := filepath.Join(projectDir, name)
-		data, err := os.ReadFile(path)
+		loaded, err := LoadFromFile(path)
 		if os.IsNotExist(err) {
 			continue
 		}
 		if err != nil {
-			return nil, fmt.Errorf("read %s: %w", name, err)
+			return nil, fmt.Errorf("load %s: %w", name, err)
 		}
-
-		var cfg Config
-		if err := json.Unmarshal(data, &cfg); err != nil {
-			return nil, fmt.Errorf("parse %s: %w", name, err)
+		if loaded != nil {
+			return loaded, nil
 		}
-
-		hash := fmt.Sprintf("sha256:%x", sha256.Sum256(data))
-
-		return &Loaded{
-			Config:     &cfg,
-			SourcePath: path,
-			ConfigHash: hash,
-		}, nil
 	}
 
 	return nil, nil
@@ -115,18 +125,18 @@ func Load(projectDir string) (*Loaded, error) {
 func LoadFromFile(path string) (*Loaded, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
-		return nil, fmt.Errorf("read config: %w", err)
+		return nil, err
 	}
 
-	var cfg Config
-	if err := json.Unmarshal(data, &cfg); err != nil {
-		return nil, fmt.Errorf("parse config: %w", err)
+	cfg, err := decodeConfig(path, data)
+	if err != nil {
+		return nil, err
 	}
 
 	hash := fmt.Sprintf("sha256:%x", sha256.Sum256(data))
 
 	return &Loaded{
-		Config:     &cfg,
+		Config:     cfg,
 		SourcePath: path,
 		ConfigHash: hash,
 	}, nil
@@ -158,4 +168,130 @@ func WriteToFile(cfg *Config, path string) error {
 		return fmt.Errorf("write config: %w", err)
 	}
 	return os.Rename(tmp, path)
+}
+
+func decodeConfig(path string, data []byte) (*Config, error) {
+	switch filepath.Ext(path) {
+	case ".json":
+		return decodeJSONConfig(data)
+	case ".ts":
+		return decodeTypeScriptConfig(path)
+	default:
+		return nil, fmt.Errorf("unsupported config file extension: %s", filepath.Ext(path))
+	}
+}
+
+func decodeJSONConfig(data []byte) (*Config, error) {
+	var cfg Config
+	if err := json.Unmarshal(data, &cfg); err != nil {
+		return nil, fmt.Errorf("parse config: %w", err)
+	}
+	return &cfg, nil
+}
+
+func decodeTypeScriptConfig(path string) (*Config, error) {
+	nodePath, err := execLookPath("node")
+	if err != nil {
+		return nil, fmt.Errorf("evaluate config: node binary not found in PATH")
+	}
+
+	bundle, err := transpileTypeScriptConfig(path)
+	if err != nil {
+		return nil, err
+	}
+
+	tempDir, err := os.MkdirTemp("", "panex-config-*")
+	if err != nil {
+		return nil, fmt.Errorf("create temp dir: %w", err)
+	}
+	defer func() {
+		_ = os.RemoveAll(tempDir)
+	}()
+
+	bundlePath := filepath.Join(tempDir, "panex.config.cjs")
+	if err := os.WriteFile(bundlePath, bundle, 0o600); err != nil {
+		return nil, fmt.Errorf("write temp config bundle: %w", err)
+	}
+
+	evaluated, err := evaluateBundledConfig(nodePath, bundlePath)
+	if err != nil {
+		return nil, err
+	}
+
+	cfg, err := decodeJSONConfig(evaluated)
+	if err != nil {
+		return nil, fmt.Errorf("parse evaluated config: %w", err)
+	}
+
+	return cfg, nil
+}
+
+func transpileTypeScriptConfig(path string) ([]byte, error) {
+	result := api.Build(api.BuildOptions{
+		EntryPoints: []string{path},
+		Bundle:      true,
+		Platform:    api.PlatformNode,
+		Format:      api.FormatCommonJS,
+		Write:       false,
+		LogLevel:    api.LogLevelSilent,
+		Outfile:     "panex.config.cjs",
+	})
+	if len(result.Errors) > 0 {
+		return nil, fmt.Errorf("transpile config: %s", joinEsbuildMessages(result.Errors))
+	}
+	if len(result.OutputFiles) == 0 {
+		return nil, fmt.Errorf("transpile config: no output produced")
+	}
+	return result.OutputFiles[0].Contents, nil
+}
+
+func evaluateBundledConfig(nodePath string, bundlePath string) ([]byte, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), typeScriptConfigEvalTimeout)
+	defer cancel()
+
+	script := strings.Join([]string{
+		"const mod = require(process.argv[1]);",
+		"const raw = mod && Object.prototype.hasOwnProperty.call(mod, 'default') ? mod.default : mod;",
+		"Promise.resolve(raw).then((value) => {",
+		"  if (value === undefined) throw new Error('config module exported undefined');",
+		"  const encoded = JSON.stringify(value);",
+		"  if (encoded === undefined) throw new Error('config module did not evaluate to a JSON-serializable value');",
+		"  process.stdout.write(encoded);",
+		"}).catch((err) => {",
+		"  const message = err && err.stack ? err.stack : String(err);",
+		"  process.stderr.write(message);",
+		"  process.exit(1);",
+		"});",
+	}, "\n")
+
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	cmd := commandExec(ctx, nodePath, "-e", script, bundlePath)
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+	if err := cmd.Run(); err != nil {
+		if errors.Is(ctx.Err(), context.DeadlineExceeded) {
+			return nil, fmt.Errorf("evaluate config: timed out after %s", typeScriptConfigEvalTimeout)
+		}
+		message := strings.TrimSpace(stderr.String())
+		if message == "" {
+			message = err.Error()
+		}
+		return nil, fmt.Errorf("evaluate config: %s", message)
+	}
+	return stdout.Bytes(), nil
+}
+
+func joinEsbuildMessages(messages []api.Message) string {
+	parts := make([]string, 0, len(messages))
+	for _, message := range messages {
+		text := strings.TrimSpace(message.Text)
+		if text != "" {
+			parts = append(parts, text)
+		}
+	}
+	if len(parts) == 0 {
+		return "unknown esbuild error"
+	}
+	return strings.Join(parts, "; ")
 }
