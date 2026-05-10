@@ -5,6 +5,10 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/panex-dev/panex/internal/configloader"
+	"github.com/panex-dev/panex/internal/graph"
+	"github.com/panex-dev/panex/internal/policy"
 )
 
 func TestCmdInspect_EmptyDir(t *testing.T) {
@@ -83,6 +87,100 @@ func TestCmdDoctor_Fix(t *testing.T) {
 	// Verify .panex was created by fix
 	if _, err := os.Stat(filepath.Join(dir, ".panex")); err != nil {
 		t.Error("expected .panex/ after doctor --fix")
+	}
+}
+
+func TestAddTarget_BootstrapsConfigAndUpdatesGraphAndPolicy(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, filepath.Join(dir, "background.js"), "// bg")
+
+	captureExitCode(func() int {
+		return CmdInit(dir, InitOptions{Name: "test-ext", Targets: []string{"chrome"}})
+	})
+
+	out, err := AddTarget(dir, "firefox")
+	if err != nil {
+		t.Fatalf("AddTarget: %v", err)
+	}
+
+	if out.Command != "add-target" {
+		t.Fatalf("command: got %q", out.Command)
+	}
+	if len(out.Warnings) == 0 {
+		t.Fatal("expected warning for unresolved firefox target")
+	}
+
+	loaded, err := configloader.Load(dir)
+	if err != nil {
+		t.Fatalf("load config: %v", err)
+	}
+	if loaded == nil || loaded.Config == nil {
+		t.Fatal("expected bootstrapped config")
+	}
+	if !loaded.Config.Targets["chrome"].Enabled {
+		t.Fatal("expected chrome target to stay enabled")
+	}
+	if !loaded.Config.Targets["firefox"].Enabled {
+		t.Fatal("expected firefox target to be enabled")
+	}
+
+	g, err := graph.ReadFromFile(filepath.Join(dir, ".panex", "project.graph.json"))
+	if err != nil {
+		t.Fatalf("read graph: %v", err)
+	}
+	if got, want := g.TargetsRequested, []string{"chrome", "firefox"}; len(got) != len(want) || got[0] != want[0] || got[1] != want[1] {
+		t.Fatalf("targets requested: got %v, want %v", got, want)
+	}
+	if got, want := g.TargetsResolved, []string{"chrome"}; len(got) != len(want) || got[0] != want[0] {
+		t.Fatalf("targets resolved: got %v, want %v", got, want)
+	}
+
+	pol, err := policy.LoadFromFile(filepath.Join(dir, "panex.policy.toml"))
+	if err != nil {
+		t.Fatalf("load policy: %v", err)
+	}
+	if got, want := pol.Targets.Allowed, []string{"chrome", "firefox"}; len(got) != len(want) || got[0] != want[0] || got[1] != want[1] {
+		t.Fatalf("policy targets: got %v, want %v", got, want)
+	}
+}
+
+func TestAddTarget_AlreadyEnabledIsIdempotent(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, filepath.Join(dir, "background.js"), "// bg")
+
+	captureExitCode(func() int {
+		return CmdInit(dir, InitOptions{Name: "test-ext", Targets: []string{"chrome"}})
+	})
+
+	out, err := AddTarget(dir, "chrome")
+	if err != nil {
+		t.Fatalf("AddTarget: %v", err)
+	}
+	if out.Summary == "" {
+		t.Fatal("expected summary")
+	}
+
+	pol, err := policy.LoadFromFile(filepath.Join(dir, "panex.policy.toml"))
+	if err != nil {
+		t.Fatalf("load policy: %v", err)
+	}
+	if got := len(pol.Targets.Allowed); got != 1 {
+		t.Fatalf("policy targets length: got %d, want 1", got)
+	}
+	if pol.Targets.Allowed[0] != "chrome" {
+		t.Fatalf("policy target: got %v", pol.Targets.Allowed)
+	}
+}
+
+func TestAddTarget_UnknownTargetFails(t *testing.T) {
+	dir := t.TempDir()
+
+	if _, err := AddTarget(dir, "opera"); err == nil {
+		t.Fatal("expected unknown target error")
+	}
+
+	if _, err := os.Stat(filepath.Join(dir, "panex.config.json")); !os.IsNotExist(err) {
+		t.Fatalf("panex.config.json should not be written on validation error: %v", err)
 	}
 }
 

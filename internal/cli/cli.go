@@ -8,6 +8,9 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
+	"strconv"
+	"strings"
 
 	"github.com/panex-dev/panex/internal/capability"
 	"github.com/panex-dev/panex/internal/configloader"
@@ -190,6 +193,100 @@ func CmdInit(projectDir string, opts InitOptions) int {
 type InitOptions struct {
 	Name    string
 	Targets []string
+}
+
+// AddTarget updates the authored config, policy, and derived graph to include
+// the requested target platform.
+func AddTarget(projectDir string, targetName string) (Output, error) {
+	targetName = strings.TrimSpace(targetName)
+	if targetName == "" {
+		return Output{}, fmt.Errorf("target name is required")
+	}
+	if !isKnownTarget(targetName) {
+		return Output{}, fmt.Errorf("unknown target %q (known targets: %s)", targetName, strings.Join(knownTargets(), ", "))
+	}
+
+	root, err := fsmodel.NewRoot(projectDir)
+	if err != nil {
+		return Output{}, err
+	}
+	if err := root.Init(); err != nil {
+		return Output{}, fmt.Errorf("init state: %w", err)
+	}
+
+	cfg, bootstrapped, err := loadOrBootstrapProjectConfig(projectDir)
+	if err != nil {
+		return Output{}, err
+	}
+	if cfg.Targets == nil {
+		cfg.Targets = make(configloader.TargetConfigMap)
+	}
+
+	targetCfg, existed := cfg.Targets[targetName]
+	alreadyEnabled := existed && targetCfg.Enabled
+	targetCfg.Enabled = true
+	cfg.Targets[targetName] = targetCfg
+
+	configPath := filepath.Join(projectDir, configloader.ConfigFileNames[0])
+	if err := configloader.WriteToFile(cfg, configPath); err != nil {
+		return Output{}, fmt.Errorf("write config: %w", err)
+	}
+
+	pol, err := loadOrDefaultPolicy(root.PolicyFilePath())
+	if err != nil {
+		return Output{}, err
+	}
+	addedToPolicy := appendAllowedTarget(pol, targetName)
+	writePolicyFile(root.PolicyFilePath(), pol)
+
+	g, err := rebuildProjectGraph(projectDir, root)
+	if err != nil {
+		return Output{}, err
+	}
+
+	out := Output{
+		Status:  "ok",
+		Command: "add-target",
+		Data: map[string]any{
+			"target":              targetName,
+			"config_path":         configPath,
+			"policy_path":         root.PolicyFilePath(),
+			"targets_requested":   g.TargetsRequested,
+			"targets_resolved":    g.TargetsResolved,
+			"config_bootstrapped": bootstrapped,
+		},
+		Next: []string{"panex plan", "panex verify"},
+	}
+
+	switch {
+	case alreadyEnabled:
+		out.Summary = fmt.Sprintf("target %q already enabled; refreshed config, graph, and policy", targetName)
+	case addedToPolicy:
+		out.Summary = fmt.Sprintf("target %q added to config, graph, and policy", targetName)
+	default:
+		out.Summary = fmt.Sprintf("target %q added to config and graph", targetName)
+	}
+
+	if !targetIsResolved(g, targetName) {
+		out.Warnings = append(out.Warnings,
+			fmt.Sprintf("target %q is requested but not yet resolved because no adapter is registered for it", targetName))
+	}
+
+	return out, nil
+}
+
+// CmdAddTarget adds a target platform to an existing project.
+func CmdAddTarget(projectDir string, targetName string) int {
+	out, err := AddTarget(projectDir, targetName)
+	if err != nil {
+		return Emit(Output{
+			Status:  "error",
+			Command: "add-target",
+			Errors:  []string{err.Error()},
+			Next:    []string{"panex inspect", "panex plan"},
+		})
+	}
+	return Emit(out)
 }
 
 // CmdDoctor runs diagnostics and optionally applies repairs.
@@ -795,6 +892,138 @@ func loadProjectGraph(projectDir, command string) (*graph.Graph, int) {
 	return g, 0
 }
 
+func loadOrBootstrapProjectConfig(projectDir string) (*configloader.Config, bool, error) {
+	loaded, err := configloader.Load(projectDir)
+	if err != nil {
+		return nil, false, err
+	}
+	if loaded != nil && loaded.Config != nil {
+		return loaded.Config, false, nil
+	}
+
+	g, err := LoadProjectGraph(projectDir)
+	if err != nil {
+		return nil, false, fmt.Errorf("cannot bootstrap panex.config.json: %w", err)
+	}
+
+	return bootstrapConfigFromGraph(projectDir, g), true, nil
+}
+
+func bootstrapConfigFromGraph(projectDir string, g *graph.Graph) *configloader.Config {
+	name := strings.TrimSpace(g.Project.Name)
+	if name == "" {
+		name = strings.TrimSpace(g.Project.ID)
+	}
+	if name == "" {
+		name = filepath.Base(projectDir)
+	}
+
+	cfg := configloader.Default(name)
+	cfg.Project.Name = name
+	if id := strings.TrimSpace(g.Project.ID); id != "" {
+		cfg.Project.ID = id
+	}
+	cfg.Entries = make(map[string]configloader.EntryConfig, len(g.Entries))
+	for entryName, entry := range g.Entries {
+		cfg.Entries[entryName] = configloader.EntryConfig{Path: entry.Path}
+	}
+	if len(g.Capabilities) > 0 {
+		cfg.Capabilities = g.Capabilities
+	}
+
+	targets := append([]string{}, g.TargetsRequested...)
+	if len(targets) == 0 {
+		targets = append(targets, g.TargetsResolved...)
+	}
+	sort.Strings(targets)
+	cfg.Targets = make(configloader.TargetConfigMap, len(targets))
+	for _, targetName := range targets {
+		cfg.Targets[targetName] = configloader.TargetConfig{Enabled: true}
+	}
+
+	return cfg
+}
+
+func rebuildProjectGraph(projectDir string, root *fsmodel.Root) (*graph.Graph, error) {
+	loaded, err := configloader.Load(projectDir)
+	if err != nil {
+		return nil, err
+	}
+	if loaded == nil || loaded.Config == nil {
+		return nil, fmt.Errorf("reload config: no panex.config.json found after update")
+	}
+
+	report, err := inspector.New(projectDir).Inspect()
+	if err != nil {
+		return nil, fmt.Errorf("inspect project: %w", err)
+	}
+
+	builder := graph.NewBuilder(projectDir)
+	g, err := builder.BuildFromConfig(graph.ProjectConfigFromLoaded(loaded), report)
+	if err != nil {
+		return nil, fmt.Errorf("build graph: %w", err)
+	}
+	if err := graph.WriteToFile(g, root.ProjectGraphPath()); err != nil {
+		return nil, fmt.Errorf("write graph: %w", err)
+	}
+	return g, nil
+}
+
+func loadOrDefaultPolicy(path string) (*policy.Policy, error) {
+	pol, err := policy.LoadFromFile(path)
+	if err == nil {
+		return pol, nil
+	}
+	if os.IsNotExist(err) {
+		return policy.Default(), nil
+	}
+	return nil, fmt.Errorf("read policy: %w", err)
+}
+
+func appendAllowedTarget(pol *policy.Policy, targetName string) bool {
+	if pol == nil {
+		return false
+	}
+	if containsString(pol.Targets.Allowed, targetName) {
+		sort.Strings(pol.Targets.Allowed)
+		return false
+	}
+	pol.Targets.Allowed = append(pol.Targets.Allowed, targetName)
+	sort.Strings(pol.Targets.Allowed)
+	return true
+}
+
+func knownTargets() []string {
+	targets := append([]string{}, policy.Default().Targets.Allowed...)
+	for targetName := range target.DefaultRegistry().All() {
+		if !containsString(targets, targetName) {
+			targets = append(targets, targetName)
+		}
+	}
+	sort.Strings(targets)
+	return targets
+}
+
+func isKnownTarget(targetName string) bool {
+	return containsString(knownTargets(), targetName)
+}
+
+func containsString(values []string, targetValue string) bool {
+	for _, value := range values {
+		if value == targetValue {
+			return true
+		}
+	}
+	return false
+}
+
+func targetIsResolved(g *graph.Graph, targetName string) bool {
+	if g == nil {
+		return false
+	}
+	return containsString(g.TargetsResolved, targetName)
+}
+
 func resolveCapabilities(g *graph.Graph, adapters map[string]target.Adapter) *capability.TargetMatrix {
 	matrix, _ := capability.Compile(capability.CompilerInput{
 		Capabilities: g.Capabilities,
@@ -853,7 +1082,7 @@ allow_lockfile_changes = true
 allow_bundler_rewrite = false
 
 [targets]
-allowed = ` + fmt.Sprintf("%q", p.Targets.Allowed) + `
+allowed = ` + formatTOMLStringArray(p.Targets.Allowed) + `
 
 [permissions]
 allow_new_permissions = true
@@ -873,6 +1102,18 @@ allow_publish = false
 require_verify_pass = true
 `
 	_ = os.WriteFile(path, []byte(content), 0o644)
+}
+
+func formatTOMLStringArray(values []string) string {
+	if len(values) == 0 {
+		return "[]"
+	}
+
+	quoted := make([]string, 0, len(values))
+	for _, value := range values {
+		quoted = append(quoted, strconv.Quote(value))
+	}
+	return "[" + strings.Join(quoted, ", ") + "]"
 }
 
 func writeJSONFile(path string, v any) {

@@ -25,6 +25,7 @@ const usageText = `panex - development runtime for Chrome extensions
 Usage:
   panex [--cwd path] version
   panex [--cwd path] init [--force]
+  panex [--cwd path] add-target <target>
   panex [--cwd path] inspect
   panex [--cwd path] plan
   panex [--cwd path] apply [--force]
@@ -138,6 +139,8 @@ func run(args []string, stdout io.Writer) error {
 		return writef(stdout, "panex %s\n", version)
 	case "init":
 		return runInitInProject(opts.projectDir, args[1:], stdout)
+	case "add-target":
+		return runCoreAddTargetInProject(opts.projectDir, args[1:])
 	case "inspect":
 		return runCoreInspectInProject(opts.projectDir)
 	case "plan":

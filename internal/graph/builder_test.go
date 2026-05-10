@@ -196,8 +196,8 @@ func TestProjectConfigFromLoaded(t *testing.T) {
 	if cfg.Project.ID != "com.test" {
 		t.Errorf("id: got %s", cfg.Project.ID)
 	}
-	if len(cfg.Targets) != 2 {
-		t.Errorf("targets: got %d (expected 2 enabled)", len(cfg.Targets))
+	if got, want := cfg.Targets, []string{"chrome", "firefox"}; len(got) != len(want) || got[0] != want[0] || got[1] != want[1] {
+		t.Errorf("targets: got %v, want %v", got, want)
 	}
 	if bg, ok := cfg.Entries["background"]; !ok || bg.Path != "src/bg.ts" || bg.Type != "esm" {
 		t.Errorf("entry: got %+v", cfg.Entries["background"])

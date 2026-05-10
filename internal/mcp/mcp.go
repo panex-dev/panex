@@ -282,6 +282,13 @@ func (s *Server) toolDefinitions() []Tool {
 				"targets": map[string]any{"type": "array", "items": map[string]any{"type": "string"}, "description": "Target platforms"},
 			},
 		}},
+		{Name: "add_target", Description: "Add a target platform to the project config, graph, and policy", InputSchema: map[string]any{
+			"type": "object",
+			"properties": map[string]any{
+				"target": map[string]any{"type": "string", "description": "Target platform to enable"},
+			},
+			"required": []string{"target"},
+		}},
 		{Name: "plan_changes", Description: "Compute proposed changes for the project", InputSchema: obj},
 		{Name: "apply_changes", Description: "Apply a computed plan", InputSchema: map[string]any{
 			"type": "object",
@@ -339,6 +346,8 @@ func (s *Server) executeTool(ctx context.Context, name string, args map[string]a
 		return s.toolInspect(ctx)
 	case "initialize_project":
 		return s.toolInit(ctx, args)
+	case "add_target":
+		return s.toolAddTarget(args)
 	case "verify_project":
 		return s.toolVerify(ctx)
 	case "doctor_project":
@@ -420,6 +429,14 @@ func (s *Server) toolInit(_ context.Context, args map[string]any) (any, error) {
 		Summary: fmt.Sprintf("initialized project %s", g.Project.Name),
 		Data:    g,
 	}, nil
+}
+
+func (s *Server) toolAddTarget(args map[string]any) (any, error) {
+	targetName, _ := args["target"].(string)
+	if strings.TrimSpace(targetName) == "" {
+		return nil, fmt.Errorf("target is required")
+	}
+	return cli.AddTarget(s.projectDir, targetName)
 }
 
 func (s *Server) toolVerify(_ context.Context) (any, error) {

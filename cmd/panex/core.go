@@ -27,6 +27,18 @@ func runCoreInspectInProject(rootDir string) error {
 	return nil
 }
 
+func runCoreAddTargetInProject(rootDir string, args []string) error {
+	if len(args) != 1 {
+		return &cliError{code: 2, msg: "add-target requires exactly one target argument"}
+	}
+
+	code := cli.CmdAddTarget(rootDir, args[0])
+	if code != 0 {
+		return &cliError{code: code, msg: ""}
+	}
+	return nil
+}
+
 func runCorePlanInProject(rootDir string) error {
 	code := cli.CmdPlan(rootDir)
 	if code != 0 {

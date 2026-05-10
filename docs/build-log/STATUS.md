@@ -148,6 +148,7 @@ As of 2026-05-10.
 | — | Phase 2 Dev Bridge daemon: centralize remaining chrome-sim storage diff fixtures | `docs/build-log/2026-05-10-phase2-chrome-sim-storage-diff-fixtures.md` |
 | — | Phase 2 Dev Bridge daemon: centralize remaining agent query-events fixture | `docs/build-log/2026-05-10-phase2-agent-query-events-fixture.md` |
 | — | Phase 2 CLI surface: add global `--cwd` project resolution override | `docs/build-log/2026-05-10-phase2-cli-cwd-flag.md` |
+| — | Phase 2 CLI + MCP surface: add `add-target` / `add_target` with config bootstrap, graph refresh, and policy sync | `docs/build-log/2026-05-10-phase2-add-target-command.md` |
 
 ## In progress
 - None.

@@ -572,6 +572,20 @@ func TestRunInitWithGlobalCWDScaffoldsTargetProject(t *testing.T) {
 	}
 }
 
+func TestRunAddTargetRequiresArgument(t *testing.T) {
+	var out bytes.Buffer
+
+	err := run([]string{"add-target"}, &out)
+	cliErr := requireCLIError(t, err)
+
+	if cliErr.code != 2 {
+		t.Fatalf("unexpected error code: got %d, want 2", cliErr.code)
+	}
+	if !strings.Contains(cliErr.msg, "add-target requires exactly one target argument") {
+		t.Fatalf("unexpected error message: %q", cliErr.msg)
+	}
+}
+
 func TestRunDevWithGlobalCWDResolvesConfigRelativePaths(t *testing.T) {
 	projectRoot := t.TempDir()
 	writePanexConfig(t, filepath.Join(projectRoot, "panex.toml"), `

@@ -63,7 +63,7 @@ func TestToolsList(t *testing.T) {
 	for _, tool := range tools {
 		names[tool.Name] = true
 	}
-	required := []string{"inspect_project", "initialize_project", "plan_changes",
+	required := []string{"inspect_project", "initialize_project", "add_target", "plan_changes",
 		"apply_changes", "verify_project", "doctor_project", "package_release"}
 	for _, r := range required {
 		if !names[r] {
@@ -136,6 +136,42 @@ func TestToolInit(t *testing.T) {
 	// Verify .panex dir was created
 	if _, err := os.Stat(filepath.Join(dir, ".panex")); err != nil {
 		t.Error("expected .panex directory")
+	}
+}
+
+func TestToolAddTarget(t *testing.T) {
+	dir := t.TempDir()
+	setupProject(t, dir)
+	srv := NewServerWithIO(dir, nil, nil)
+
+	params, _ := json.Marshal(map[string]any{
+		"name":      "add_target",
+		"arguments": map[string]any{"target": "firefox"},
+	})
+	resp := srv.HandleSingleRequest(context.Background(), Request{
+		JSONRPC: "2.0",
+		ID:      51,
+		Method:  "tools/call",
+		Params:  params,
+	})
+
+	if resp.Error != nil {
+		t.Fatalf("error: %v", resp.Error)
+	}
+
+	if _, err := os.Stat(filepath.Join(dir, "panex.config.json")); err != nil {
+		t.Fatalf("expected panex.config.json: %v", err)
+	}
+
+	g, err := graph.ReadFromFile(filepath.Join(dir, ".panex", "project.graph.json"))
+	if err != nil {
+		t.Fatalf("read graph: %v", err)
+	}
+	if len(g.TargetsRequested) != 2 {
+		t.Fatalf("targets requested: got %v", g.TargetsRequested)
+	}
+	if len(g.TargetsResolved) != 1 || g.TargetsResolved[0] != "chrome" {
+		t.Fatalf("targets resolved: got %v", g.TargetsResolved)
 	}
 }
 

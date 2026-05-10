@@ -17,9 +17,7 @@ Phase 1 intentionally deferred several spec features to keep scope manageable. L
 
 | Gap | Spec Reference | Description | Target Phase |
 |---|---|---|---|
-| `add-target` command | §34 | Add a new target platform to an existing project (update config, graph, policy) | Phase 2 |
 | `--json` global flag | §34.1 | Force JSON output mode for all commands (currently always JSON) | Phase 2 |
-| `--cwd` global flag | §34.1 | Override working directory for project resolution | Phase 2 |
 | `--interactive` global flag | §34.1 | Enable interactive prompting for confirmation (currently always non-interactive) | Phase 3 |
 
 ### Plan/Apply Model (spec §21)
@@ -33,14 +31,12 @@ Phase 1 intentionally deferred several spec features to keep scope manageable. L
 
 | Gap | Spec Reference | Description | Target Phase |
 |---|---|---|---|
-| Dev Bridge daemon | §24 | Full dev bridge connecting daemon↔agent↔inspector over WebSocket with live state sync | Phase 2 |
-| Runtime identity collection | §23.4 | Collect runtime identity (extension ID, browser profile, PID) during dev sessions | Phase 2 |
+| — | — | All previously deferred runtime gaps in this section have been completed. | — |
 
 ### MCP Tools (spec §35)
 
 | Gap | Spec Reference | Description | Target Phase |
 |---|---|---|---|
-| `add_target` tool | §35 | MCP tool wrapping the `add-target` CLI command | Phase 2 |
 | `publish_extension` tool | §35 | Upload artifacts to the Chrome Web Store / addons.mozilla.org | Phase 4 |
 | `rollback_changes` tool | §35 | MCP-exposed rollback of a failed apply | Phase 2 |
 | `query_run_history` tool | §35 | Paginated query over the run ledger | Phase 3 |
