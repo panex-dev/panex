@@ -164,7 +164,7 @@ func TestRunInitForceOverwritesScaffoldFiles(t *testing.T) {
 
 func TestRunInitThenDevUsesScaffoldedConfig(t *testing.T) {
 	tempDir := t.TempDir()
-	resolvedRoot := resolveSymlinks(t, tempDir)
+	resolvedRoot := workingDirPath(t, tempDir)
 	var captured panexconfig.Config
 	withStubbedStartDev(t, func(cfg panexconfig.Config, stdout io.Writer) error {
 		captured = cfg
@@ -242,7 +242,7 @@ func TestRunUnknownCommandReturnsUsageError(t *testing.T) {
 
 func TestRunDevDefaultConfig(t *testing.T) {
 	tempDir := t.TempDir()
-	resolvedRoot := resolveSymlinks(t, tempDir)
+	resolvedRoot := workingDirPath(t, tempDir)
 	writePanexConfig(t, filepath.Join(tempDir, "panex.toml"), `
 [extension]
 source_dir = "./src"
@@ -460,7 +460,7 @@ func TestRunDevMissingConfig(t *testing.T) {
 
 func TestRunDevInfersConfigFromManifestJSON(t *testing.T) {
 	tempDir := t.TempDir()
-	resolvedRoot := resolveSymlinks(t, tempDir)
+	resolvedRoot := workingDirPath(t, tempDir)
 	if err := os.WriteFile(filepath.Join(tempDir, "manifest.json"), []byte(`{"manifest_version": 3}`), 0o600); err != nil {
 		t.Fatalf("write manifest.json: %v", err)
 	}
@@ -1625,6 +1625,25 @@ func withWorkingDir(dir string, fn func() error) error {
 	}()
 
 	return fn()
+}
+
+func workingDirPath(t *testing.T, dir string) string {
+	t.Helper()
+
+	var resolved string
+	err := withWorkingDir(dir, func() error {
+		wd, err := os.Getwd()
+		if err != nil {
+			return err
+		}
+		resolved = wd
+		return nil
+	})
+	if err != nil {
+		t.Fatalf("resolve working dir %q: %v", dir, err)
+	}
+
+	return resolved
 }
 
 func withStubbedStartDev(t *testing.T, stub func(cfg panexconfig.Config, stdout io.Writer) error) {
