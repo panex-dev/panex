@@ -141,7 +141,7 @@ func TestCompile_HostPermissionsByTarget(t *testing.T) {
 	input := CompilerInput{
 		Capabilities:    map[string]any{"tabs": "read"},
 		Targets:         []string{"chrome", "firefox"},
-		Adapters:        map[string]target.Adapter{"chrome": chrome, "firefox": chrome},
+		Adapters:        map[string]target.Adapter{"chrome": chrome, "firefox": target.NewFirefox()},
 		HostPermissions: []string{"https://shared.example/*"},
 		HostPermissionsByTarget: map[string][]string{
 			"firefox": {"https://addons.mozilla.org/*"},

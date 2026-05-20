@@ -2,7 +2,7 @@ package target
 
 import "testing"
 
-func TestDefaultRegistry_ContainsChrome(t *testing.T) {
+func TestDefaultRegistry_ContainsSupportedTargets(t *testing.T) {
 	reg := DefaultRegistry()
 
 	adapter, ok := reg.Get("chrome")
@@ -13,12 +13,23 @@ func TestDefaultRegistry_ContainsChrome(t *testing.T) {
 		t.Errorf("expected adapter name chrome, got %s", adapter.Name())
 	}
 
+	firefox, ok := reg.Get("firefox")
+	if !ok {
+		t.Fatal("DefaultRegistry should contain a firefox adapter")
+	}
+	if firefox.Name() != "firefox" {
+		t.Errorf("expected adapter name firefox, got %s", firefox.Name())
+	}
+
 	all := reg.All()
-	if len(all) != 1 {
-		t.Errorf("expected 1 adapter in DefaultRegistry, got %d", len(all))
+	if len(all) != 2 {
+		t.Errorf("expected 2 adapters in DefaultRegistry, got %d", len(all))
 	}
 	if _, ok := all["chrome"]; !ok {
 		t.Error("All() should contain chrome")
+	}
+	if _, ok := all["firefox"]; !ok {
+		t.Error("All() should contain firefox")
 	}
 }
 

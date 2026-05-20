@@ -170,7 +170,7 @@ func TestToolAddTarget(t *testing.T) {
 	if len(g.TargetsRequested) != 2 {
 		t.Fatalf("targets requested: got %v", g.TargetsRequested)
 	}
-	if len(g.TargetsResolved) != 1 || g.TargetsResolved[0] != "chrome" {
+	if len(g.TargetsResolved) != 2 || g.TargetsResolved[0] != "chrome" || g.TargetsResolved[1] != "firefox" {
 		t.Fatalf("targets resolved: got %v", g.TargetsResolved)
 	}
 }

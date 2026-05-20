@@ -108,8 +108,8 @@ func TestAddTarget_BootstrapsConfigAndUpdatesGraphAndPolicy(t *testing.T) {
 	if out.Command != "add-target" {
 		t.Fatalf("command: got %q", out.Command)
 	}
-	if len(out.Warnings) == 0 {
-		t.Fatal("expected warning for unresolved firefox target")
+	if len(out.Warnings) != 0 {
+		t.Fatalf("expected no warnings for supported firefox target, got %v", out.Warnings)
 	}
 
 	loaded, err := configloader.Load(dir)
@@ -133,7 +133,7 @@ func TestAddTarget_BootstrapsConfigAndUpdatesGraphAndPolicy(t *testing.T) {
 	if got, want := g.TargetsRequested, []string{"chrome", "firefox"}; len(got) != len(want) || got[0] != want[0] || got[1] != want[1] {
 		t.Fatalf("targets requested: got %v, want %v", got, want)
 	}
-	if got, want := g.TargetsResolved, []string{"chrome"}; len(got) != len(want) || got[0] != want[0] {
+	if got, want := g.TargetsResolved, []string{"chrome", "firefox"}; len(got) != len(want) || got[0] != want[0] || got[1] != want[1] {
 		t.Fatalf("targets resolved: got %v, want %v", got, want)
 	}
 
