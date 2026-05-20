@@ -145,7 +145,7 @@ func TestPathsViaRunCommand(t *testing.T) {
 
 	var out bytes.Buffer
 	err := withWorkingDir(tempDir, func() error {
-		return run([]string{"paths"}, &out)
+		return run([]string{"--interactive", "paths"}, &out)
 	})
 	if err != nil {
 		t.Fatalf("run(paths) returned error: %v", err)

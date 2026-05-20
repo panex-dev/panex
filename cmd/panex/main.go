@@ -24,25 +24,27 @@ import (
 const usageText = `panex - development runtime for Chrome extensions
 
 Usage:
-  panex [--cwd path] [--json] version
-  panex [--cwd path] [--json] init [--force]
-  panex [--cwd path] [--json] add-target <target>
-  panex [--cwd path] [--json] inspect
-  panex [--cwd path] [--json] plan
-  panex [--cwd path] [--json] apply [--force]
-  panex [--cwd path] [--json] dev [--config path/to/panex.toml] [--open]
-  panex [--cwd path] [--json] test
-  panex [--cwd path] [--json] verify
-  panex [--cwd path] [--json] package [--version v0.1.0]
-  panex [--cwd path] [--json] report [--run-id id]
-  panex [--cwd path] [--json] resume [--run-id id]
-  panex [--cwd path] [--json] doctor [--fix]
-  panex [--cwd path] [--json] paths
-  panex [--cwd path] [--json] mcp
+  panex [--cwd path] [--json|--interactive] [--yes] version
+  panex [--cwd path] [--json|--interactive] [--yes] init [--force]
+  panex [--cwd path] [--json|--interactive] [--yes] add-target <target>
+  panex [--cwd path] [--json|--interactive] [--yes] inspect
+  panex [--cwd path] [--json|--interactive] [--yes] plan
+  panex [--cwd path] [--json|--interactive] [--yes] apply [--force]
+  panex [--cwd path] [--json|--interactive] [--yes] dev [--config path/to/panex.toml] [--open]
+  panex [--cwd path] [--json|--interactive] [--yes] test
+  panex [--cwd path] [--json|--interactive] [--yes] verify
+  panex [--cwd path] [--json|--interactive] [--yes] package [--version v0.1.0]
+  panex [--cwd path] [--json|--interactive] [--yes] report [--run-id id]
+  panex [--cwd path] [--json|--interactive] [--yes] resume [--run-id id]
+  panex [--cwd path] [--json|--interactive] [--yes] doctor [--fix]
+  panex [--cwd path] [--json|--interactive] [--yes] paths
+  panex [--cwd path] [--json|--interactive] [--yes] mcp
 
 Global flags:
-  --cwd path  Override working directory for project resolution
-  --json      Force JSON output mode for CLI command surfaces
+  --cwd path       Override working directory for project resolution
+  --json           Use machine-readable output mode (default)
+  --interactive    Use human-readable output and enable future prompts
+  --yes            Auto-confirm prompts in interactive mode; no-op otherwise
 `
 
 // This is overridden in release builds via -ldflags "-X main.version=<semver>".
@@ -114,8 +116,10 @@ type cliError struct {
 }
 
 type globalOptions struct {
-	projectDir string
-	json       bool
+	projectDir  string
+	json        bool
+	interactive bool
+	yes         bool
 }
 
 func (e *cliError) Error() string {
@@ -308,27 +312,29 @@ func parseGlobalOptions(args []string) (globalOptions, []string, error) {
 	fs := flag.NewFlagSet("panex", flag.ContinueOnError)
 	fs.SetOutput(io.Discard)
 
-	jsonOutput := fs.Bool("json", hasJSONFlag(args), "Force JSON output mode")
+	jsonFlag := fs.Bool("json", false, "Use machine-readable output mode")
+	interactive := fs.Bool("interactive", false, "Use human-readable output and enable future prompts")
+	yes := fs.Bool("yes", false, "Auto-confirm prompts in interactive mode")
 	cwd := fs.String("cwd", "", "Override working directory for project resolution")
 	if err := fs.Parse(args); err != nil {
-		return globalOptions{json: *jsonOutput}, fs.Args(), err
+		return globalOptions{json: *jsonFlag || !*interactive, interactive: *interactive, yes: *yes}, fs.Args(), err
+	}
+
+	if *jsonFlag && *interactive {
+		return globalOptions{json: true, interactive: true, yes: *yes}, fs.Args(), fmt.Errorf("--json and --interactive are mutually exclusive")
 	}
 
 	projectDir, err := resolveProjectDir(*cwd)
 	if err != nil {
-		return globalOptions{json: *jsonOutput}, fs.Args(), err
+		return globalOptions{json: *jsonFlag || !*interactive, interactive: *interactive, yes: *yes}, fs.Args(), err
 	}
 
-	return globalOptions{projectDir: projectDir, json: *jsonOutput}, fs.Args(), nil
-}
-
-func hasJSONFlag(args []string) bool {
-	for _, arg := range args {
-		if arg == "--json" {
-			return true
-		}
-	}
-	return false
+	return globalOptions{
+		projectDir:  projectDir,
+		json:        *jsonFlag || !*interactive,
+		interactive: *interactive,
+		yes:         *yes,
+	}, fs.Args(), nil
 }
 
 func resolveProjectDir(cwd string) (string, error) {

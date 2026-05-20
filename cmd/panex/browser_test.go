@@ -38,7 +38,7 @@ auth_token = "test-token"
 
 	var out bytes.Buffer
 	err := withWorkingDir(tempDir, func() error {
-		return run([]string{"dev", "--open"}, &out)
+		return run([]string{"--interactive", "dev", "--open"}, &out)
 	})
 	if err != nil {
 		t.Fatalf("run(dev --open) returned error: %v", err)
@@ -77,7 +77,7 @@ auth_token = "test-token"
 
 	var out bytes.Buffer
 	err := withWorkingDir(tempDir, func() error {
-		return run([]string{"dev"}, &out)
+		return run([]string{"--interactive", "dev"}, &out)
 	})
 	if err != nil {
 		t.Fatalf("run(dev) returned error: %v", err)
@@ -112,7 +112,7 @@ auth_token = "test-token"
 
 	var out bytes.Buffer
 	err := withWorkingDir(tempDir, func() error {
-		return run([]string{"dev", "--open"}, &out)
+		return run([]string{"--interactive", "dev", "--open"}, &out)
 	})
 	if err != nil {
 		t.Fatalf("run(dev --open) should not fail when browser fails, got: %v", err)
@@ -142,7 +142,7 @@ func TestRunDevOpenFlagWithInferredConfig(t *testing.T) {
 
 	var out bytes.Buffer
 	err := withWorkingDir(tempDir, func() error {
-		return run([]string{"dev", "--open"}, &out)
+		return run([]string{"--interactive", "dev", "--open"}, &out)
 	})
 	if err != nil {
 		t.Fatalf("run(dev --open) returned error: %v", err)
