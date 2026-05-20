@@ -1,0 +1,128 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://panex.dev/schemas/release-descriptor.schema.json",
+  "title": "Panex Release Descriptor",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "project_id",
+    "project_name",
+    "version",
+    "produced_at",
+    "run_id",
+    "targets",
+    "verification_summary",
+    "permission_diff",
+    "build_fingerprint",
+    "publish_metadata"
+  ],
+  "properties": {
+    "schema_version": { "const": 1 },
+    "project_id": { "type": "string" },
+    "project_name": { "type": "string" },
+    "version": { "type": "string" },
+    "produced_at": { "type": "string", "format": "date-time" },
+    "run_id": { "type": "string" },
+    "targets": {
+      "type": "object",
+      "additionalProperties": { "$ref": "#/$defs/target" }
+    },
+    "verification_summary": { "$ref": "#/$defs/verification_summary" },
+    "permission_diff": { "$ref": "#/$defs/permission_diff" },
+    "build_fingerprint": { "type": "string" },
+    "publish_metadata": {
+      "description": "Null when no publish has occurred; object once publish evidence is attached.",
+      "type": ["object", "null"]
+    }
+  },
+  "$defs": {
+    "target": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "manifest_fingerprint",
+        "permissions",
+        "host_permissions",
+        "capability_resolutions",
+        "artifact"
+      ],
+      "properties": {
+        "manifest_fingerprint": { "type": "string" },
+        "permissions": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "host_permissions": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "capability_resolutions": {
+          "type": "object",
+          "additionalProperties": { "type": "string" }
+        },
+        "artifact": { "$ref": "#/$defs/artifact" }
+      }
+    },
+    "artifact": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "path", "sha256", "size_bytes"],
+      "properties": {
+        "type": { "type": "string" },
+        "path": { "type": "string" },
+        "sha256": { "type": "string" },
+        "size_bytes": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "verification_summary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status", "hard_blocks", "warnings"],
+      "properties": {
+        "status": { "enum": ["passed", "failed"] },
+        "hard_blocks": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/verification_block" }
+        },
+        "warnings": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      }
+    },
+    "verification_block": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["code", "message"],
+      "properties": {
+        "code": { "type": "string" },
+        "target": { "type": "string" },
+        "message": { "type": "string" }
+      }
+    },
+    "permission_diff": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["added", "removed", "host_expanded", "host_narrowed"],
+      "properties": {
+        "added": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "removed": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "host_expanded": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "host_narrowed": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      }
+    }
+  }
+}

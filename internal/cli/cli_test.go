@@ -11,6 +11,7 @@ import (
 	"github.com/panex-dev/panex/internal/configloader"
 	"github.com/panex-dev/panex/internal/graph"
 	"github.com/panex-dev/panex/internal/policy"
+	"github.com/panex-dev/panex/internal/releasedesc"
 )
 
 func TestCmdInspect_EmptyDir(t *testing.T) {
@@ -256,6 +257,29 @@ func TestCmdPackage(t *testing.T) {
 	runEntries, _ := os.ReadDir(runsDir)
 	if len(runEntries) == 0 {
 		t.Error("expected run record in .panex/runs/")
+	}
+	runDir := filepath.Join(runsDir, runEntries[0].Name())
+	releasePath := filepath.Join(runDir, "release.json")
+	releaseData, err := os.ReadFile(releasePath)
+	if err != nil {
+		t.Fatalf("read release descriptor: %v", err)
+	}
+	var descriptor releasedesc.Descriptor
+	if err := json.Unmarshal(releaseData, &descriptor); err != nil {
+		t.Fatalf("unmarshal release descriptor: %v", err)
+	}
+	if descriptor.SchemaVersion != releasedesc.SchemaVersion {
+		t.Fatalf("schema version: got %d", descriptor.SchemaVersion)
+	}
+	chrome := descriptor.Targets["chrome"]
+	if chrome.Artifact.Type != "chrome_zip" || chrome.Artifact.SHA256 == "" || chrome.Artifact.SizeBytes == 0 {
+		t.Fatalf("descriptor artifact: got %+v", chrome.Artifact)
+	}
+	if chrome.ManifestFingerprint == "" {
+		t.Fatal("expected manifest fingerprint in release descriptor")
+	}
+	if _, err := os.Stat(filepath.Join(runDir, "artifacts.json")); err != nil {
+		t.Fatalf("expected artifacts.json: %v", err)
 	}
 }
 

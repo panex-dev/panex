@@ -151,6 +151,7 @@ As of 2026-05-10.
 | — | Phase 2 CLI + MCP surface: add `add-target` / `add_target` with config bootstrap, graph refresh, and policy sync | `docs/build-log/2026-05-10-phase2-add-target-command.md` |
 | — | Phase 2 config loader: evaluate `panex.config.ts` via esbuild + Node, and guard JSON-only config mutations | `docs/build-log/2026-05-10-phase2-typescript-config-evaluation.md` |
 | — | Phase 2 CLI surface: add global `--json` output mode across top-level command surfaces | `docs/build-log/2026-05-10-phase2-cli-json-flag.md` |
+| — | Phase 4 release plane: emit package release descriptors | `docs/build-log/2026-05-20-phase4-release-descriptor.md` |
 
 ## In progress
 - None.
