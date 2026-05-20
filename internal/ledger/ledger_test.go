@@ -55,6 +55,7 @@ func TestRun_Transition_Valid(t *testing.T) {
 		{StatusAwaitingPolicy, StatusRunning},
 		{StatusRollingBack, StatusFailed},
 		{StatusRollingBack, StatusSucceeded},
+		{StatusFailed, StatusRollingBack},
 	}
 	for _, tt := range tests {
 		t.Run(string(tt.from)+"->"+string(tt.to), func(t *testing.T) {
@@ -95,6 +96,22 @@ func TestRun_Transition_SetsCompletedAt(t *testing.T) {
 	_ = r.Transition(StatusSucceeded)
 	if r.CompletedAt == "" {
 		t.Error("terminal transition should set completed_at")
+	}
+}
+
+func TestRun_Transition_ClearsCompletedAtWhenRollingBackFailedRun(t *testing.T) {
+	r := &Run{Status: StatusRunning}
+	if err := r.Transition(StatusFailed); err != nil {
+		t.Fatal(err)
+	}
+	if r.CompletedAt == "" {
+		t.Fatal("failed transition should set completed_at")
+	}
+	if err := r.Transition(StatusRollingBack); err != nil {
+		t.Fatal(err)
+	}
+	if r.CompletedAt != "" {
+		t.Fatalf("completed_at should be cleared while rolling back, got %q", r.CompletedAt)
 	}
 }
 

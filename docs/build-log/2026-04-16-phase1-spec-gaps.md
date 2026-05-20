@@ -36,7 +36,6 @@ Phase 1 intentionally deferred several spec features to keep scope manageable. L
 | Gap | Spec Reference | Description | Target Phase |
 |---|---|---|---|
 | `publish_extension` tool | §35 | Upload artifacts to the Chrome Web Store / addons.mozilla.org | Phase 4 |
-| `rollback_changes` tool | §35 | MCP-exposed rollback of a failed apply | Phase 2 |
 | `query_run_history` tool | §35 | Paginated query over the run ledger | Phase 3 |
 | `configure_project` tool | §35 | Modify panex.config.json fields programmatically | Phase 3 |
 

@@ -10,6 +10,8 @@ import (
 
 	"github.com/panex-dev/panex/internal/fsmodel"
 	"github.com/panex-dev/panex/internal/graph"
+	"github.com/panex-dev/panex/internal/ledger"
+	"github.com/panex-dev/panex/internal/plan"
 )
 
 func TestInitialize(t *testing.T) {
@@ -64,7 +66,7 @@ func TestToolsList(t *testing.T) {
 		names[tool.Name] = true
 	}
 	required := []string{"inspect_project", "initialize_project", "add_target", "plan_changes",
-		"apply_changes", "verify_project", "doctor_project", "package_release"}
+		"apply_changes", "rollback_changes", "verify_project", "doctor_project", "package_release"}
 	for _, r := range required {
 		if !names[r] {
 			t.Errorf("missing required tool: %s", r)
@@ -373,6 +375,95 @@ func TestToolResume_NoRun(t *testing.T) {
 	result := resp.Result.(map[string]any)
 	if result["isError"] != true {
 		t.Error("expected error for no run to resume")
+	}
+}
+
+func TestToolRollbackChanges_RemovesAppliedManifest(t *testing.T) {
+	dir := t.TempDir()
+	root, err := fsmodel.NewRoot(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := root.Init(); err != nil {
+		t.Fatal(err)
+	}
+
+	manifestPath := filepath.Join(dir, ".panex", "runs", "generated", "manifests", "chrome", "manifest.json")
+	if err := os.MkdirAll(filepath.Dir(manifestPath), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(manifestPath, []byte(`{"manifest_version":3}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	p := &plan.Plan{Actions: plan.ActionList{
+		&plan.GenerateManifestAction{
+			Target: "chrome",
+			Path:   manifestPath,
+			Manifest: map[string]any{
+				"manifest_version": 3,
+				"name":             "Rollback Test",
+				"version":          "1.0.0",
+			},
+		},
+	}}
+	if err := plan.WritePlan(p, filepath.Join(dir, ".panex", "current.plan.json")); err != nil {
+		t.Fatal(err)
+	}
+
+	run := ledger.NewRun("apply", ledger.Actor{Type: ledger.ActorAgent, Name: "test"})
+	if err := run.Transition(ledger.StatusRunning); err != nil {
+		t.Fatal(err)
+	}
+	step := run.AddStep("apply", "generate_manifest")
+	step.Complete(nil)
+	failed := run.AddStep("apply", "generate_manifest")
+	failed.Fail("interrupted")
+	if err := run.Transition(ledger.StatusFailed); err != nil {
+		t.Fatal(err)
+	}
+	if err := run.WriteToDir(root.RunDir(run.RunID)); err != nil {
+		t.Fatal(err)
+	}
+	state, err := root.ReadState()
+	if err != nil {
+		t.Fatal(err)
+	}
+	state.LatestRunID = run.RunID
+	if err := root.WriteState(state); err != nil {
+		t.Fatal(err)
+	}
+
+	srv := NewServerWithIO(dir, nil, nil)
+	params, _ := json.Marshal(map[string]any{"name": "rollback_changes", "arguments": map[string]any{}})
+	resp := srv.HandleSingleRequest(context.Background(), Request{
+		JSONRPC: "2.0",
+		ID:      15,
+		Method:  "tools/call",
+		Params:  params,
+	})
+
+	if resp.Error != nil {
+		t.Fatalf("error: %v", resp.Error)
+	}
+	result := resp.Result.(map[string]any)
+	if result["isError"] != nil {
+		t.Fatalf("tool returned error: %v", result)
+	}
+	if _, err := os.Stat(manifestPath); !os.IsNotExist(err) {
+		t.Fatalf("expected manifest removed, stat err=%v", err)
+	}
+	rolledBack, err := ledger.ReadFromDir(root.RunDir(run.RunID))
+	if err != nil {
+		t.Fatal(err)
+	}
+	found := false
+	for _, step := range rolledBack.Steps {
+		if step.Component == "rollback" && step.Status == ledger.StatusSucceeded {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatal("expected successful rollback step recorded")
 	}
 }
 
