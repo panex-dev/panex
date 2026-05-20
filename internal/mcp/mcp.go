@@ -306,6 +306,15 @@ func (s *Server) toolDefinitions() []Tool {
 			},
 		}},
 		{Name: "package_release", Description: "Package extension artifacts", InputSchema: obj},
+		{Name: "publish_release", Description: "Publish or dry-run an existing packaged artifact", InputSchema: map[string]any{
+			"type": "object",
+			"properties": map[string]any{
+				"target":        map[string]any{"type": "string", "description": "Target platform to publish"},
+				"artifact_path": map[string]any{"type": "string", "description": "Existing artifact path; defaults to latest target artifact"},
+				"profile_ref":   map[string]any{"type": "string", "description": "Publish profile reference"},
+				"dry_run":       map[string]any{"type": "boolean", "description": "Validate publish inputs without uploading"},
+			},
+		}},
 		{Name: "read_report", Description: "Read the latest run report", InputSchema: map[string]any{
 			"type": "object",
 			"properties": map[string]any{
@@ -358,6 +367,8 @@ func (s *Server) executeTool(ctx context.Context, name string, args map[string]a
 		return s.toolApply(ctx, args)
 	case "package_release":
 		return s.toolPackage(ctx)
+	case "publish_release":
+		return s.toolPublish(ctx, args)
 	case "test_project":
 		return s.toolTest(ctx)
 	case "read_report":
@@ -542,6 +553,19 @@ func (s *Server) toolPackage(_ context.Context) (any, error) {
 	}
 
 	return results, nil
+}
+
+func (s *Server) toolPublish(_ context.Context, args map[string]any) (any, error) {
+	data, err := json.Marshal(args)
+	if err != nil {
+		return nil, fmt.Errorf("marshal publish args: %w", err)
+	}
+
+	var opts cli.PublishOptions
+	if err := json.Unmarshal(data, &opts); err != nil {
+		return nil, fmt.Errorf("parse publish args: %w", err)
+	}
+	return cli.PublishRelease(s.projectDir, opts)
 }
 
 func (s *Server) toolTest(_ context.Context) (any, error) {

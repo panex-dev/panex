@@ -82,6 +82,9 @@ type Adapter interface {
 
 	// PackageArtifact creates a distributable artifact for this target.
 	PackageArtifact(ctx context.Context, opts PackageOptions) (ArtifactRecord, Result)
+
+	// PublishArtifact publishes or dry-runs an existing artifact for this target.
+	PublishArtifact(ctx context.Context, opts PublishOptions) (PublishRecord, Result)
 }
 
 // CapabilityResolution is the resolved state of a capability for a target.
@@ -126,6 +129,28 @@ type ArtifactRecord struct {
 	ManifestFingerprint string `json:"manifest_fingerprint"`
 	BuildFingerprint    string `json:"build_fingerprint"`
 	ProducedAt          string `json:"produced_at"`
+}
+
+// PublishOptions are inputs for target-specific publishing.
+type PublishOptions struct {
+	Target       string `json:"target"`
+	ArtifactPath string `json:"artifact_path"`
+	ArtifactSHA  string `json:"artifact_sha256,omitempty"`
+	ProfileRef   string `json:"profile_ref"`
+	DryRun       bool   `json:"dry_run"`
+}
+
+// PublishRecord describes the outcome of a publish attempt.
+type PublishRecord struct {
+	Target          string   `json:"target"`
+	ArtifactPath    string   `json:"artifact_path"`
+	ArtifactSHA     string   `json:"artifact_sha256,omitempty"`
+	ProfileRef      string   `json:"profile_ref"`
+	Status          string   `json:"status"`
+	RemoteReleaseID string   `json:"remote_release_id,omitempty"`
+	PublishedAt     string   `json:"published_at"`
+	EvidencePath    string   `json:"evidence_path,omitempty"`
+	Warnings        []string `json:"warnings,omitempty"`
 }
 
 // Registry holds named adapters and provides lookup by name.

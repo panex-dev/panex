@@ -10,6 +10,7 @@ import (
 
 	"github.com/panex-dev/panex/internal/fsmodel"
 	"github.com/panex-dev/panex/internal/graph"
+	"github.com/panex-dev/panex/internal/ledger"
 )
 
 func TestInitialize(t *testing.T) {
@@ -64,7 +65,7 @@ func TestToolsList(t *testing.T) {
 		names[tool.Name] = true
 	}
 	required := []string{"inspect_project", "initialize_project", "add_target", "plan_changes",
-		"apply_changes", "verify_project", "doctor_project", "package_release"}
+		"apply_changes", "verify_project", "doctor_project", "package_release", "publish_release"}
 	for _, r := range required {
 		if !names[r] {
 			t.Errorf("missing required tool: %s", r)
@@ -233,6 +234,124 @@ func TestToolPlan(t *testing.T) {
 	planPath := filepath.Join(dir, ".panex", "current.plan.json")
 	if _, err := os.Stat(planPath); err != nil {
 		t.Error("expected plan to be saved")
+	}
+}
+
+func TestToolPublishRelease_DefaultPolicyDenied(t *testing.T) {
+	dir := t.TempDir()
+	setupProject(t, dir)
+	srv := NewServerWithIO(dir, nil, nil)
+
+	params, _ := json.Marshal(map[string]any{
+		"name": "publish_release",
+		"arguments": map[string]any{
+			"target":      "chrome",
+			"profile_ref": "chrome-dev",
+			"dry_run":     true,
+		},
+	})
+	resp := srv.HandleSingleRequest(context.Background(), Request{
+		JSONRPC: "2.0",
+		ID:      81,
+		Method:  "tools/call",
+		Params:  params,
+	})
+
+	var out struct {
+		Status string `json:"status"`
+		Data   struct {
+			Target string `json:"target"`
+			Denial struct {
+				Rule string `json:"rule"`
+			} `json:"denial"`
+		} `json:"data"`
+	}
+	decodeToolResult(t, resp, &out)
+	if out.Status != "policy_denied" {
+		t.Fatalf("status: got %q, want policy_denied", out.Status)
+	}
+	if out.Data.Target != "chrome" || out.Data.Denial.Rule != "publishing.allow_publish" {
+		t.Fatalf("denial: got %+v", out.Data)
+	}
+}
+
+func TestToolPublishRelease_DryRunAllowed(t *testing.T) {
+	dir := t.TempDir()
+	setupProject(t, dir)
+	root, err := fsmodel.NewRoot(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	artifactDir := root.ArtifactDir("chrome")
+	if err := os.MkdirAll(artifactDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	artifactPath := filepath.Join(artifactDir, "test-ext.zip")
+	if err := os.WriteFile(artifactPath, []byte("zip-bytes"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(root.PolicyFilePath(), []byte(`
+[publishing]
+allow_publish = true
+require_verify_pass = false
+`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	srv := NewServerWithIO(dir, nil, nil)
+	params, _ := json.Marshal(map[string]any{
+		"name": "publish_release",
+		"arguments": map[string]any{
+			"target":        "chrome",
+			"artifact_path": artifactPath,
+			"profile_ref":   "chrome-dev",
+			"dry_run":       true,
+		},
+	})
+	resp := srv.HandleSingleRequest(context.Background(), Request{
+		JSONRPC: "2.0",
+		ID:      82,
+		Method:  "tools/call",
+		Params:  params,
+	})
+
+	var out struct {
+		Status  string `json:"status"`
+		Command string `json:"command"`
+		RunID   string `json:"run_id"`
+		Data    struct {
+			DryRun        bool `json:"dry_run"`
+			PublishRecord struct {
+				Status       string `json:"status"`
+				ArtifactPath string `json:"artifact_path"`
+				ProfileRef   string `json:"profile_ref"`
+			} `json:"publish_record"`
+		} `json:"data"`
+	}
+	decodeToolResult(t, resp, &out)
+	if out.Status != "ok" || out.Command != "publish" {
+		t.Fatalf("output: status=%q command=%q", out.Status, out.Command)
+	}
+	if !out.Data.DryRun || out.Data.PublishRecord.Status != "dry_run" {
+		t.Fatalf("publish record: got %+v", out.Data.PublishRecord)
+	}
+	if out.Data.PublishRecord.ArtifactPath != artifactPath || out.Data.PublishRecord.ProfileRef != "chrome-dev" {
+		t.Fatalf("publish record metadata: got %+v", out.Data.PublishRecord)
+	}
+
+	state, err := root.ReadState()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if state.LatestRunID != out.RunID {
+		t.Fatalf("latest run: got %q, want %q", state.LatestRunID, out.RunID)
+	}
+	run, err := ledger.ReadFromDir(root.RunDir(out.RunID))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if run.Operation != "publish" || run.Status != ledger.StatusSucceeded {
+		t.Fatalf("run: operation=%q status=%q", run.Operation, run.Status)
 	}
 }
 
@@ -450,5 +569,24 @@ func setupProject(t *testing.T, dir string) {
 	}
 	if err := graph.WriteToFile(g, root.ProjectGraphPath()); err != nil {
 		t.Fatal(err)
+	}
+}
+
+func decodeToolResult(t *testing.T, resp Response, out any) {
+	t.Helper()
+	if resp.Error != nil {
+		t.Fatalf("response error: %v", resp.Error)
+	}
+	result, ok := resp.Result.(map[string]any)
+	if !ok {
+		t.Fatalf("expected map result, got %T", resp.Result)
+	}
+	if result["isError"] != nil {
+		t.Fatalf("tool returned error: %v", result)
+	}
+	content := result["content"].([]map[string]any)
+	text := content[0]["text"].(string)
+	if err := json.Unmarshal([]byte(text), out); err != nil {
+		t.Fatalf("unmarshal tool result: %v\n%s", err, text)
 	}
 }

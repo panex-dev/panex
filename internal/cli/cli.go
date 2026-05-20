@@ -4,6 +4,7 @@ package cli
 
 import (
 	"context"
+	"crypto/sha256"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -485,6 +486,144 @@ func CmdPackage(projectDir string, opts PackageOptions) int {
 type PackageOptions struct {
 	SourceDir string
 	Version   string
+}
+
+// PublishOptions are flags for panex publish / publish_release.
+type PublishOptions struct {
+	Target       string `json:"target"`
+	ArtifactPath string `json:"artifact_path"`
+	ProfileRef   string `json:"profile_ref"`
+	DryRun       bool   `json:"dry_run"`
+}
+
+// PublishRelease publishes or dry-runs an existing packaged artifact.
+func PublishRelease(projectDir string, opts PublishOptions) (Output, error) {
+	root, err := fsmodel.NewRoot(projectDir)
+	if err != nil {
+		return Output{}, err
+	}
+	if err := root.Init(); err != nil {
+		return Output{}, fmt.Errorf("init state: %w", err)
+	}
+
+	g, err := graph.ReadFromFile(root.ProjectGraphPath())
+	if err != nil {
+		return Output{}, fmt.Errorf("read graph: %w", err)
+	}
+
+	targetName := strings.TrimSpace(opts.Target)
+	if targetName == "" {
+		if len(g.TargetsResolved) == 1 {
+			targetName = g.TargetsResolved[0]
+		} else {
+			return Output{}, fmt.Errorf("target is required")
+		}
+	}
+
+	pol, err := loadOrDefaultPolicy(root.PolicyFilePath())
+	if err != nil {
+		return Output{}, err
+	}
+	if denial := pol.Evaluate(policy.Action{Kind: "publish", Detail: targetName}); denial != nil {
+		return Output{
+			Status:  "policy_denied",
+			Command: "publish",
+			Summary: denial.Reason,
+			Errors:  []string{denial.Reason},
+			Data: map[string]any{
+				"target": targetName,
+				"denial": denial,
+			},
+			Next: []string{"enable publishing.allow_publish in panex.policy.toml"},
+		}, nil
+	}
+
+	lockManager := lock.NewManager(root.StateRoot())
+	publishLock, err := lockManager.Acquire(lock.Publish, "publish:"+targetName, "cli")
+	if err != nil {
+		return Output{}, fmt.Errorf("acquire publish lock: %w", err)
+	}
+	defer func() { _ = lockManager.Release(publishLock) }()
+
+	adapters := target.DefaultRegistry().All()
+	adapter, ok := adapters[targetName]
+	if !ok {
+		return Output{}, fmt.Errorf("no adapter for target: %s", targetName)
+	}
+
+	artifactPath := strings.TrimSpace(opts.ArtifactPath)
+	if artifactPath == "" {
+		artifactPath, err = latestArtifactPath(root.ArtifactDir(targetName))
+		if err != nil {
+			return Output{}, err
+		}
+	}
+
+	artifactSHA, err := fileSHA256(artifactPath)
+	if err != nil {
+		return Output{}, fmt.Errorf("hash artifact: %w", err)
+	}
+
+	run := ledger.NewRun("publish", ledger.Actor{Type: ledger.ActorAgent, Name: "panex-cli"})
+	run.ProjectHash = g.GraphHash
+	run.Artifacts = append(run.Artifacts, artifactPath)
+	_ = run.Transition(ledger.StatusRunning)
+	step := run.AddStep("publisher", "publish_"+targetName)
+
+	record, result := adapter.PublishArtifact(context.Background(), target.PublishOptions{
+		Target:       targetName,
+		ArtifactPath: artifactPath,
+		ArtifactSHA:  artifactSHA,
+		ProfileRef:   strings.TrimSpace(opts.ProfileRef),
+		DryRun:       opts.DryRun,
+	})
+
+	if result.Outcome == target.Success {
+		step.Complete(record)
+		_ = run.Transition(ledger.StatusSucceeded)
+	} else {
+		step.Fail(result.Reason)
+		run.Error = &ledger.RunError{Code: result.ReasonCode, Category: "publish", Message: result.Reason}
+		_ = run.Transition(ledger.StatusFailed)
+	}
+
+	if err := run.WriteToDir(root.RunDir(run.RunID)); err != nil {
+		return Output{}, fmt.Errorf("write run: %w", err)
+	}
+	if state, err := root.ReadState(); err == nil {
+		state.LatestRunID = run.RunID
+		if err := root.WriteState(state); err != nil {
+			return Output{}, fmt.Errorf("write state: %w", err)
+		}
+	}
+
+	out := Output{
+		Command: "publish",
+		RunID:   run.RunID,
+		Data: map[string]any{
+			"target":         targetName,
+			"artifact_path":  artifactPath,
+			"profile_ref":    strings.TrimSpace(opts.ProfileRef),
+			"dry_run":        opts.DryRun,
+			"publish_record": record,
+			"adapter_result": result,
+			"run_id":         run.RunID,
+		},
+	}
+	if result.Outcome != target.Success {
+		out.Status = string(result.Outcome)
+		out.Summary = result.Reason
+		out.Errors = []string{result.Reason}
+		return out, nil
+	}
+
+	out.Status = "ok"
+	if opts.DryRun {
+		out.Summary = fmt.Sprintf("validated publish inputs for %s without uploading", targetName)
+	} else {
+		out.Summary = fmt.Sprintf("published %s artifact", targetName)
+	}
+	return out, nil
 }
 
 // CmdPlan computes proposed changes.
@@ -1008,6 +1147,42 @@ func knownTargets() []string {
 	}
 	sort.Strings(targets)
 	return targets
+}
+
+func latestArtifactPath(dir string) (string, error) {
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return "", fmt.Errorf("read artifacts: %w", err)
+	}
+
+	var latestPath string
+	var latestModTime int64
+	for _, entry := range entries {
+		if entry.IsDir() {
+			continue
+		}
+		info, err := entry.Info()
+		if err != nil {
+			return "", fmt.Errorf("stat artifact %s: %w", entry.Name(), err)
+		}
+		if latestPath == "" || info.ModTime().UnixNano() > latestModTime {
+			latestPath = filepath.Join(dir, entry.Name())
+			latestModTime = info.ModTime().UnixNano()
+		}
+	}
+	if latestPath == "" {
+		return "", fmt.Errorf("no artifacts found in %s", dir)
+	}
+	return latestPath, nil
+}
+
+func fileSHA256(path string) (string, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return "", err
+	}
+	sum := sha256.Sum256(data)
+	return fmt.Sprintf("%x", sum), nil
 }
 
 func isKnownTarget(targetName string) bool {
