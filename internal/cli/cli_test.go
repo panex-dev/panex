@@ -9,7 +9,10 @@ import (
 	"testing"
 
 	"github.com/panex-dev/panex/internal/configloader"
+	"github.com/panex-dev/panex/internal/fsmodel"
 	"github.com/panex-dev/panex/internal/graph"
+	"github.com/panex-dev/panex/internal/ledger"
+	"github.com/panex-dev/panex/internal/plan"
 	"github.com/panex-dev/panex/internal/policy"
 )
 
@@ -396,6 +399,69 @@ func TestCmdResume_NoRun(t *testing.T) {
 	code := captureExitCode(func() int { return CmdResume(dir, "") })
 	if code == ExitSuccess {
 		t.Error("expected failure with no run to resume")
+	}
+}
+
+func TestCmdResume_ReplaysFailedPlanStep(t *testing.T) {
+	dir := t.TempDir()
+	root, err := fsmodel.NewRoot(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := root.Init(); err != nil {
+		t.Fatal(err)
+	}
+
+	manifestPath := filepath.Join(dir, ".panex", "runs", "generated", "manifests", "chrome", "manifest.json")
+	p := &plan.Plan{Actions: plan.ActionList{
+		&plan.GenerateManifestAction{
+			Target: "chrome",
+			Path:   manifestPath,
+			Manifest: map[string]any{
+				"manifest_version": 3,
+				"name":             "Resume Test",
+				"version":          "1.0.0",
+			},
+		},
+	}}
+	if err := plan.WritePlan(p, filepath.Join(dir, ".panex", "current.plan.json")); err != nil {
+		t.Fatal(err)
+	}
+
+	run := ledger.NewRun("apply", ledger.Actor{Type: ledger.ActorAgent, Name: "test"})
+	if err := run.Transition(ledger.StatusRunning); err != nil {
+		t.Fatal(err)
+	}
+	step := run.AddStep("apply", "generate_manifest")
+	step.Fail("interrupted")
+	if err := run.Transition(ledger.StatusFailed); err != nil {
+		t.Fatal(err)
+	}
+	if err := run.WriteToDir(root.RunDir(run.RunID)); err != nil {
+		t.Fatal(err)
+	}
+	state, err := root.ReadState()
+	if err != nil {
+		t.Fatal(err)
+	}
+	state.LatestRunID = run.RunID
+	if err := root.WriteState(state); err != nil {
+		t.Fatal(err)
+	}
+
+	code := captureExitCode(func() int { return CmdResume(dir, "") })
+	if code != ExitSuccess {
+		t.Fatalf("expected resume success, got exit %d", code)
+	}
+	if _, err := os.Stat(manifestPath); err != nil {
+		t.Fatalf("expected manifest replay: %v", err)
+	}
+	resumed, err := ledger.ReadFromDir(root.RunDir(run.RunID))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if resumed.Status != ledger.StatusSucceeded {
+		t.Fatalf("run status=%s, want succeeded", resumed.Status)
 	}
 }
 

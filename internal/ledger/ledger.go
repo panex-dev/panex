@@ -114,6 +114,9 @@ func (r *Run) Transition(to Status) error {
 		return fmt.Errorf("invalid transition: %s -> %s", r.Status, to)
 	}
 	r.Status = to
+	if !isTerminal(to) {
+		r.CompletedAt = ""
+	}
 	if isTerminal(to) {
 		r.CompletedAt = time.Now().UTC().Format(time.RFC3339Nano)
 	}
@@ -192,6 +195,7 @@ func validTransition(from, to Status) bool {
 		StatusPaused:         {StatusRunning, StatusFailed, StatusCancelled, StatusExpired},
 		StatusAwaitingPolicy: {StatusRunning, StatusFailed, StatusCancelled, StatusExpired},
 		StatusRollingBack:    {StatusFailed, StatusSucceeded},
+		StatusFailed:         {StatusRunning, StatusCancelled, StatusExpired},
 	}
 	valid, ok := allowed[from]
 	if !ok {

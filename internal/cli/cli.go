@@ -818,30 +818,51 @@ func CmdResume(projectDir string, runID string) int {
 		return Emit(Output{Status: "error", Command: "resume", Errors: []string{"cannot read run: " + err.Error()}})
 	}
 
-	if !run.Resumable {
+	planPath := filepath.Join(projectDir, ".panex", "current.plan.json")
+	p, err := plan.ReadPlan(planPath)
+	if err != nil {
 		return Emit(Output{
 			Status:  "error",
 			Command: "resume",
-			Errors:  []string{fmt.Sprintf("run %s is not resumable (status: %s)", runID, run.Status)},
+			RunID:   runID,
+			Errors:  []string{"no plan found — run panex plan before resuming"},
+			Next:    []string{"panex plan"},
 		})
 	}
 
-	// Mark as running
-	if err := run.Transition(ledger.StatusRunning); err != nil {
-		return Emit(Output{Status: "error", Command: "resume", Errors: []string{err.Error()}})
+	result := plan.Resume(context.Background(), lock.NewManager(root.StateRoot()), plan.ResumeInput{
+		ProjectDir: projectDir,
+		Run:        run,
+		Plan:       p,
+	})
+	if writeErr := run.WriteToDir(root.RunDir(runID)); writeErr != nil {
+		result.Status = "failed"
+		result.Errors = append(result.Errors, fmt.Sprintf("write run: %v", writeErr))
+	}
+	state, stateErr := root.ReadState()
+	if stateErr == nil {
+		state.LatestRunID = runID
+		if err := root.WriteState(state); err != nil {
+			result.Status = "failed"
+			result.Errors = append(result.Errors, fmt.Sprintf("write state: %v", err))
+		}
 	}
 
-	// For now, just mark as succeeded — full resumption requires replaying failed steps
-	_ = run.Transition(ledger.StatusSucceeded)
-	_ = run.WriteToDir(root.RunDir(runID))
-
-	return Emit(Output{
-		Status:  "ok",
+	out := Output{
+		Status:  result.Status,
 		Command: "resume",
 		RunID:   runID,
-		Summary: fmt.Sprintf("resumed run %s", runID),
-		Data:    run,
-	})
+		Data:    result,
+	}
+	if result.Status == "succeeded" {
+		out.Summary = fmt.Sprintf("resumed run %s with %d replayed steps", runID, len(result.Replayed))
+		out.Next = []string{"panex verify", "panex report --run-id " + runID}
+	} else {
+		out.Summary = fmt.Sprintf("resume failed for run %s", runID)
+		out.Errors = result.Errors
+		out.Next = []string{"panex doctor --fix", "panex report --run-id " + runID}
+	}
+	return Emit(out)
 }
 
 // EmitWithCode writes output and returns a specific exit code.

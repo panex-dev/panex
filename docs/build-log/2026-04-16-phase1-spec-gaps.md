@@ -23,7 +23,7 @@ Phase 1 intentionally deferred several spec features to keep scope manageable. L
 
 | Gap | Spec Reference | Description | Target Phase |
 |---|---|---|---|
-| Resume step replay | §22.4 | Replay failed/incomplete steps on `panex resume` instead of marking the run as succeeded | Phase 2 |
+| — | — | All previously deferred plan/apply replay gaps in this section have been completed. | — |
 
 ### Runtime (spec §23–24)
 

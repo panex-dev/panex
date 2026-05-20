@@ -55,6 +55,7 @@ func TestRun_Transition_Valid(t *testing.T) {
 		{StatusAwaitingPolicy, StatusRunning},
 		{StatusRollingBack, StatusFailed},
 		{StatusRollingBack, StatusSucceeded},
+		{StatusFailed, StatusRunning},
 	}
 	for _, tt := range tests {
 		t.Run(string(tt.from)+"->"+string(tt.to), func(t *testing.T) {
@@ -75,7 +76,6 @@ func TestRun_Transition_Invalid(t *testing.T) {
 		to   Status
 	}{
 		{StatusSucceeded, StatusRunning},
-		{StatusFailed, StatusRunning},
 		{StatusCancelled, StatusRunning},
 		{StatusCreated, StatusSucceeded},
 		{StatusPlanned, StatusSucceeded},
@@ -95,6 +95,22 @@ func TestRun_Transition_SetsCompletedAt(t *testing.T) {
 	_ = r.Transition(StatusSucceeded)
 	if r.CompletedAt == "" {
 		t.Error("terminal transition should set completed_at")
+	}
+}
+
+func TestRun_Transition_ClearsCompletedAtWhenResuming(t *testing.T) {
+	r := &Run{Status: StatusRunning}
+	if err := r.Transition(StatusFailed); err != nil {
+		t.Fatal(err)
+	}
+	if r.CompletedAt == "" {
+		t.Fatal("failed transition should set completed_at")
+	}
+	if err := r.Transition(StatusRunning); err != nil {
+		t.Fatal(err)
+	}
+	if r.CompletedAt != "" {
+		t.Fatalf("completed_at should be cleared when resuming, got %q", r.CompletedAt)
 	}
 }
 
