@@ -17,12 +17,14 @@ The CLI spec requires Panex to be programmatic by default while still offering a
 - Added global parsing for `--interactive` and `--yes`, with `--json` and `--interactive` rejected as mutually exclusive.
 - Made default output mode JSON unless `--interactive` is passed.
 - Updated command tests so human-output assertions opt into `--interactive`, and added coverage for default JSON, mutual exclusion, and `--yes` acceptance.
+- Raised the TypeScript config evaluator timeout from 15s to 30s after Windows CI proved the existing deadline could expire before Node/esbuild startup completed.
 - Removed the deferred CLI flag gap from the spec gap inventory.
 
 ## Risk and Mitigation
 
 - Risk: existing manual workflows may expect human output without flags. Mitigation: human output is still available through `--interactive`, and JSON-by-default matches the documented agent-first CLI contract.
 - Risk: `--yes` could imply prompts exist today. Mitigation: the flag is accepted as a no-op until interactive prompts are introduced, which preserves non-blocking behavior.
+- Risk: increasing the config evaluator timeout could hide a hung evaluator longer. Mitigation: the deadline still bounds execution, and the test-only timeout override keeps timeout-path coverage fast.
 
 ## Verification
 
@@ -31,6 +33,8 @@ The CLI spec requires Panex to be programmatic by default while still offering a
 - `make check`
 - `GOCACHE=/tmp/go-build go test ./cmd/panex -count=1`
 - `GOCACHE=/tmp/go-build make test`
+- `GOCACHE=/tmp/go-build go test ./internal/configloader -run TestLoad_TypeScriptConfig -count=1`
+- `GOCACHE=/tmp/go-build go test ./cmd/panex ./internal/configloader -count=1`
 - `GOCACHE=/tmp/go-build GOLANGCI_LINT_CACHE=/tmp/golangci-lint make lint` (failed in the linked worktree because Go could not obtain VCS status; rerun with VCS stamping disabled)
 - `GOFLAGS=-buildvcs=false GOCACHE=/tmp/go-build GOLANGCI_LINT_CACHE=/tmp/golangci-lint make lint`
 - `GOCACHE=/tmp/go-build make build` (failed in the linked worktree because Go could not obtain VCS status; rerun with VCS stamping disabled)
