@@ -17,7 +17,7 @@ Phase 1 intentionally deferred several spec features to keep scope manageable. L
 
 | Gap | Spec Reference | Description | Target Phase |
 |---|---|---|---|
-| `--interactive` global flag | §34.1 | Enable interactive prompting for confirmation (currently always non-interactive) | Phase 3 |
+| — | — | All previously deferred CLI surface gaps in this section have been completed. | — |
 
 ### Plan/Apply Model (spec §21)
 

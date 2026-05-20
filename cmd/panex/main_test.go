@@ -25,9 +25,9 @@ import (
 func TestRunVersion(t *testing.T) {
 	var out bytes.Buffer
 
-	err := run([]string{"version"}, &out)
+	err := run([]string{"--interactive", "version"}, &out)
 	if err != nil {
-		t.Fatalf("run(version) returned error: %v", err)
+		t.Fatalf("run(--interactive version) returned error: %v", err)
 	}
 
 	const want = "panex dev\n"
@@ -39,9 +39,9 @@ func TestRunVersion(t *testing.T) {
 func TestRunVersionJSON(t *testing.T) {
 	var out bytes.Buffer
 
-	err := run([]string{"--json", "version"}, &out)
+	err := run([]string{"version"}, &out)
 	if err != nil {
-		t.Fatalf("run(--json version) returned error: %v", err)
+		t.Fatalf("run(version) returned error: %v", err)
 	}
 
 	parsed := parseJSONOutput(t, out.String())
@@ -62,9 +62,9 @@ func TestRunHelpAliases(t *testing.T) {
 		name string
 		args []string
 	}{
-		{name: "help command", args: []string{"help"}},
-		{name: "short help flag", args: []string{"-h"}},
-		{name: "long help flag", args: []string{"--help"}},
+		{name: "help command", args: []string{"--interactive", "help"}},
+		{name: "short help flag", args: []string{"--interactive", "-h"}},
+		{name: "long help flag", args: []string{"--interactive", "--help"}},
 	}
 
 	for _, tc := range testCases {
@@ -101,15 +101,43 @@ func TestRunHelpJSON(t *testing.T) {
 	}
 }
 
+func TestRunInteractiveAndJSONAreMutuallyExclusive(t *testing.T) {
+	var out bytes.Buffer
+
+	err := run([]string{"--json", "--interactive", "version"}, &out)
+	cliErr := requireCLIError(t, err)
+	if cliErr.code != 2 {
+		t.Fatalf("unexpected error code: got %d, want 2", cliErr.code)
+	}
+	parsed := parseJSONOutput(t, out.String())
+	errorsValue := parsed["errors"].([]any)
+	if len(errorsValue) != 1 || !strings.Contains(errorsValue[0].(string), "mutually exclusive") {
+		t.Fatalf("errors: got %v", errorsValue)
+	}
+}
+
+func TestRunYesGlobalFlagIsAccepted(t *testing.T) {
+	var out bytes.Buffer
+
+	err := run([]string{"--yes", "version"}, &out)
+	if err != nil {
+		t.Fatalf("run(--yes version) returned error: %v", err)
+	}
+	parsed := parseJSONOutput(t, out.String())
+	if parsed["command"] != "version" {
+		t.Fatalf("command: got %v", parsed["command"])
+	}
+}
+
 func TestRunInitScaffoldsStarterProject(t *testing.T) {
 	tempDir := t.TempDir()
 	var out bytes.Buffer
 
 	err := withWorkingDir(tempDir, func() error {
-		return run([]string{"init"}, &out)
+		return run([]string{"--interactive", "init"}, &out)
 	})
 	if err != nil {
-		t.Fatalf("run(init) returned error: %v", err)
+		t.Fatalf("run(--interactive init) returned error: %v", err)
 	}
 
 	if !strings.Contains(out.String(), "panex init\n") {
@@ -185,7 +213,7 @@ auth_token = "token-123"
 
 	var out bytes.Buffer
 	err := withWorkingDir(tempDir, func() error {
-		return run([]string{"init"}, &out)
+		return run([]string{"--interactive", "init"}, &out)
 	})
 	cliErr := requireCLIError(t, err)
 
@@ -211,7 +239,7 @@ func TestRunInitForceOverwritesScaffoldFiles(t *testing.T) {
 
 	var out bytes.Buffer
 	err := withWorkingDir(tempDir, func() error {
-		return run([]string{"init", "--force"}, &out)
+		return run([]string{"--interactive", "init", "--force"}, &out)
 	})
 	if err != nil {
 		t.Fatalf("run(init --force) returned error: %v", err)
@@ -239,12 +267,12 @@ func TestRunInitThenDevUsesScaffoldedConfig(t *testing.T) {
 
 	err := withWorkingDir(tempDir, func() error {
 		var initOut bytes.Buffer
-		if err := run([]string{"init"}, &initOut); err != nil {
+		if err := run([]string{"--interactive", "init"}, &initOut); err != nil {
 			return err
 		}
 
 		var devOut bytes.Buffer
-		if err := run([]string{"dev"}, &devOut); err != nil {
+		if err := run([]string{"--interactive", "dev"}, &devOut); err != nil {
 			return err
 		}
 		if devOut.String() != "dev started\n" {
@@ -270,7 +298,7 @@ func TestRunInitThenDevUsesScaffoldedConfig(t *testing.T) {
 func TestRunNoArgsReturnsUsageError(t *testing.T) {
 	var out bytes.Buffer
 
-	err := run(nil, &out)
+	err := run([]string{"--interactive"}, &out)
 	cliErr := requireCLIError(t, err)
 
 	if cliErr.code != 2 {
@@ -309,7 +337,7 @@ func TestRunNoArgsJSONReturnsUsageError(t *testing.T) {
 func TestRunUnknownCommandReturnsUsageError(t *testing.T) {
 	var out bytes.Buffer
 
-	err := run([]string{"nope"}, &out)
+	err := run([]string{"--interactive", "nope"}, &out)
 	cliErr := requireCLIError(t, err)
 
 	if cliErr.code != 2 {
@@ -365,7 +393,7 @@ auth_token = "token-123"
 	withStubbedReadProcVersion(t, nil)
 
 	err := withWorkingDir(tempDir, func() error {
-		return run([]string{"dev"}, &out)
+		return run([]string{"--interactive", "dev"}, &out)
 	})
 	if err != nil {
 		t.Fatalf("run(dev) returned error: %v", err)
@@ -452,7 +480,7 @@ auth_token = "custom-token"
 	})
 	withStubbedReadProcVersion(t, nil)
 
-	err := run([]string{"dev", "--config", configPath}, &out)
+	err := run([]string{"--interactive", "dev", "--config", configPath}, &out)
 	if err != nil {
 		t.Fatalf("run(dev --config) returned error: %v", err)
 	}
@@ -506,7 +534,7 @@ auth_token = "config-token"
 	})
 
 	err := withWorkingDir(tempDir, func() error {
-		return run([]string{"dev"}, &out)
+		return run([]string{"--interactive", "dev"}, &out)
 	})
 	if err != nil {
 		t.Fatalf("run(dev) returned error: %v", err)
@@ -538,7 +566,7 @@ auth_token = "config-token"
 
 	var out bytes.Buffer
 	err := withWorkingDir(tempDir, func() error {
-		return run([]string{"dev"}, &out)
+		return run([]string{"--interactive", "dev"}, &out)
 	})
 	cliErr := requireCLIError(t, err)
 
@@ -553,7 +581,7 @@ auth_token = "config-token"
 func TestRunDevUnexpectedPositionalArg(t *testing.T) {
 	var out bytes.Buffer
 
-	err := run([]string{"dev", "extra"}, &out)
+	err := run([]string{"--interactive", "dev", "extra"}, &out)
 	cliErr := requireCLIError(t, err)
 
 	if cliErr.code != 2 {
@@ -567,7 +595,7 @@ func TestRunDevUnexpectedPositionalArg(t *testing.T) {
 func TestRunDevInvalidFlag(t *testing.T) {
 	var out bytes.Buffer
 
-	err := run([]string{"dev", "--bad-flag"}, &out)
+	err := run([]string{"--interactive", "dev", "--bad-flag"}, &out)
 	cliErr := requireCLIError(t, err)
 
 	if cliErr.code != 2 {
@@ -581,7 +609,7 @@ func TestRunDevInvalidFlag(t *testing.T) {
 func TestRunDevMissingConfig(t *testing.T) {
 	var out bytes.Buffer
 
-	err := run([]string{"dev", "--config", filepath.Join(t.TempDir(), "missing.toml")}, &out)
+	err := run([]string{"--interactive", "dev", "--config", filepath.Join(t.TempDir(), "missing.toml")}, &out)
 	cliErr := requireCLIError(t, err)
 
 	if cliErr.code != 2 {
@@ -614,7 +642,7 @@ func TestRunDevInfersConfigFromManifestJSON(t *testing.T) {
 	})
 
 	err := withWorkingDir(tempDir, func() error {
-		return run([]string{"dev"}, &out)
+		return run([]string{"--interactive", "dev"}, &out)
 	})
 	if err != nil {
 		t.Fatalf("run(dev) returned error: %v", err)
@@ -662,7 +690,7 @@ func TestRunDevInferredConfigRespectsEnvAuthTokenOverride(t *testing.T) {
 	})
 
 	err := withWorkingDir(tempDir, func() error {
-		return run([]string{"dev"}, &out)
+		return run([]string{"--interactive", "dev"}, &out)
 	})
 	if err != nil {
 		t.Fatalf("run(dev) returned error: %v", err)
@@ -678,7 +706,7 @@ func TestRunDevMissingDefaultConfigSuggestsInit(t *testing.T) {
 	var out bytes.Buffer
 
 	err := withWorkingDir(tempDir, func() error {
-		return run([]string{"dev"}, &out)
+		return run([]string{"--interactive", "dev"}, &out)
 	})
 	cliErr := requireCLIError(t, err)
 
@@ -698,7 +726,7 @@ func TestRunInitWithGlobalCWDScaffoldsTargetProject(t *testing.T) {
 	var out bytes.Buffer
 
 	err := withWorkingDir(t.TempDir(), func() error {
-		return run([]string{"--cwd", targetDir, "init"}, &out)
+		return run([]string{"--interactive", "--cwd", targetDir, "init"}, &out)
 	})
 	if err != nil {
 		t.Fatalf("run(--cwd init) returned error: %v", err)
@@ -715,7 +743,7 @@ func TestRunInitWithGlobalCWDScaffoldsTargetProject(t *testing.T) {
 func TestRunAddTargetRequiresArgument(t *testing.T) {
 	var out bytes.Buffer
 
-	err := run([]string{"add-target"}, &out)
+	err := run([]string{"--interactive", "add-target"}, &out)
 	cliErr := requireCLIError(t, err)
 
 	if cliErr.code != 2 {
@@ -748,7 +776,7 @@ auth_token = "token-123"
 	withStubbedReadProcVersion(t, nil)
 
 	err := withWorkingDir(t.TempDir(), func() error {
-		return run([]string{"--cwd", projectRoot, "dev"}, &out)
+		return run([]string{"--interactive", "--cwd", projectRoot, "dev"}, &out)
 	})
 	if err != nil {
 		t.Fatalf("run(--cwd dev) returned error: %v", err)
@@ -779,7 +807,7 @@ auth_token = "test-token"
 
 	var out bytes.Buffer
 	err := withWorkingDir(t.TempDir(), func() error {
-		return run([]string{"--cwd", projectRoot, "paths"}, &out)
+		return run([]string{"--interactive", "--cwd", projectRoot, "paths"}, &out)
 	})
 	if err != nil {
 		t.Fatalf("run(--cwd paths) returned error: %v", err)
@@ -796,7 +824,7 @@ auth_token = "test-token"
 func TestRunInvalidGlobalFlag(t *testing.T) {
 	var out bytes.Buffer
 
-	err := run([]string{"--bad-flag"}, &out)
+	err := run([]string{"--interactive", "--bad-flag"}, &out)
 	cliErr := requireCLIError(t, err)
 
 	if cliErr.code != 2 {
@@ -839,7 +867,7 @@ func TestRunInvalidApplyFlagJSON(t *testing.T) {
 func TestRunInvalidGlobalCWD(t *testing.T) {
 	var out bytes.Buffer
 
-	err := run([]string{"--cwd", filepath.Join(t.TempDir(), "missing"), "paths"}, &out)
+	err := run([]string{"--interactive", "--cwd", filepath.Join(t.TempDir(), "missing"), "paths"}, &out)
 	cliErr := requireCLIError(t, err)
 
 	if cliErr.code != 2 {
@@ -874,7 +902,7 @@ auth_token = "tok"
 	withStubbedReadProcVersion(t, []byte("Linux version 5.15.133.1-microsoft-standard-WSL2"))
 
 	err := withWorkingDir(tempDir, func() error {
-		return run([]string{"dev"}, &out)
+		return run([]string{"--interactive", "dev"}, &out)
 	})
 	if err != nil {
 		t.Fatalf("run(dev) returned error: %v", err)
@@ -912,7 +940,7 @@ auth_token = "tok"
 	withStubbedReadProcVersion(t, []byte("Linux version 5.15.133.1-microsoft-standard-WSL2"))
 
 	err := withWorkingDir(tempDir, func() error {
-		return run([]string{"dev"}, &out)
+		return run([]string{"--interactive", "dev"}, &out)
 	})
 	if err != nil {
 		t.Fatalf("run(dev) returned error: %v", err)
@@ -943,7 +971,7 @@ auth_token = "tok"
 	withStubbedReadProcVersion(t, []byte("Linux version 6.1.0-generic"))
 
 	err := withWorkingDir(tempDir, func() error {
-		return run([]string{"dev"}, &out)
+		return run([]string{"--interactive", "dev"}, &out)
 	})
 	if err != nil {
 		t.Fatalf("run(dev) returned error: %v", err)
@@ -955,7 +983,7 @@ auth_token = "tok"
 }
 
 func TestRunWriteFailurePropagates(t *testing.T) {
-	err := run([]string{"version"}, failingWriter{})
+	err := run([]string{"--interactive", "version"}, failingWriter{})
 	if err == nil {
 		t.Fatal("expected write failure error, got nil")
 	}
