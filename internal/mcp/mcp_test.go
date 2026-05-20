@@ -10,6 +10,7 @@ import (
 
 	"github.com/panex-dev/panex/internal/fsmodel"
 	"github.com/panex-dev/panex/internal/graph"
+	"github.com/panex-dev/panex/internal/ledger"
 )
 
 func TestInitialize(t *testing.T) {
@@ -64,7 +65,7 @@ func TestToolsList(t *testing.T) {
 		names[tool.Name] = true
 	}
 	required := []string{"inspect_project", "initialize_project", "add_target", "plan_changes",
-		"apply_changes", "verify_project", "doctor_project", "package_release"}
+		"apply_changes", "verify_project", "doctor_project", "package_release", "query_run_history"}
 	for _, r := range required {
 		if !names[r] {
 			t.Errorf("missing required tool: %s", r)
@@ -376,6 +377,127 @@ func TestToolResume_NoRun(t *testing.T) {
 	}
 }
 
+func TestToolQueryRunHistory_NoRuns(t *testing.T) {
+	dir := t.TempDir()
+	root, err := fsmodel.NewRoot(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := root.Init(); err != nil {
+		t.Fatal(err)
+	}
+
+	srv := NewServerWithIO(dir, nil, nil)
+	params, _ := json.Marshal(map[string]any{"name": "query_run_history", "arguments": map[string]any{}})
+	resp := srv.HandleSingleRequest(context.Background(), Request{
+		JSONRPC: "2.0",
+		ID:      141,
+		Method:  "tools/call",
+		Params:  params,
+	})
+
+	var out struct {
+		Runs  []runHistoryItem `json:"runs"`
+		Total int              `json:"total"`
+		Limit int              `json:"limit"`
+	}
+	decodeToolResult(t, resp, &out)
+	if out.Total != 0 || len(out.Runs) != 0 {
+		t.Fatalf("expected empty history, got total=%d runs=%d", out.Total, len(out.Runs))
+	}
+	if out.Limit != 20 {
+		t.Fatalf("limit: got %d, want 20", out.Limit)
+	}
+}
+
+func TestToolQueryRunHistory_PaginatesAndFilters(t *testing.T) {
+	dir := t.TempDir()
+	root, err := fsmodel.NewRoot(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := root.Init(); err != nil {
+		t.Fatal(err)
+	}
+
+	writeRunHistoryTestRun(t, root, ledger.Run{
+		RunID:       "run_20260520T090000Z_apply_old",
+		Operation:   "apply",
+		Status:      ledger.StatusSucceeded,
+		StartedAt:   "2026-05-20T09:00:00Z",
+		CompletedAt: "2026-05-20T09:00:05Z",
+		Actor:       ledger.Actor{Type: ledger.ActorAgent, Name: "codex"},
+		Steps:       []ledger.Step{{Seq: 1, Component: "manifest", Action: "write", Status: ledger.StatusSucceeded}},
+		Artifacts:   []string{"manifest.json"},
+		Reports:     []string{"report.json"},
+		Resumable:   false,
+	})
+	writeRunHistoryTestRun(t, root, ledger.Run{
+		RunID:       "run_20260520T100000Z_package",
+		Operation:   "package",
+		Status:      ledger.StatusFailed,
+		StartedAt:   "2026-05-20T10:00:00Z",
+		CompletedAt: "2026-05-20T10:00:07Z",
+		Actor:       ledger.Actor{Type: ledger.ActorAgent, Name: "codex"},
+		Resumable:   true,
+		Error:       &ledger.RunError{Code: "package_failed", Category: "adapter", Message: "packager failed"},
+	})
+	writeRunHistoryTestRun(t, root, ledger.Run{
+		RunID:       "run_20260520T110000Z_apply_new",
+		Operation:   "apply",
+		Status:      ledger.StatusFailed,
+		StartedAt:   "2026-05-20T11:00:00Z",
+		CompletedAt: "2026-05-20T11:00:03Z",
+		Actor:       ledger.Actor{Type: ledger.ActorAgent, Name: "codex"},
+		Steps:       []ledger.Step{{Seq: 1, Component: "manifest", Action: "write", Status: ledger.StatusFailed}},
+		Resumable:   true,
+		Error:       &ledger.RunError{Code: "apply_failed", Category: "filesystem", Message: "write failed"},
+	})
+
+	srv := NewServerWithIO(dir, nil, nil)
+	params, _ := json.Marshal(map[string]any{
+		"name": "query_run_history",
+		"arguments": map[string]any{
+			"operation": "apply",
+			"limit":     1,
+		},
+	})
+	resp := srv.HandleSingleRequest(context.Background(), Request{
+		JSONRPC: "2.0",
+		ID:      142,
+		Method:  "tools/call",
+		Params:  params,
+	})
+
+	var out struct {
+		Runs       []runHistoryItem  `json:"runs"`
+		Total      int               `json:"total"`
+		Limit      int               `json:"limit"`
+		NextOffset *int              `json:"next_offset,omitempty"`
+		Filters    map[string]string `json:"filters,omitempty"`
+	}
+	decodeToolResult(t, resp, &out)
+	if out.Total != 2 {
+		t.Fatalf("total: got %d, want 2", out.Total)
+	}
+	if out.Limit != 1 || len(out.Runs) != 1 {
+		t.Fatalf("page: limit=%d runs=%d, want limit 1 and one run", out.Limit, len(out.Runs))
+	}
+	if out.NextOffset == nil || *out.NextOffset != 1 {
+		t.Fatalf("next_offset: got %v, want 1", out.NextOffset)
+	}
+	if out.Filters["operation"] != "apply" {
+		t.Fatalf("operation filter: got %q", out.Filters["operation"])
+	}
+	got := out.Runs[0]
+	if got.RunID != "run_20260520T110000Z_apply_new" {
+		t.Fatalf("first run: got %s, want newest apply run", got.RunID)
+	}
+	if got.Status != ledger.StatusFailed || got.Steps != 1 || got.Error == nil {
+		t.Fatalf("summary fields: got status=%s steps=%d error=%v", got.Status, got.Steps, got.Error)
+	}
+}
+
 func TestToolStartDevSession(t *testing.T) {
 	dir := t.TempDir()
 	setupProject(t, dir)
@@ -450,5 +572,31 @@ func setupProject(t *testing.T, dir string) {
 	}
 	if err := graph.WriteToFile(g, root.ProjectGraphPath()); err != nil {
 		t.Fatal(err)
+	}
+}
+
+func decodeToolResult(t *testing.T, resp Response, out any) {
+	t.Helper()
+	if resp.Error != nil {
+		t.Fatalf("response error: %v", resp.Error)
+	}
+	result, ok := resp.Result.(map[string]any)
+	if !ok {
+		t.Fatalf("expected map result, got %T", resp.Result)
+	}
+	if result["isError"] != nil {
+		t.Fatalf("tool returned error: %v", result)
+	}
+	content := result["content"].([]map[string]any)
+	text := content[0]["text"].(string)
+	if err := json.Unmarshal([]byte(text), out); err != nil {
+		t.Fatalf("unmarshal tool result: %v\n%s", err, text)
+	}
+}
+
+func writeRunHistoryTestRun(t *testing.T, root *fsmodel.Root, run ledger.Run) {
+	t.Helper()
+	if err := run.WriteToDir(root.RunDir(run.RunID)); err != nil {
+		t.Fatalf("write run %s: %v", run.RunID, err)
 	}
 }
