@@ -24,6 +24,7 @@ import (
 	"github.com/panex-dev/panex/internal/manifest"
 	"github.com/panex-dev/panex/internal/plan"
 	"github.com/panex-dev/panex/internal/policy"
+	"github.com/panex-dev/panex/internal/releasedesc"
 	"github.com/panex-dev/panex/internal/session"
 	"github.com/panex-dev/panex/internal/target"
 	"github.com/panex-dev/panex/internal/verify"
@@ -397,44 +398,84 @@ func CmdPackage(projectDir string, opts PackageOptions) int {
 	runDir := root.RunDir(run.RunID)
 
 	adapters := target.DefaultRegistry().All()
+	matrix := resolveCapabilities(g, adapters)
+	manifestResult := manifest.Compile(manifest.CompileInput{
+		Graph: g, Matrix: matrix, Adapters: adapters, Version: opts.Version,
+	})
+	verifyResult := verify.Verify(verify.Input{Graph: g, Matrix: matrix})
 
 	var artifacts []target.ArtifactRecord
 	var errors []string
+	for _, err := range matrix.Errors {
+		errors = append(errors, "capability: "+err)
+	}
+	for _, err := range manifestResult.Errors {
+		errors = append(errors, "manifest: "+err)
+	}
 
-	for _, tgt := range g.TargetsResolved {
-		adapter, ok := adapters[tgt]
-		if !ok {
-			errors = append(errors, "no adapter for target: "+tgt)
-			continue
+	if len(errors) == 0 {
+		for _, tgt := range g.TargetsResolved {
+			adapter, ok := adapters[tgt]
+			if !ok {
+				errors = append(errors, "no adapter for target: "+tgt)
+				continue
+			}
+
+			step := run.AddStep("packager", "package_"+tgt)
+
+			sourceDir := opts.SourceDir
+			if sourceDir == "" {
+				sourceDir = projectDir
+			}
+
+			version := opts.Version
+			if version == "" {
+				version = g.Project.Version
+			}
+
+			record, result := adapter.PackageArtifact(context.Background(), target.PackageOptions{
+				SourceDir:    sourceDir,
+				OutputDir:    root.ArtifactDir(tgt),
+				ArtifactName: g.Project.Name,
+				Version:      version,
+			})
+
+			if result.Outcome != target.Success {
+				step.Fail(result.Reason)
+				errors = append(errors, fmt.Sprintf("%s: %s", tgt, result.Reason))
+				continue
+			}
+
+			step.Complete(record)
+			artifacts = append(artifacts, record)
+			run.Artifacts = append(run.Artifacts, record.FilePath)
 		}
+	}
 
-		step := run.AddStep("packager", "package_"+tgt)
-
-		sourceDir := opts.SourceDir
-		if sourceDir == "" {
-			sourceDir = projectDir
-		}
-
-		version := opts.Version
-		if version == "" {
-			version = g.Project.Version
-		}
-
-		record, result := adapter.PackageArtifact(context.Background(), target.PackageOptions{
-			SourceDir:    sourceDir,
-			OutputDir:    root.ArtifactDir(tgt),
-			ArtifactName: g.Project.Name,
-			Version:      version,
+	var releaseDescriptor releasedesc.Descriptor
+	var releaseDescriptorPath string
+	if len(errors) == 0 {
+		releaseDescriptorPath = filepath.Join(runDir, "release.json")
+		var err error
+		releaseDescriptor, err = releasedesc.Build(releasedesc.BuildInput{
+			Graph:              g,
+			Version:            opts.Version,
+			RunID:              run.RunID,
+			Matrix:             matrix,
+			ManifestResult:     manifestResult,
+			Artifacts:          artifacts,
+			VerificationResult: verifyResult,
 		})
-
-		if result.Outcome != target.Success {
-			step.Fail(result.Reason)
-			errors = append(errors, fmt.Sprintf("%s: %s", tgt, result.Reason))
-			continue
+		if err != nil {
+			errors = append(errors, fmt.Sprintf("release descriptor: %v", err))
+		} else if err := releasedesc.WriteFile(releaseDescriptorPath, releaseDescriptor); err != nil {
+			errors = append(errors, fmt.Sprintf("write release descriptor: %v", err))
+		} else {
+			run.Reports = append(run.Reports, releaseDescriptorPath)
 		}
-
-		step.Complete(record)
-		artifacts = append(artifacts, record)
+		if err := writeRunJSONFile(filepath.Join(runDir, "artifacts.json"), artifacts); err != nil {
+			errors = append(errors, fmt.Sprintf("write artifacts: %v", err))
+		}
 	}
 
 	if len(errors) > 0 {
@@ -464,8 +505,10 @@ func CmdPackage(projectDir string, opts PackageOptions) int {
 		Command: "package",
 		RunID:   run.RunID,
 		Data: map[string]any{
-			"artifacts": artifacts,
-			"run_id":    run.RunID,
+			"artifacts":               artifacts,
+			"release_descriptor":      releaseDescriptor,
+			"release_descriptor_path": releaseDescriptorPath,
+			"run_id":                  run.RunID,
 		},
 	}
 
@@ -1128,4 +1171,23 @@ func writeJSONFile(path string, v any) {
 	tmp := path + ".tmp"
 	_ = os.WriteFile(tmp, data, 0o644)
 	_ = os.Rename(tmp, path)
+}
+
+func writeRunJSONFile(path string, v any) error {
+	data, err := json.MarshalIndent(v, "", "  ")
+	if err != nil {
+		return fmt.Errorf("marshal %s: %w", filepath.Base(path), err)
+	}
+	data = append(data, '\n')
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		return fmt.Errorf("create %s dir: %w", filepath.Base(path), err)
+	}
+	tmp := path + ".tmp"
+	if err := os.WriteFile(tmp, data, 0o644); err != nil {
+		return fmt.Errorf("write %s: %w", filepath.Base(path), err)
+	}
+	if err := os.Rename(tmp, path); err != nil {
+		return fmt.Errorf("replace %s: %w", filepath.Base(path), err)
+	}
+	return nil
 }
