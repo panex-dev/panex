@@ -197,7 +197,7 @@ func TestCompile_HostPermissionsPerTarget(t *testing.T) {
 	result := Compile(CompileInput{
 		Graph:    g,
 		Matrix:   matrix,
-		Adapters: map[string]target.Adapter{"chrome": target.NewChrome(), "firefox": target.NewChrome()},
+		Adapters: map[string]target.Adapter{"chrome": target.NewChrome(), "firefox": target.NewFirefox()},
 	})
 
 	if len(result.Errors) > 0 {
@@ -217,6 +217,54 @@ func TestCompile_HostPermissionsPerTarget(t *testing.T) {
 	}
 	if got := outputs["firefox"].HostPermissions; len(got) != 1 || got[0] != "https://addons.mozilla.org/*" {
 		t.Fatalf("firefox host permissions: got %v", got)
+	}
+}
+
+func TestCompile_FirefoxManifest(t *testing.T) {
+	g := &graph.Graph{
+		Project:         graph.ProjectIdentity{Name: "firefox-ext", Version: "1.2.3"},
+		TargetsResolved: []string{"firefox"},
+		Entries: map[string]graph.Entry{
+			"background": {Path: "background.js", Type: "service-worker"},
+			"sidebar":    {Path: "sidebar.html", Type: "html-page"},
+		},
+	}
+	matrix := &capability.TargetMatrix{
+		Resolutions: []capability.Resolution{
+			{Capability: "tabs", Target: "firefox", State: "native", Permissions: []string{"tabs"}},
+			{Capability: "storage", Target: "firefox", State: "native", Permissions: []string{"storage"}},
+		},
+		HostPermsByTarget: map[string][]string{
+			"firefox": {"https://addons.mozilla.org/*"},
+		},
+	}
+
+	result := Compile(CompileInput{
+		Graph:    g,
+		Matrix:   matrix,
+		Adapters: map[string]target.Adapter{"firefox": target.NewFirefox()},
+	})
+
+	if len(result.Errors) > 0 {
+		t.Fatalf("errors: %v", result.Errors)
+	}
+	if len(result.Outputs) != 1 {
+		t.Fatalf("expected 1 output, got %d", len(result.Outputs))
+	}
+
+	m := result.Outputs[0].Manifest
+	if m["manifest_version"] != 2 {
+		t.Fatalf("manifest_version: got %v", m["manifest_version"])
+	}
+	if m["sidebar_action"] == nil {
+		t.Fatal("expected sidebar_action in Firefox manifest")
+	}
+	perms, ok := m["permissions"].([]string)
+	if !ok {
+		t.Fatalf("permissions: got %v", m["permissions"])
+	}
+	if len(perms) != 3 || perms[2] != "https://addons.mozilla.org/*" {
+		t.Fatalf("Firefox MV2 permissions should include target host permissions: got %v", perms)
 	}
 }
 

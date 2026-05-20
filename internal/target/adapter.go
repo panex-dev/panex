@@ -158,9 +158,10 @@ func (r *Registry) All() map[string]Adapter {
 	return out
 }
 
-// DefaultRegistry returns a registry pre-populated with the Chrome adapter.
+// DefaultRegistry returns a registry pre-populated with supported target adapters.
 func DefaultRegistry() *Registry {
 	r := NewRegistry()
 	r.Register(NewChrome())
+	r.Register(NewFirefox())
 	return r
 }
