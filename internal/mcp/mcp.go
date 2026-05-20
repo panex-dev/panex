@@ -289,6 +289,20 @@ func (s *Server) toolDefinitions() []Tool {
 			},
 			"required": []string{"target"},
 		}},
+		{Name: "configure_project", Description: "Modify JSON-authored Panex project config and refresh the graph", InputSchema: map[string]any{
+			"type": "object",
+			"properties": map[string]any{
+				"project":       map[string]any{"type": "object", "description": "Project identity fields"},
+				"entries":       map[string]any{"type": "object", "description": "Entry declarations keyed by name"},
+				"targets":       map[string]any{"type": "object", "description": "Target declarations keyed by target name"},
+				"capabilities":  map[string]any{"type": "object", "description": "Capability declarations"},
+				"runtime":       map[string]any{"type": "object", "description": "Runtime configuration"},
+				"packaging":     map[string]any{"type": "object", "description": "Packaging configuration"},
+				"compatibility": map[string]any{"type": "object", "description": "Compatibility metadata"},
+				"features":      map[string]any{"type": "object", "description": "Feature metadata"},
+				"publish":       map[string]any{"type": "object", "description": "Publish configuration"},
+			},
+		}},
 		{Name: "plan_changes", Description: "Compute proposed changes for the project", InputSchema: obj},
 		{Name: "apply_changes", Description: "Apply a computed plan", InputSchema: map[string]any{
 			"type": "object",
@@ -348,6 +362,8 @@ func (s *Server) executeTool(ctx context.Context, name string, args map[string]a
 		return s.toolInit(ctx, args)
 	case "add_target":
 		return s.toolAddTarget(args)
+	case "configure_project":
+		return s.toolConfigureProject(args)
 	case "verify_project":
 		return s.toolVerify(ctx)
 	case "doctor_project":
@@ -437,6 +453,20 @@ func (s *Server) toolAddTarget(args map[string]any) (any, error) {
 		return nil, fmt.Errorf("target is required")
 	}
 	return cli.AddTarget(s.projectDir, targetName)
+}
+
+func (s *Server) toolConfigureProject(args map[string]any) (any, error) {
+	data, err := json.Marshal(args)
+	if err != nil {
+		return nil, fmt.Errorf("marshal config patch: %w", err)
+	}
+
+	var input cli.ConfigureProjectInput
+	if err := json.Unmarshal(data, &input); err != nil {
+		return nil, fmt.Errorf("parse config patch: %w", err)
+	}
+
+	return cli.ConfigureProject(s.projectDir, input)
 }
 
 func (s *Server) toolVerify(_ context.Context) (any, error) {

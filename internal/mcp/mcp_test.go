@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/panex-dev/panex/internal/configloader"
 	"github.com/panex-dev/panex/internal/fsmodel"
 	"github.com/panex-dev/panex/internal/graph"
 )
@@ -64,7 +65,7 @@ func TestToolsList(t *testing.T) {
 		names[tool.Name] = true
 	}
 	required := []string{"inspect_project", "initialize_project", "add_target", "plan_changes",
-		"apply_changes", "verify_project", "doctor_project", "package_release"}
+		"apply_changes", "verify_project", "doctor_project", "package_release", "configure_project"}
 	for _, r := range required {
 		if !names[r] {
 			t.Errorf("missing required tool: %s", r)
@@ -172,6 +173,135 @@ func TestToolAddTarget(t *testing.T) {
 	}
 	if len(g.TargetsResolved) != 1 || g.TargetsResolved[0] != "chrome" {
 		t.Fatalf("targets resolved: got %v", g.TargetsResolved)
+	}
+}
+
+func TestToolConfigureProject_UpdatesJSONConfigAndGraph(t *testing.T) {
+	dir := t.TempDir()
+	setupProject(t, dir)
+	srv := NewServerWithIO(dir, nil, nil)
+
+	params, _ := json.Marshal(map[string]any{
+		"name": "configure_project",
+		"arguments": map[string]any{
+			"project": map[string]any{
+				"name":         "configured-ext",
+				"id":           "configured-ext",
+				"display_name": "Configured Extension",
+			},
+			"entries": map[string]any{
+				"popup": map[string]any{
+					"path":        "popup.html",
+					"module_type": "esm",
+					"targets":     []string{"chrome"},
+				},
+			},
+			"targets": map[string]any{
+				"chrome":  map[string]any{"enabled": false},
+				"firefox": map[string]any{"enabled": true},
+			},
+			"capabilities": map[string]any{
+				"storage": true,
+			},
+			"runtime": map[string]any{
+				"profile_reuse": false,
+				"trace_enabled": true,
+			},
+			"packaging": map[string]any{
+				"artifact_name": "configured-ext",
+				"version":       "1.2.3",
+			},
+		},
+	})
+	resp := srv.HandleSingleRequest(context.Background(), Request{
+		JSONRPC: "2.0",
+		ID:      52,
+		Method:  "tools/call",
+		Params:  params,
+	})
+
+	var out struct {
+		Status  string         `json:"status"`
+		Command string         `json:"command"`
+		Data    map[string]any `json:"data"`
+	}
+	decodeToolResult(t, resp, &out)
+	if out.Status != "ok" || out.Command != "configure-project" {
+		t.Fatalf("output: status=%q command=%q", out.Status, out.Command)
+	}
+	if bootstrapped, _ := out.Data["config_bootstrapped"].(bool); !bootstrapped {
+		t.Fatalf("expected config to be bootstrapped from graph, got data %v", out.Data)
+	}
+
+	loaded, err := configloader.Load(dir)
+	if err != nil {
+		t.Fatalf("load config: %v", err)
+	}
+	if loaded == nil || loaded.Config == nil {
+		t.Fatal("expected config to be written")
+	}
+	cfg := loaded.Config
+	if cfg.Project.Name != "configured-ext" || cfg.Project.DisplayName != "Configured Extension" {
+		t.Fatalf("project config: got %+v", cfg.Project)
+	}
+	if cfg.Entries["popup"].Path != "popup.html" || cfg.Entries["popup"].ModuleType != "esm" {
+		t.Fatalf("popup entry: got %+v", cfg.Entries["popup"])
+	}
+	if cfg.Targets["chrome"].Enabled {
+		t.Fatalf("expected chrome target to be disabled: %+v", cfg.Targets["chrome"])
+	}
+	if !cfg.Targets["firefox"].Enabled {
+		t.Fatalf("expected firefox target to be enabled: %+v", cfg.Targets["firefox"])
+	}
+	if cfg.Capabilities["storage"] != true || !cfg.Runtime.TraceEnabled || cfg.Runtime.ProfileReuse {
+		t.Fatalf("capabilities/runtime not updated: capabilities=%v runtime=%+v", cfg.Capabilities, cfg.Runtime)
+	}
+
+	g, err := graph.ReadFromFile(filepath.Join(dir, ".panex", "project.graph.json"))
+	if err != nil {
+		t.Fatalf("read graph: %v", err)
+	}
+	if g.Project.Name != "configured-ext" {
+		t.Fatalf("graph project name: got %q", g.Project.Name)
+	}
+	if _, ok := g.Entries["popup"]; !ok {
+		t.Fatalf("expected popup entry in graph: %+v", g.Entries)
+	}
+	if len(g.TargetsRequested) != 1 || g.TargetsRequested[0] != "firefox" {
+		t.Fatalf("expected graph to request firefox only, got %v", g.TargetsRequested)
+	}
+	if len(g.TargetsResolved) != 0 {
+		t.Fatalf("expected firefox to remain unresolved without an adapter, got %v", g.TargetsResolved)
+	}
+}
+
+func TestToolConfigureProject_RejectsTypeScriptConfig(t *testing.T) {
+	dir := t.TempDir()
+	setupProject(t, dir)
+	if err := os.WriteFile(filepath.Join(dir, configloader.TypeScriptConfigFileName), []byte(`export default { project: { name: "ts-ext", id: "ts-ext" } };`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	srv := NewServerWithIO(dir, nil, nil)
+
+	params, _ := json.Marshal(map[string]any{
+		"name": "configure_project",
+		"arguments": map[string]any{
+			"project": map[string]any{"name": "json-ext"},
+		},
+	})
+	resp := srv.HandleSingleRequest(context.Background(), Request{
+		JSONRPC: "2.0",
+		ID:      53,
+		Method:  "tools/call",
+		Params:  params,
+	})
+
+	result := resp.Result.(map[string]any)
+	if result["isError"] != true {
+		t.Fatalf("expected configure_project to reject TypeScript config, got %v", result)
+	}
+	if _, err := os.Stat(filepath.Join(dir, configloader.JSONConfigFileName)); !os.IsNotExist(err) {
+		t.Fatalf("panex.config.json should not be written for TypeScript config: %v", err)
 	}
 }
 
@@ -450,5 +580,24 @@ func setupProject(t *testing.T, dir string) {
 	}
 	if err := graph.WriteToFile(g, root.ProjectGraphPath()); err != nil {
 		t.Fatal(err)
+	}
+}
+
+func decodeToolResult(t *testing.T, resp Response, out any) {
+	t.Helper()
+	if resp.Error != nil {
+		t.Fatalf("response error: %v", resp.Error)
+	}
+	result, ok := resp.Result.(map[string]any)
+	if !ok {
+		t.Fatalf("expected map result, got %T", resp.Result)
+	}
+	if result["isError"] != nil {
+		t.Fatalf("tool returned error: %v", result)
+	}
+	content := result["content"].([]map[string]any)
+	text := content[0]["text"].(string)
+	if err := json.Unmarshal([]byte(text), out); err != nil {
+		t.Fatalf("unmarshal tool result: %v\n%s", err, text)
 	}
 }
