@@ -11,7 +11,9 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
+	"time"
 
 	"github.com/panex-dev/panex/internal/capability"
 	"github.com/panex-dev/panex/internal/cli"
@@ -312,6 +314,15 @@ func (s *Server) toolDefinitions() []Tool {
 				"run_id": map[string]any{"type": "string", "description": "Specific run ID"},
 			},
 		}},
+		{Name: "query_run_history", Description: "Query run ledger history", InputSchema: map[string]any{
+			"type": "object",
+			"properties": map[string]any{
+				"limit":     map[string]any{"type": "integer", "description": "Maximum runs to return, capped at 100"},
+				"offset":    map[string]any{"type": "integer", "description": "Zero-based result offset"},
+				"status":    map[string]any{"type": "string", "description": "Filter by run status"},
+				"operation": map[string]any{"type": "string", "description": "Filter by operation"},
+			},
+		}},
 		{Name: "resume_run", Description: "Resume a paused or failed run", InputSchema: map[string]any{
 			"type": "object",
 			"properties": map[string]any{
@@ -362,6 +373,8 @@ func (s *Server) executeTool(ctx context.Context, name string, args map[string]a
 		return s.toolTest(ctx)
 	case "read_report":
 		return s.toolReadReport(args)
+	case "query_run_history":
+		return s.toolRunHistory(args)
 	case "repair_failure":
 		return s.toolRepair(ctx, args)
 	case "resume_run":
@@ -597,6 +610,128 @@ func (s *Server) toolReadReport(args map[string]any) (any, error) {
 	return run, nil
 }
 
+type runHistoryResult struct {
+	Runs       []runHistoryItem  `json:"runs"`
+	Total      int               `json:"total"`
+	Offset     int               `json:"offset"`
+	Limit      int               `json:"limit"`
+	NextOffset *int              `json:"next_offset,omitempty"`
+	Filters    map[string]string `json:"filters,omitempty"`
+}
+
+type runHistoryItem struct {
+	RunID       string           `json:"run_id"`
+	Operation   string           `json:"operation"`
+	Status      ledger.Status    `json:"status"`
+	StartedAt   string           `json:"started_at"`
+	CompletedAt string           `json:"completed_at,omitempty"`
+	Actor       ledger.Actor     `json:"actor"`
+	Steps       int              `json:"steps"`
+	Artifacts   int              `json:"artifacts"`
+	Reports     int              `json:"reports"`
+	Resumable   bool             `json:"resumable"`
+	Error       *ledger.RunError `json:"error,omitempty"`
+}
+
+func (s *Server) toolRunHistory(args map[string]any) (any, error) {
+	root, err := fsmodel.NewRoot(s.projectDir)
+	if err != nil {
+		return nil, err
+	}
+
+	limit := intArg(args, "limit", 20)
+	if limit < 1 {
+		limit = 20
+	}
+	if limit > 100 {
+		limit = 100
+	}
+
+	offset := intArg(args, "offset", 0)
+	if offset < 0 {
+		offset = 0
+	}
+
+	statusFilter := strings.TrimSpace(stringArg(args, "status"))
+	operationFilter := strings.TrimSpace(stringArg(args, "operation"))
+
+	entries, err := os.ReadDir(root.RunsRoot())
+	if os.IsNotExist(err) {
+		return runHistoryResult{Runs: []runHistoryItem{}, Total: 0, Offset: offset, Limit: limit, Filters: runHistoryFilters(statusFilter, operationFilter)}, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("read runs: %w", err)
+	}
+
+	items := make([]runHistoryItem, 0, len(entries))
+	for _, entry := range entries {
+		if !entry.IsDir() {
+			continue
+		}
+
+		run, err := ledger.ReadFromDir(root.RunDir(entry.Name()))
+		if err != nil {
+			return nil, fmt.Errorf("read run %s: %w", entry.Name(), err)
+		}
+		if statusFilter != "" && string(run.Status) != statusFilter {
+			continue
+		}
+		if operationFilter != "" && run.Operation != operationFilter {
+			continue
+		}
+
+		items = append(items, runHistoryItem{
+			RunID:       run.RunID,
+			Operation:   run.Operation,
+			Status:      run.Status,
+			StartedAt:   run.StartedAt,
+			CompletedAt: run.CompletedAt,
+			Actor:       run.Actor,
+			Steps:       len(run.Steps),
+			Artifacts:   len(run.Artifacts),
+			Reports:     len(run.Reports),
+			Resumable:   run.Resumable,
+			Error:       run.Error,
+		})
+	}
+
+	sort.Slice(items, func(i, j int) bool {
+		left, leftErr := time.Parse(time.RFC3339Nano, items[i].StartedAt)
+		right, rightErr := time.Parse(time.RFC3339Nano, items[j].StartedAt)
+		if leftErr == nil && rightErr == nil && !left.Equal(right) {
+			return left.After(right)
+		}
+		if items[i].StartedAt != items[j].StartedAt {
+			return items[i].StartedAt > items[j].StartedAt
+		}
+		return items[i].RunID > items[j].RunID
+	})
+
+	total := len(items)
+	if offset > total {
+		offset = total
+	}
+	end := offset + limit
+	if end > total {
+		end = total
+	}
+
+	var nextOffset *int
+	if end < total {
+		next := end
+		nextOffset = &next
+	}
+
+	return runHistoryResult{
+		Runs:       items[offset:end],
+		Total:      total,
+		Offset:     offset,
+		Limit:      limit,
+		NextOffset: nextOffset,
+		Filters:    runHistoryFilters(statusFilter, operationFilter),
+	}, nil
+}
+
 func (s *Server) toolRepair(_ context.Context, args map[string]any) (any, error) {
 	report := doctor.Run(doctor.Options{
 		ProjectDir: s.projectDir,
@@ -747,6 +882,48 @@ func (s *Server) resolveCapabilities(g *graph.Graph, adapters map[string]target.
 		Adapters:     adapters,
 	})
 	return matrix
+}
+
+func intArg(args map[string]any, name string, fallback int) int {
+	if args == nil {
+		return fallback
+	}
+	switch v := args[name].(type) {
+	case int:
+		return v
+	case int64:
+		return int(v)
+	case float64:
+		return int(v)
+	case json.Number:
+		i, err := v.Int64()
+		if err == nil {
+			return int(i)
+		}
+	}
+	return fallback
+}
+
+func stringArg(args map[string]any, name string) string {
+	if args == nil {
+		return ""
+	}
+	value, _ := args[name].(string)
+	return value
+}
+
+func runHistoryFilters(status, operation string) map[string]string {
+	filters := map[string]string{}
+	if status != "" {
+		filters["status"] = status
+	}
+	if operation != "" {
+		filters["operation"] = operation
+	}
+	if len(filters) == 0 {
+		return nil
+	}
+	return filters
 }
 
 func (s *Server) writeResponse(resp Response) {
