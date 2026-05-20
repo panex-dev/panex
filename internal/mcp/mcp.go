@@ -625,22 +625,37 @@ func (s *Server) toolResume(args map[string]any) (any, error) {
 		return nil, fmt.Errorf("cannot read run: %w", err)
 	}
 
-	if !run.Resumable {
-		return nil, fmt.Errorf("run %s is not resumable (status: %s)", runID, run.Status)
+	planPath := filepath.Join(s.projectDir, ".panex", "current.plan.json")
+	p, err := plan.ReadPlan(planPath)
+	if err != nil {
+		return nil, fmt.Errorf("no plan found: %w", err)
 	}
 
-	if err := run.Transition(ledger.StatusRunning); err != nil {
-		return nil, err
+	result := plan.Resume(context.Background(), lock.NewManager(root.StateRoot()), plan.ResumeInput{
+		ProjectDir: s.projectDir,
+		Run:        run,
+		Plan:       p,
+	})
+	if err := run.WriteToDir(root.RunDir(runID)); err != nil {
+		return nil, fmt.Errorf("write run: %w", err)
 	}
-	_ = run.Transition(ledger.StatusSucceeded)
-	_ = run.WriteToDir(root.RunDir(runID))
+	state, stateErr := root.ReadState()
+	if stateErr == nil {
+		state.LatestRunID = runID
+		if err := root.WriteState(state); err != nil {
+			return nil, fmt.Errorf("write state: %w", err)
+		}
+	}
+	if result.Status != "succeeded" {
+		return nil, fmt.Errorf("resume failed: %v", result.Errors)
+	}
 
 	return cli.Output{
 		Status:  "ok",
 		Command: "resume",
 		RunID:   runID,
-		Summary: fmt.Sprintf("resumed run %s", runID),
-		Data:    run,
+		Summary: fmt.Sprintf("resumed run %s with %d replayed steps", runID, len(result.Replayed)),
+		Data:    result,
 	}, nil
 }
 

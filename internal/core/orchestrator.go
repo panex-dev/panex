@@ -79,6 +79,16 @@ func (o *Orchestrator) Apply(ctx context.Context, input ApplyInput) (*plan.Apply
 		ManifestResult: manifestResult,
 		Force:          input.Force,
 	})
+	if result.RunID != "" {
+		state, stateErr := root.ReadState()
+		if stateErr == nil {
+			state.LatestRunID = result.RunID
+			if err := root.WriteState(state); err != nil {
+				result.Status = "failed"
+				result.Errors = append(result.Errors, fmt.Sprintf("write state: %v", err))
+			}
+		}
+	}
 
 	return result, nil
 }
