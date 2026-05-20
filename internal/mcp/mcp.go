@@ -296,6 +296,12 @@ func (s *Server) toolDefinitions() []Tool {
 				"force": map[string]any{"type": "boolean", "description": "Skip drift check"},
 			},
 		}},
+		{Name: "rollback_changes", Description: "Roll back recorded successful steps from a failed apply run", InputSchema: map[string]any{
+			"type": "object",
+			"properties": map[string]any{
+				"run_id": map[string]any{"type": "string", "description": "Run ID to roll back"},
+			},
+		}},
 		{Name: "verify_project", Description: "Run verification checks", InputSchema: obj},
 		{Name: "test_project", Description: "Run project tests and verification", InputSchema: obj},
 		{Name: "doctor_project", Description: "Diagnose project health", InputSchema: obj},
@@ -356,6 +362,8 @@ func (s *Server) executeTool(ctx context.Context, name string, args map[string]a
 		return s.toolPlan(ctx)
 	case "apply_changes":
 		return s.toolApply(ctx, args)
+	case "rollback_changes":
+		return s.toolRollback(ctx, args)
 	case "package_release":
 		return s.toolPackage(ctx)
 	case "test_project":
@@ -512,6 +520,60 @@ func (s *Server) toolApply(ctx context.Context, args map[string]any) (any, error
 	}
 
 	return result, nil
+}
+
+func (s *Server) toolRollback(ctx context.Context, args map[string]any) (any, error) {
+	root, err := fsmodel.NewRoot(s.projectDir)
+	if err != nil {
+		return nil, err
+	}
+
+	runID, _ := args["run_id"].(string)
+	if runID == "" {
+		state, err := root.ReadState()
+		if err != nil || state.LatestRunID == "" {
+			return nil, fmt.Errorf("no run to roll back")
+		}
+		runID = state.LatestRunID
+	}
+
+	run, err := ledger.ReadFromDir(root.RunDir(runID))
+	if err != nil {
+		return nil, fmt.Errorf("cannot read run: %w", err)
+	}
+
+	planPath := filepath.Join(s.projectDir, ".panex", "current.plan.json")
+	p, err := plan.ReadPlan(planPath)
+	if err != nil {
+		return nil, fmt.Errorf("no plan found: %w", err)
+	}
+
+	result := plan.Rollback(ctx, lock.NewManager(root.StateRoot()), plan.RollbackInput{
+		ProjectDir: s.projectDir,
+		Run:        run,
+		Plan:       p,
+	})
+	if err := run.WriteToDir(root.RunDir(runID)); err != nil {
+		return nil, fmt.Errorf("write run: %w", err)
+	}
+	state, stateErr := root.ReadState()
+	if stateErr == nil {
+		state.LatestRunID = runID
+		if err := root.WriteState(state); err != nil {
+			return nil, fmt.Errorf("write state: %w", err)
+		}
+	}
+	if result.Status == "failed" {
+		return nil, fmt.Errorf("rollback failed: %v", result.Errors)
+	}
+
+	return cli.Output{
+		Status:  "ok",
+		Command: "rollback",
+		RunID:   runID,
+		Summary: fmt.Sprintf("rolled back %d steps from run %s", len(result.RolledBack), runID),
+		Data:    result,
+	}, nil
 }
 
 func (s *Server) toolPackage(_ context.Context) (any, error) {
