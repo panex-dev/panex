@@ -18,12 +18,14 @@ The release descriptor is the stable bridge between packaging, future publishing
 - Updated `CmdPackage` to compile target manifests, compute verification summary, package artifacts, write `release.json`, write `artifacts.json`, and include descriptor data in JSON output.
 - Recorded descriptor paths in the package run ledger evidence.
 - Added descriptor package tests and CLI package-run coverage for emitted release evidence.
+- Raised the TypeScript config evaluation timeout from 15s to 30s after Windows CI proved the existing 15s limit was too tight for `TestLoad_TypeScriptConfig`.
 
 ## Risk and Mitigation
 
 - Risk: packaging could start depending on future publish behavior. Mitigation: the descriptor keeps `publish_metadata` explicit and null; publishing remains a separate operation.
 - Risk: downstream consumers could rely on unstable ad hoc fields. Mitigation: the schema version and JSON Schema document the current public contract.
 - Risk: verification hard blocks could make legacy package tests fail before artifact creation. Mitigation: package records the verification summary in the descriptor but does not use it as a new package gate in this PR.
+- Risk: raising the TypeScript config timeout could hide a truly wedged config evaluation. Mitigation: the limit remains finite and still returns a timeout error when exceeded.
 
 ## Verification
 
@@ -37,6 +39,7 @@ The release descriptor is the stable bridge between packaging, future publishing
 - `GOCACHE=/tmp/go-build make build` failed in the linked worktree because Go VCS stamping could not resolve repository status.
 - `GOFLAGS=-buildvcs=false GOCACHE=/tmp/go-build make build`
 - `./scripts/pr-ensure-rebased.sh`
+- `GOCACHE=/tmp/go-build go test ./internal/configloader -run TestLoad_TypeScriptConfig -count=1`
 
 ## Teach-Back
 
