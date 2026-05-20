@@ -212,6 +212,52 @@ func TestChrome_PackageArtifact_MissingSourceDir(t *testing.T) {
 	}
 }
 
+func TestChrome_PublishArtifact_DryRun(t *testing.T) {
+	artifactPath := filepath.Join(t.TempDir(), "extension.zip")
+	mustWrite(t, artifactPath, []byte("zip-bytes"))
+
+	c := NewChrome()
+	record, result := c.PublishArtifact(context.Background(), PublishOptions{
+		Target:       "chrome",
+		ArtifactPath: artifactPath,
+		ArtifactSHA:  "abc123",
+		ProfileRef:   "chrome-dev",
+		DryRun:       true,
+	})
+
+	if result.Outcome != Success {
+		t.Fatalf("expected success, got %s: %s", result.Outcome, result.Reason)
+	}
+	if record.Status != "dry_run" {
+		t.Fatalf("status: got %q, want dry_run", record.Status)
+	}
+	if record.RemoteReleaseID != "" {
+		t.Fatalf("dry run should not set remote release id: %q", record.RemoteReleaseID)
+	}
+	if len(record.Warnings) == 0 {
+		t.Fatal("expected dry-run warning")
+	}
+}
+
+func TestChrome_PublishArtifact_RequiresProfile(t *testing.T) {
+	artifactPath := filepath.Join(t.TempDir(), "extension.zip")
+	mustWrite(t, artifactPath, []byte("zip-bytes"))
+
+	c := NewChrome()
+	_, result := c.PublishArtifact(context.Background(), PublishOptions{
+		Target:       "chrome",
+		ArtifactPath: artifactPath,
+		DryRun:       true,
+	})
+
+	if result.Outcome != Blocked {
+		t.Fatalf("expected blocked, got %s", result.Outcome)
+	}
+	if result.ReasonCode != "publish_profile_required" {
+		t.Fatalf("reason_code: got %s", result.ReasonCode)
+	}
+}
+
 func TestChrome_InspectEnvironment(t *testing.T) {
 	c := NewChrome()
 	info, result := c.InspectEnvironment(context.Background())

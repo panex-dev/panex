@@ -275,6 +275,85 @@ func (c *Chrome) PackageArtifact(ctx context.Context, opts PackageOptions) (Arti
 	}
 }
 
+func (c *Chrome) PublishArtifact(ctx context.Context, opts PublishOptions) (PublishRecord, Result) {
+	record := PublishRecord{
+		Target:       "chrome",
+		ArtifactPath: opts.ArtifactPath,
+		ArtifactSHA:  opts.ArtifactSHA,
+		ProfileRef:   opts.ProfileRef,
+		PublishedAt:  time.Now().UTC().Format(time.RFC3339Nano),
+	}
+
+	select {
+	case <-ctx.Done():
+		return record, Result{
+			Adapter:    "chrome",
+			Operation:  "publishArtifact",
+			Outcome:    Blocked,
+			Reason:     ctx.Err().Error(),
+			ReasonCode: "publish_canceled",
+			Repairable: false,
+		}
+	default:
+	}
+
+	if strings.TrimSpace(opts.ProfileRef) == "" {
+		return record, Result{
+			Adapter:     "chrome",
+			Operation:   "publishArtifact",
+			Outcome:     Blocked,
+			Reason:      "publish profile reference is required",
+			ReasonCode:  "publish_profile_required",
+			Suggestions: []string{"pass profile_ref for the Chrome Web Store publish profile"},
+			Repairable:  false,
+		}
+	}
+
+	if strings.TrimSpace(opts.ArtifactPath) == "" {
+		return record, Result{
+			Adapter:    "chrome",
+			Operation:  "publishArtifact",
+			Outcome:    Blocked,
+			Reason:     "artifact_path is required",
+			ReasonCode: "artifact_path_required",
+		}
+	}
+	if _, err := os.Stat(opts.ArtifactPath); err != nil {
+		return record, Result{
+			Adapter:     "chrome",
+			Operation:   "publishArtifact",
+			Outcome:     NotAvailable,
+			Reason:      fmt.Sprintf("artifact not found: %v", err),
+			ReasonCode:  "artifact_not_found",
+			Suggestions: []string{"run package_release first or pass a valid artifact_path"},
+			Repairable:  true,
+		}
+	}
+
+	if opts.DryRun {
+		record.Status = "dry_run"
+		record.Warnings = []string{"dry run only; no remote upload performed"}
+		return record, Result{
+			Adapter:   "chrome",
+			Operation: "publishArtifact",
+			Outcome:   Success,
+			Details:   record,
+		}
+	}
+
+	record.Status = "blocked"
+	return record, Result{
+		Adapter:     "chrome",
+		Operation:   "publishArtifact",
+		Outcome:     Blocked,
+		Reason:      "Chrome Web Store publishing backend is not configured",
+		ReasonCode:  "chrome_publish_not_configured",
+		Suggestions: []string{"run with dry_run=true until a store backend is configured"},
+		Repairable:  false,
+		Details:     record,
+	}
+}
+
 // --- helpers ---
 
 func findChromeBinary() string {
