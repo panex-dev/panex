@@ -195,6 +195,232 @@ type InitOptions struct {
 	Targets []string
 }
 
+// ConfigureProjectInput is the structured patch accepted by configure_project.
+type ConfigureProjectInput struct {
+	Project       *ProjectConfigPatch          `json:"project,omitempty"`
+	Entries       map[string]EntryConfigPatch  `json:"entries,omitempty"`
+	Targets       map[string]TargetConfigPatch `json:"targets,omitempty"`
+	Capabilities  map[string]any               `json:"capabilities,omitempty"`
+	Runtime       *RuntimeConfigPatch          `json:"runtime,omitempty"`
+	Packaging     *PackagingConfigPatch        `json:"packaging,omitempty"`
+	Compatibility map[string]any               `json:"compatibility,omitempty"`
+	Features      map[string]any               `json:"features,omitempty"`
+	Publish       map[string]any               `json:"publish,omitempty"`
+}
+
+// ProjectConfigPatch modifies stable project identity fields.
+type ProjectConfigPatch struct {
+	Name        *string `json:"name,omitempty"`
+	ID          *string `json:"id,omitempty"`
+	DisplayName *string `json:"display_name,omitempty"`
+	Description *string `json:"description,omitempty"`
+	RepoRoot    *string `json:"repo_root,omitempty"`
+	Workspace   *string `json:"workspace,omitempty"`
+}
+
+// EntryConfigPatch modifies an entry declaration.
+type EntryConfigPatch struct {
+	Path       *string  `json:"path,omitempty"`
+	ModuleType *string  `json:"module_type,omitempty"`
+	Conditions []string `json:"conditions,omitempty"`
+	Targets    []string `json:"targets,omitempty"`
+}
+
+// TargetConfigPatch modifies a target declaration.
+type TargetConfigPatch struct {
+	Enabled  *bool          `json:"enabled,omitempty"`
+	Manifest map[string]any `json:"manifest,omitempty"`
+}
+
+// RuntimeConfigPatch modifies dev runtime behavior.
+type RuntimeConfigPatch struct {
+	BridgeAuth     *string `json:"bridge_auth,omitempty"`
+	ProfileReuse   *bool   `json:"profile_reuse,omitempty"`
+	LogVerbosity   *string `json:"log_verbosity,omitempty"`
+	TraceEnabled   *bool   `json:"trace_enabled,omitempty"`
+	ReloadStrategy *string `json:"reload_strategy,omitempty"`
+}
+
+// PackagingConfigPatch modifies packaging behavior.
+type PackagingConfigPatch struct {
+	OutputDir     *string `json:"output_dir,omitempty"`
+	ArtifactName  *string `json:"artifact_name,omitempty"`
+	VersionSource *string `json:"version_source,omitempty"`
+	Version       *string `json:"version,omitempty"`
+}
+
+// ConfigureProject updates JSON-authored Panex config fields and refreshes
+// the derived project graph.
+func ConfigureProject(projectDir string, input ConfigureProjectInput) (Output, error) {
+	if !input.hasChanges() {
+		return Output{}, fmt.Errorf("at least one config field is required")
+	}
+
+	root, err := fsmodel.NewRoot(projectDir)
+	if err != nil {
+		return Output{}, err
+	}
+	if err := root.Init(); err != nil {
+		return Output{}, fmt.Errorf("init state: %w", err)
+	}
+
+	loaded, bootstrapped, err := loadOrBootstrapProjectConfig(projectDir)
+	if err != nil {
+		return Output{}, err
+	}
+	if !bootstrapped && strings.HasSuffix(loaded.SourcePath, configloader.TypeScriptConfigFileName) {
+		return Output{}, fmt.Errorf("configure-project cannot rewrite %s; update the TypeScript config manually", configloader.TypeScriptConfigFileName)
+	}
+
+	cfg := loaded.Config
+	if err := applyConfigureProjectInput(cfg, input); err != nil {
+		return Output{}, err
+	}
+
+	configPath := filepath.Join(projectDir, configloader.JSONConfigFileName)
+	if err := configloader.WriteToFile(cfg, configPath); err != nil {
+		return Output{}, fmt.Errorf("write config: %w", err)
+	}
+
+	g, err := rebuildProjectGraph(projectDir, root)
+	if err != nil {
+		return Output{}, err
+	}
+
+	return Output{
+		Status:  "ok",
+		Command: "configure-project",
+		Summary: "updated project config and refreshed graph",
+		Data: map[string]any{
+			"config_path":         configPath,
+			"graph_path":          root.ProjectGraphPath(),
+			"targets_requested":   g.TargetsRequested,
+			"targets_resolved":    g.TargetsResolved,
+			"config_bootstrapped": bootstrapped,
+		},
+		Next: []string{"panex plan", "panex verify"},
+	}, nil
+}
+
+func (input ConfigureProjectInput) hasChanges() bool {
+	return input.Project != nil ||
+		input.Entries != nil ||
+		input.Targets != nil ||
+		input.Capabilities != nil ||
+		input.Runtime != nil ||
+		input.Packaging != nil ||
+		input.Compatibility != nil ||
+		input.Features != nil ||
+		input.Publish != nil
+}
+
+func applyConfigureProjectInput(cfg *configloader.Config, input ConfigureProjectInput) error {
+	if input.Project != nil {
+		applyStringPatch(&cfg.Project.Name, input.Project.Name)
+		applyStringPatch(&cfg.Project.ID, input.Project.ID)
+		applyStringPatch(&cfg.Project.DisplayName, input.Project.DisplayName)
+		applyStringPatch(&cfg.Project.Description, input.Project.Description)
+		applyStringPatch(&cfg.Project.RepoRoot, input.Project.RepoRoot)
+		applyStringPatch(&cfg.Project.Workspace, input.Project.Workspace)
+	}
+
+	if input.Entries != nil {
+		if cfg.Entries == nil {
+			cfg.Entries = make(map[string]configloader.EntryConfig)
+		}
+		for name, patch := range input.Entries {
+			name = strings.TrimSpace(name)
+			if name == "" {
+				return fmt.Errorf("entry name is required")
+			}
+			entry := cfg.Entries[name]
+			applyStringPatch(&entry.Path, patch.Path)
+			applyStringPatch(&entry.ModuleType, patch.ModuleType)
+			if patch.Conditions != nil {
+				entry.Conditions = append([]string{}, patch.Conditions...)
+			}
+			if patch.Targets != nil {
+				entry.Targets = append([]string{}, patch.Targets...)
+			}
+			if strings.TrimSpace(entry.Path) == "" {
+				return fmt.Errorf("entry %q path is required", name)
+			}
+			cfg.Entries[name] = entry
+		}
+	}
+
+	if input.Targets != nil {
+		if cfg.Targets == nil {
+			cfg.Targets = make(configloader.TargetConfigMap)
+		}
+		for name, patch := range input.Targets {
+			name = strings.TrimSpace(name)
+			if name == "" {
+				return fmt.Errorf("target name is required")
+			}
+			if !isKnownTarget(name) {
+				return fmt.Errorf("unknown target %q (known targets: %s)", name, strings.Join(knownTargets(), ", "))
+			}
+			targetCfg, existed := cfg.Targets[name]
+			if patch.Enabled != nil {
+				targetCfg.Enabled = *patch.Enabled
+			} else if !existed {
+				targetCfg.Enabled = true
+			}
+			if patch.Manifest != nil {
+				targetCfg.Manifest = patch.Manifest
+			}
+			cfg.Targets[name] = targetCfg
+		}
+	}
+
+	if input.Capabilities != nil {
+		cfg.Capabilities = input.Capabilities
+	}
+	if input.Runtime != nil {
+		applyStringPatch(&cfg.Runtime.BridgeAuth, input.Runtime.BridgeAuth)
+		applyBoolPatch(&cfg.Runtime.ProfileReuse, input.Runtime.ProfileReuse)
+		applyStringPatch(&cfg.Runtime.LogVerbosity, input.Runtime.LogVerbosity)
+		applyBoolPatch(&cfg.Runtime.TraceEnabled, input.Runtime.TraceEnabled)
+		applyStringPatch(&cfg.Runtime.ReloadStrategy, input.Runtime.ReloadStrategy)
+	}
+	if input.Packaging != nil {
+		applyStringPatch(&cfg.Packaging.OutputDir, input.Packaging.OutputDir)
+		applyStringPatch(&cfg.Packaging.ArtifactName, input.Packaging.ArtifactName)
+		applyStringPatch(&cfg.Packaging.VersionSource, input.Packaging.VersionSource)
+		applyStringPatch(&cfg.Packaging.Version, input.Packaging.Version)
+	}
+	if input.Compatibility != nil {
+		cfg.Compatibility = input.Compatibility
+	}
+	if input.Features != nil {
+		cfg.Features = input.Features
+	}
+	if input.Publish != nil {
+		cfg.Publish = input.Publish
+	}
+
+	if strings.TrimSpace(cfg.Project.Name) == "" {
+		return fmt.Errorf("project.name is required")
+	}
+	if strings.TrimSpace(cfg.Project.ID) == "" {
+		return fmt.Errorf("project.id is required")
+	}
+	return nil
+}
+
+func applyStringPatch(dst *string, value *string) {
+	if value != nil {
+		*dst = strings.TrimSpace(*value)
+	}
+}
+
+func applyBoolPatch(dst *bool, value *bool) {
+	if value != nil {
+		*dst = *value
+	}
+}
+
 // AddTarget updates the authored config, policy, and derived graph to include
 // the requested target platform.
 func AddTarget(projectDir string, targetName string) (Output, error) {
