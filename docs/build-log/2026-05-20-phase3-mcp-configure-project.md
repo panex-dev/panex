@@ -18,12 +18,14 @@ The Phase 1 gap inventory still listed programmatic project configuration as a d
 - Config patches update typed project, entry, target, runtime, and packaging fields, plus object-shaped capabilities, compatibility, features, and publish sections.
 - Successful updates write `panex.config.json`, rebuild `.panex/project.graph.json`, and return config/graph paths plus target summaries.
 - MCP tests cover tool registration, JSON config bootstrapping, graph refresh, boolean false patching, and TypeScript config rejection.
+- Raised TypeScript config evaluation timeout from 15s to 30s after Windows CI showed `TestLoad_TypeScriptConfig` timing out under `go test -race` before this PR's MCP tests completed.
 
 ## Risk and Mitigation
 
 - Risk: broad config mutation could hide accidental no-op calls. Mitigation: the helper rejects empty patches.
 - Risk: agents could overwrite TypeScript-authored config with generated JSON. Mitigation: the helper rejects `panex.config.ts` rewrites and leaves the source untouched.
 - Risk: stale graph state after config edits. Mitigation: every successful configure call rebuilds the graph using the existing config loader, inspector, and graph builder path.
+- Risk: Windows CI TypeScript config evaluation may exceed the old 15s budget under race builds. Mitigation: the config loader now uses the same 30s evaluation budget exercised by this PR's CI rerun.
 
 ## Verification
 
@@ -35,6 +37,12 @@ The Phase 1 gap inventory still listed programmatic project configuration as a d
 - `GOFLAGS=-buildvcs=false GOCACHE=/tmp/go-build GOLANGCI_LINT_CACHE=/tmp/golangci-lint make lint`
 - `GOCACHE=/tmp/go-build make test`
 - `GOCACHE=/tmp/go-build make build` failed in this linked worktree before building package bodies because Go VCS stamping returned `error obtaining VCS status: exit status 128`; reran the same build gate with VCS stamping disabled.
+- `GOFLAGS=-buildvcs=false GOCACHE=/tmp/go-build make build`
+- CI follow-up after first push: Windows `go-test` failed in `internal/configloader.TestLoad_TypeScriptConfig` with `evaluate config: timed out after 15s`; the timeout was raised to 30s and the branch was reverified.
+- `GOCACHE=/tmp/go-build go test ./internal/configloader -run TestLoad_TypeScriptConfig -count=1`
+- `GOCACHE=/tmp/go-build go test ./internal/mcp -run 'TestToolsList|TestToolConfigureProject' -count=1`
+- `GOFLAGS=-buildvcs=false GOCACHE=/tmp/go-build GOLANGCI_LINT_CACHE=/tmp/golangci-lint make lint`
+- `GOCACHE=/tmp/go-build make test`
 - `GOFLAGS=-buildvcs=false GOCACHE=/tmp/go-build make build`
 
 ## Teach-Back
