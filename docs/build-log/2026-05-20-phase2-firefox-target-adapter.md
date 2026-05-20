@@ -17,12 +17,14 @@ The target model distinguishes packaging targets from runtime browser brands. Ch
 - Registered Firefox in `target.DefaultRegistry()` so CLI, capability, and manifest paths can resolve `firefox` without per-call special wiring.
 - Added Firefox target tests plus manifest and capability coverage for multi-target host permissions.
 - Updated the `add-target firefox` CLI expectation because Firefox is now a supported resolved target, not an unresolved requested target.
+- Raised the TypeScript config evaluation timeout from 15s to 30s after Windows CI proved the existing limit is too tight for `TestLoad_TypeScriptConfig`.
 
 ## Risk and Mitigation
 
 - Risk: Firefox manifest generation could accidentally use Chrome-only MV3 fields. Mitigation: Firefox tests assert MV2 `background.scripts`, `browser_action`, and `sidebar_action` output.
 - Risk: host permissions could be lost because Firefox MV2 stores them inside `permissions`. Mitigation: adapter tests and manifest compiler tests assert host permissions are included in the manifest while still reported separately in compiler output.
 - Risk: enabling Firefox in the default registry changes CLI `add-target` behavior. Mitigation: CLI tests now assert Firefox resolves without warnings and appears in `TargetsResolved`.
+- Risk: raising the TypeScript config timeout could delay a truly wedged config evaluation. Mitigation: the timeout remains finite and still returns a structured timeout error.
 
 ## Verification
 
@@ -39,6 +41,7 @@ The target model distinguishes packaging targets from runtime browser brands. Ch
 - `GOCACHE=/tmp/go-build make build` failed in the linked worktree because Go VCS stamping could not resolve repository status.
 - `GOFLAGS=-buildvcs=false GOCACHE=/tmp/go-build make build`
 - `./scripts/pr-ensure-rebased.sh`
+- `GOCACHE=/tmp/go-build go test ./internal/configloader -run TestLoad_TypeScriptConfig -count=1`
 
 ## Teach-Back
 

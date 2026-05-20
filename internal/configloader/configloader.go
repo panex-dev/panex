@@ -98,7 +98,7 @@ const (
 var (
 	execLookPath                = exec.LookPath
 	commandExec                 = exec.CommandContext
-	typeScriptConfigEvalTimeout = 15 * time.Second
+	typeScriptConfigEvalTimeout = 30 * time.Second
 )
 
 // Load searches for and loads a Panex config from the project directory.
