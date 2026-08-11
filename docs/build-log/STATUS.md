@@ -152,6 +152,7 @@ As of 2026-08-11.
 | — | Phase 2 config loader: evaluate `panex.config.ts` via esbuild + Node, and guard JSON-only config mutations | `docs/build-log/2026-05-10-phase2-typescript-config-evaluation.md` |
 | — | Phase 2 CLI surface: add global `--json` output mode across top-level command surfaces | `docs/build-log/2026-05-10-phase2-cli-json-flag.md` |
 | — | Dependency verification follow-up: Go 1.25.12 standard-library fixes and inspector `seroval` audit fix | `docs/build-log/2026-08-11-go-1.25.12-govulncheck.md` |
+| — | Configloader CI hardening: widen TypeScript config evaluation timeout for Windows race runs | `docs/build-log/2026-08-11-configloader-windows-timeout.md` |
 
 ## In progress
 - None.
