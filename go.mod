@@ -1,6 +1,6 @@
 module github.com/panex-dev/panex
 
-go 1.25.10
+go 1.25.12
 
 require (
 	github.com/BurntSushi/toml v1.4.0
