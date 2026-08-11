@@ -1,6 +1,6 @@
 # Build Status Tracker
 
-As of 2026-05-10.
+As of 2026-08-11.
 
 ## Completed
 | PR | Scope | Evidence |
@@ -151,6 +151,7 @@ As of 2026-05-10.
 | — | Phase 2 CLI + MCP surface: add `add-target` / `add_target` with config bootstrap, graph refresh, and policy sync | `docs/build-log/2026-05-10-phase2-add-target-command.md` |
 | — | Phase 2 config loader: evaluate `panex.config.ts` via esbuild + Node, and guard JSON-only config mutations | `docs/build-log/2026-05-10-phase2-typescript-config-evaluation.md` |
 | — | Phase 2 CLI surface: add global `--json` output mode across top-level command surfaces | `docs/build-log/2026-05-10-phase2-cli-json-flag.md` |
+| — | Dependency verification follow-up: Go 1.25.12 standard-library fixes and inspector `seroval` audit fix | `docs/build-log/2026-08-11-go-1.25.12-govulncheck.md` |
 
 ## In progress
 - None.
