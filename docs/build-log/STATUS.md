@@ -153,6 +153,7 @@ As of 2026-08-11.
 | — | Phase 2 CLI surface: add global `--json` output mode across top-level command surfaces | `docs/build-log/2026-05-10-phase2-cli-json-flag.md` |
 | — | Dependency verification follow-up: Go 1.25.12 standard-library fixes and inspector `seroval` audit fix | `docs/build-log/2026-08-11-go-1.25.12-govulncheck.md` |
 | — | Configloader CI hardening: widen TypeScript config evaluation timeout for Windows race runs | `docs/build-log/2026-08-11-configloader-windows-timeout.md` |
+| — | Product docs: rewrite root README around the current Panex CLI, project automation, MCP, and Chrome dev-loop split | `docs/build-log/2026-08-11-readme-current-panex.md` |
 
 ## In progress
 - None.

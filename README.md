@@ -1,68 +1,156 @@
 # Panex
 
-Panex is a development runtime for Chrome extensions. It watches an unpacked extension source tree, rebuilds it into a separate output directory, serves a local daemon for browser tooling, and captures runtime activity for inspection and replay.
+Panex is an agent-oriented engineering runtime for browser extensions. It gives humans and coding agents a shared project model, a plan/apply workflow for extension changes, target-aware manifest generation, local health checks, release packaging, and a Chrome development bridge.
 
-> **Status:** Early development. Not usable yet.
+> **Status:** Early development. The Chrome extension dev loop is usable for local projects, and the newer project automation/MCP surface is active but still moving.
 
-## What It Is
+## What Panex Does
 
-- A local CLI runtime, not a desktop GUI app.
-- A build-and-watch loop for Chrome extension source code.
-- A loopback daemon that browser tooling connects to over WebSocket.
-- A foundation for inspecting extension events, storage activity, and replayable runtime probes.
+- Inspects JavaScript and TypeScript extension projects and records a normalized `.panex/project.graph.json`.
+- Plans and applies generated extension changes with drift checks, run logs, rollback-on-failure inside apply, and project locks.
+- Compiles target-specific manifests from declared capabilities. Chrome is the implemented target adapter today.
+- Packages extension artifacts and records run reports under `.panex/runs/`.
+- Runs a local Chrome extension build/watch loop with a loopback WebSocket daemon, Dev Agent integration, inspector UI, storage tooling, runtime probes, and replay-oriented event history.
+- Exposes the same project operations over a stdio MCP server so agents can inspect, plan, apply, verify, repair, package, report, and start dev sessions through tools.
 
-## Install Or Download
+## Install
 
-Download the latest prerelease from the GitHub releases page or build from source with the contributor workflow in [CONTRIBUTING.md](./CONTRIBUTING.md).
+Download a prerelease from GitHub Releases, install from the supported package channel for your OS, or build from source with the contributor workflow in [CONTRIBUTING.md](./CONTRIBUTING.md).
 
-The CLI surface today is:
+On Windows, run `panex.exe` from PowerShell or Command Prompt. Panex is a CLI runtime, not a desktop GUI.
+
+## CLI Surface
 
 ```text
-panex version
-panex init [--force]
-panex dev [--config path/to/panex.toml] [--open]
-panex doctor
-panex paths
+panex [--cwd path] [--json] version
+panex [--cwd path] [--json] init [--force]
+panex [--cwd path] [--json] add-target <target>
+panex [--cwd path] [--json] inspect
+panex [--cwd path] [--json] plan
+panex [--cwd path] [--json] apply [--force]
+panex [--cwd path] [--json] dev [--config path/to/panex.toml] [--open]
+panex [--cwd path] [--json] test
+panex [--cwd path] [--json] verify
+panex [--cwd path] [--json] package [--version v0.1.0]
+panex [--cwd path] [--json] report [--run-id id]
+panex [--cwd path] [--json] resume [--run-id id]
+panex [--cwd path] [--json] doctor [--fix]
+panex [--cwd path] [--json] paths
+panex [--cwd path] [--json] mcp
 ```
 
-- `panex doctor` checks your config, paths, and WSL environment for common issues.
-- `panex paths` prints the resolved source and output directories.
-- `--open` launches `chrome://extensions` in your default browser after the dev server starts.
+- `--cwd` points Panex at a project directory without changing your shell location.
+- `--json` returns command envelopes for automation and agent callers.
+- `panex mcp` starts the stdio MCP server.
 
-On Windows, run `panex.exe` from PowerShell or Command Prompt. Double-clicking it will not open a GUI.
+## Quick Start: Chrome Dev Loop
 
-## Quick Start
-
-1. Put `panex` on your machine and open a terminal in an empty working folder.
-2. Run:
+Use this when you want Panex to scaffold, build, watch, and reload a local Chrome extension.
 
 ```bash
 panex init
+panex dev --open
 ```
 
-3. Start the runtime:
-
-```bash
-panex dev
-```
-
-4. Open `chrome://extensions`, enable Developer Mode, choose `Load unpacked`, and select:
+Then open `chrome://extensions`, enable Developer Mode, choose `Load unpacked`, and select:
 
 ```text
 .panex/dist
 ```
 
-5. Click the loaded starter extension to confirm the generated popup works.
+`panex init` writes a starter Chrome extension and a `panex.toml` file:
 
-`panex init` writes:
+```text
+panex.toml
+panex-extension/manifest.json
+panex-extension/background.js
+panex-extension/popup.html
+panex-extension/popup.js
+```
 
-- `panex.toml`
-- `panex-extension/manifest.json`
-- `panex-extension/background.js`
-- `panex-extension/popup.html`
-- `panex-extension/popup.js`
+For an existing unpacked Chrome extension, run Panex from the directory containing `manifest.json`; if there is no `panex.toml`, `panex dev` infers `source_dir = "."` and `out_dir = ".panex/dist"`.
 
-Starter config created by `panex init`:
+Useful checks:
+
+```bash
+panex paths
+panex doctor
+```
+
+## Quick Start: Project Automation
+
+Use this when you want Panex to inspect a project, build a graph, plan generated changes, apply them, verify the result, and package artifacts.
+
+```bash
+panex inspect
+panex add-target chrome
+panex plan
+panex apply
+panex verify
+panex package --version v0.1.0
+panex report
+```
+
+Panex stores automation state in `.panex/`, including the project graph, policy, current plan, run ledger, generated manifests, session metadata, and package artifacts.
+
+Project automation reads `panex.config.ts` first, then `panex.config.json`. If neither exists, Panex can infer a graph from the project structure and `add-target` can bootstrap a JSON config. `add-target` cannot rewrite a TypeScript-authored config; update `panex.config.ts` manually in that case.
+
+Minimal `panex.config.json`:
+
+```json
+{
+  "project": {
+    "name": "my-extension",
+    "id": "my-extension"
+  },
+  "entries": {
+    "background": { "path": "src/background.ts" },
+    "popup": { "path": "src/popup.ts" }
+  },
+  "targets": {
+    "chrome": { "enabled": true }
+  },
+  "capabilities": {
+    "storage": true,
+    "tabs": true
+  }
+}
+```
+
+## MCP Server
+
+`panex mcp` exposes Panex over JSON-RPC stdio. Current tools include:
+
+```text
+inspect_project
+initialize_project
+add_target
+plan_changes
+apply_changes
+verify_project
+test_project
+doctor_project
+repair_failure
+package_release
+read_report
+resume_run
+start_dev_session
+```
+
+Current resources include:
+
+```text
+panex://project/graph
+panex://project/config-lock
+panex://environment
+panex://runs/latest
+```
+
+## Chrome Dev Configuration
+
+The Chrome dev loop uses `panex.toml`.
+
+Single extension:
 
 ```toml
 [extension]
@@ -71,13 +159,11 @@ out_dir = ".panex/dist"
 
 [server]
 port = 4317
-auth_token = "dev-token"
+auth_token = "replace-this-dev-token"
 event_store_path = ".panex/events.db"
 ```
 
-Multi-extension config (**partial support**):
-
-> **Experimental.** Build, watch, and reload targeting work per-extension. However, per-extension runtime and storage isolation is not complete yet — the inspector still shows one shared event stream and events from different extensions share the same store. Set up multi-extension configs with this limitation in mind.
+Multiple extension build/watch targets:
 
 ```toml
 [[extensions]]
@@ -96,101 +182,30 @@ auth_token = "replace-this-dev-token"
 event_store_path = ".panex/events.db"
 ```
 
-When Panex starts successfully, it stays running and prints the local daemon URL:
+Multi-extension build, watch, and reload routing are supported. Runtime and storage isolation are still shared in some inspector surfaces.
 
-```text
-panex dev
-ws_url=ws://127.0.0.1:4317/ws
-```
+Config rules:
 
-## How To Use It
+- Use either `[extension]` or `[[extensions]]`, not both.
+- `source_dir` and `out_dir` are required and must not overlap.
+- Multi-extension IDs must be unique.
+- `server.port` must be between `1024` and `65535`.
+- `server.auth_token` is required; `PANEX_AUTH_TOKEN` can override it at runtime for `panex dev`.
 
-### 1. Point Panex at an extension source tree
+## Supported Chrome Runtime Surface
 
-`panex init` is the fastest path for a first run. It scaffolds a visible starter extension and the default `panex.toml` in the current directory.
-
-If you already have an extension project, `[extension].source_dir` must point at that unpacked Chrome extension directory. Panex watches that tree, bundles extension entrypoints, rewrites HTML surfaces, and copies non-bundled assets such as `manifest.json` into `[extension].out_dir`.
-
-For more than one extension target, switch to `[[extensions]]` and give each entry a unique `id`. Panex then runs one build/watch loop per configured target and tags `build.complete` and `command.reload` events with that `id`.
-
-### 2. Start the local runtime
-
-Run:
-
-```bash
-panex dev
-```
-
-Or point at a different config file:
-
-```bash
-panex dev --config path/to/panex.toml
-```
-
-If you want Panex to regenerate the default starter files, rerun:
-
-```bash
-panex init --force
-```
-
-### 3. Load the built extension in Chrome
-
-Open `chrome://extensions`, enable Developer Mode, choose `Load unpacked`, and select the `out_dir` from your config.
-
-For a multi-extension config, load each generated output directory separately.
-
-### 4. Verify basic behavior
-
-- `panex version` prints the installed version.
-- `panex dev` keeps running instead of exiting.
-- The configured `out_dir` contains your built extension output, including `manifest.json`.
-- The daemon prints `ws_url=...` so browser tooling can connect locally.
-
-For multi-extension configs:
-
-- each configured `out_dir` is built independently
-- reload messages are targeted by extension `id`
-- dev-agent and `chrome-sim` clients must present the matching extension ID for non-default targets
-
-## Supported Chrome APIs
-
-Panex includes a Chrome API simulator (`chrome-sim`) for use in preview and testing contexts. The following APIs are currently supported:
+The browser-side simulator currently supports:
 
 - `chrome.runtime.sendMessage` / `chrome.runtime.onMessage`
 - `chrome.tabs.query`
-- `chrome.storage.local` / `chrome.storage.sync` / `chrome.storage.session` (get, set, remove, clear, getBytesInUse)
+- `chrome.storage.local` / `chrome.storage.sync` / `chrome.storage.session`
 - `chrome.storage.onChanged`
 
-Other Chrome extension APIs (`chrome.action`, `chrome.scripting`, `chrome.alarms`, `chrome.notifications`, `chrome.contextMenus`, `chrome.identity`, `chrome.webRequest`, etc.) are not yet implemented and will return an "unsupported" error from the daemon. This surface is expected to grow over time.
-
-## Config Reference
-
-- `[extension].source_dir`: required path to the unpacked extension source tree that Panex watches and rebuilds. `panex init` creates `panex-extension` for the default single-extension path.
-- `[extension].out_dir`: required build output directory. It must not overlap `source_dir`.
-- `[[extensions]].id`: required unique identifier for a multi-extension target.
-- `[[extensions]].source_dir`: required source directory for that target.
-- `[[extensions]].out_dir`: required build output directory for that target.
-- `[server].port`: required TCP port for the local daemon. Use any value from `1` to `65535`.
-- `[server].auth_token`: required shared secret for local WebSocket clients. Clients send this token during the `hello` handshake.
-- `[server].event_store_path`: optional SQLite path for the event log. If omitted, Panex defaults it to `.panex/events.db`.
-
-Runtime override:
-
-- Set `PANEX_AUTH_TOKEN` before `panex dev` to override `server.auth_token` without editing `panex.toml`.
-- If `PANEX_AUTH_TOKEN` is set, it must be non-empty after trimming whitespace.
-
-Validation rules:
-
-- Unknown config keys are rejected.
-- Empty required values are rejected.
-- Use either `[extension]` or `[[extensions]]`, not both.
-- `source_dir` and `out_dir` cannot be the same directory or nested inside each other.
-- Multi-extension targets must use unique IDs.
-- Multi-extension source and output paths must not overlap each other.
+Other Chrome extension APIs may be recognized as capabilities for manifest generation, but they are not all implemented in the runtime simulator.
 
 ## Release Verification
 
-After downloading a release archive, download the matching `panex_<version>_SHA256SUMS` file from the same GitHub release and verify the specific asset you fetched.
+After downloading a release archive, download the matching `panex_<version>_SHA256SUMS` file from the same GitHub release and verify the asset you fetched.
 
 Linux:
 
